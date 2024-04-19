@@ -1,8 +1,6 @@
 use zmq::Context;
 use serde::{Serialize, Deserialize};
 
-use std::{thread, time};
-
 #[derive(Debug, Serialize, Deserialize)]
 enum EventType {
     IO,
