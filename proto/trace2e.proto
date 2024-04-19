@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package trace2e;
+
+service Trace2e {
+    rpc CtEvent(Ct) returns (Ack);
+    rpc IoEvent(Io) returns (Ack);
+}
+
+message Ct {
+    int32 file_descriptor = 1;
+    string container = 2;
+    string resource_identifier = 3;
+    bool input = 4;
+    bool output = 5;
+    bool remote = 6;
+}
+
+message Io {
+    int32 file_descriptor = 1;
+    string container = 2;
+    string method = 3;
+}
+
+
+message Ack {
+    bool authorization = 1;
+}
