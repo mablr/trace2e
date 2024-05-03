@@ -4,25 +4,30 @@ package trace2e;
 
 service Trace2e {
     rpc CtEvent(Ct) returns (Ack);
-    rpc IoEvent(Io) returns (Ack);
+    rpc IoEvent(Io) returns (Grant);
+    rpc DoneIoEvent(Io) returns (Ack);
 }
 
 message Ct {
-    int32 file_descriptor = 1;
-    string container = 2;
-    string resource_identifier = 3;
-    bool input = 4;
-    bool output = 5;
-    bool remote = 6;
+    uint32 process_id = 1;
+    int32 file_descriptor = 2;
+    string container = 3;
+    string resource_identifier = 4;
+    bool input = 5;
+    bool output = 6;
+    bool remote = 7;
 }
 
 message Io {
-    int32 file_descriptor = 1;
-    string container = 2;
-    string method = 3;
+    uint32 process_id = 1;
+    int32 file_descriptor = 2;
+    string container = 3;
+    string method = 4;
 }
 
+message Grant {
+    int32 file_descriptor = 1;
+}
 
 message Ack {
-    bool authorization = 1;
 }
