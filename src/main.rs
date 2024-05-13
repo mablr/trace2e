@@ -1,7 +1,7 @@
 use tonic::{transport::Server, Request, Response, Status};
 use trace2e::{Ct, Io, Grant, Ack, trace2e_server::{Trace2e, Trace2eServer}};
 use std::sync::Arc;
-use tokio::sync::{Mutex, watch, RwLock};
+use tokio::sync::{Mutex, oneshot, RwLock};
 use std::collections::{HashMap, VecDeque};
 
 pub mod trace2e {
@@ -11,14 +11,14 @@ pub mod trace2e {
 #[derive(Debug)]
 pub struct Trace2eService {
     containers: Arc<RwLock<HashMap<i32, bool>>>,
-    containers_watcher: Arc<Mutex<HashMap<i32, VecDeque<watch::Sender<bool>>>>>,
+    containers_handler: Arc<Mutex<HashMap<i32, VecDeque<oneshot::Sender<()>>>>>,
 }
 
 impl Trace2eService {
     pub fn new() -> Self {
         Trace2eService { 
             containers: Arc::new(RwLock::new(HashMap::new())),
-            containers_watcher: Arc::new(Mutex::new(HashMap::new()))
+            containers_handler: Arc::new(Mutex::new(HashMap::new()))
         }
     }
 }
@@ -45,7 +45,7 @@ impl Trace2e for Trace2eService {
         println!("PID: {} | IO Event Requested: FD {} | {} on {}", r.process_id, r.file_descriptor, r.method, r.container);
 
         let containers = self.containers.read().await;
-        let mut containers_watcher = self.containers_watcher.lock().await;
+        let mut containers_handler = self.containers_handler.lock().await;
 
         if let Some(available) = containers.get(&r.file_descriptor) {
             // CT is already the track list
@@ -57,25 +57,25 @@ impl Trace2e for Trace2eService {
                 containers.insert(r.file_descriptor.clone(), false);
             } else {
                 // CT is reserved
-                // Set up a watcher to be notified when it becomes available
-                let (tx, mut rx) = watch::channel(false);
+                // Set up a oneshot channel to be notified when it becomes available
+                let (tx, rx) = oneshot::channel();
 
-                // Queuing the watcher
-                if let Some(process_queue) = containers_watcher.get_mut(&r.file_descriptor) {
-                    process_queue.push_back(tx);
+                // Queuing the channel
+                if let Some(queue) = containers_handler.get_mut(&r.file_descriptor) {
+                    queue.push_back(tx);
                 } else {
-                    let mut process_queue = VecDeque::new();
-                    process_queue.push_back(tx);
-                    containers_watcher.insert(r.file_descriptor.clone(), process_queue);
+                    let mut queue = VecDeque::new();
+                    queue.push_back(tx);
+                    containers_handler.insert(r.file_descriptor.clone(), queue);
                 }
                 
                 // Release the locks before waiting to avoid deadlock
                 drop(containers);
-                drop(containers_watcher);
+                drop(containers_handler);
 
                 // Wait until the CT becomes available
                 println!("-> Wait a bit PID {}", r.process_id);
-                rx.changed().await.unwrap();
+                rx.await.unwrap();
 
                 // CT is now available, set it as reserved
                 let mut containers = self.containers.write().await;
@@ -97,17 +97,17 @@ impl Trace2e for Trace2eService {
         let r = request.into_inner();
 
         let mut containers = self.containers.write().await;
-        let mut containers_watcher = self.containers_watcher.lock().await;
+        let mut containers_handler = self.containers_handler.lock().await;
 
         if let Some(available) = containers.get(&r.file_descriptor) {
             if !*available {
                 // File was reserved, set it as available now
                 containers.insert(r.file_descriptor.clone(), true);
 
-                // Notify watcher that the file is available
-                if let Some(process_queue) = containers_watcher.get_mut(&r.file_descriptor) {
-                    if let Some(watcher) = process_queue.pop_front() {
-                        watcher.send(true).unwrap();
+                // Notify that the file is available
+                if let Some(queue) = containers_handler.get_mut(&r.file_descriptor) {
+                    if let Some(channel) = queue.pop_front() {
+                        channel.send(()).unwrap();
                     }
                 }
             } else {
