@@ -30,8 +30,11 @@ impl Trace2e for Trace2eService {
         println!("PID: {} | CT Event Notified: FD {} | IN {} | OUT {} | REMOTE {} | {} @ {}", r.process_id,  r.file_descriptor, r.input, r.output, r.remote, r.container, r.resource_identifier); 
 
         // Adding CT to the tracklist (and set it as available -> have to be discussed...)
+        // could be more fine-grained using IN OUT flags
         let mut containers = self.containers.write().await;
-        containers.insert(r.file_descriptor.clone(), true);
+        if containers.get(&r.file_descriptor).is_some() == false {
+            containers.insert(r.file_descriptor.clone(), true);
+        }
 
         Ok(Response::new(trace2e::Ack {}))
     }
