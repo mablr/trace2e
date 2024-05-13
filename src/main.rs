@@ -2,7 +2,7 @@ use tonic::{transport::Server, Request, Response, Status};
 use trace2e::{Ct, Io, Grant, Ack, trace2e_server::{Trace2e, Trace2eServer}};
 use std::sync::Arc;
 use tokio::sync::{Mutex, watch, RwLock};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 
 pub mod trace2e {
   tonic::include_proto!("trace2e");
@@ -11,7 +11,7 @@ pub mod trace2e {
 #[derive(Debug)]
 pub struct Trace2eService {
     containers: Arc<RwLock<HashMap<i32, bool>>>,
-    containers_watcher: Arc<Mutex<HashMap<i32, watch::Sender<bool>>>>,
+    containers_watcher: Arc<Mutex<HashMap<i32, VecDeque<watch::Sender<bool>>>>>,
 }
 
 impl Trace2eService {
@@ -59,18 +59,28 @@ impl Trace2e for Trace2eService {
                 // CT is reserved
                 // Set up a watcher to be notified when it becomes available
                 let (tx, mut rx) = watch::channel(false);
-                containers_watcher.insert(r.file_descriptor.clone(), tx);
+
+                // Queuing the watcher
+                if let Some(process_queue) = containers_watcher.get_mut(&r.file_descriptor) {
+                    process_queue.push_back(tx);
+                } else {
+                    let mut process_queue = VecDeque::new();
+                    process_queue.push_back(tx);
+                    containers_watcher.insert(r.file_descriptor.clone(), process_queue);
+                }
                 
                 // Release the locks before waiting to avoid deadlock
                 drop(containers);
                 drop(containers_watcher);
 
                 // Wait until the CT becomes available
+                println!("-> Wait a bit PID {}", r.process_id);
                 rx.changed().await.unwrap();
 
                 // CT is now available, set it as reserved
                 let mut containers = self.containers.write().await;
                 containers.insert(r.file_descriptor.clone(), false);
+                println!("<- Now it's your turn PID {}", r.process_id);
             }
         } else {
             // File not found
@@ -94,9 +104,11 @@ impl Trace2e for Trace2eService {
                 // File was reserved, set it as available now
                 containers.insert(r.file_descriptor.clone(), true);
 
-                // Notify watchers that the file is available
-                if let Some(watcher) = containers_watcher.remove(&r.file_descriptor) {
-                    watcher.send(true).unwrap();
+                // Notify watcher that the file is available
+                if let Some(process_queue) = containers_watcher.get_mut(&r.file_descriptor) {
+                    if let Some(watcher) = process_queue.pop_front() {
+                        watcher.send(true).unwrap();
+                    }
                 }
             } else {
                 // File was already available
