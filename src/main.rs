@@ -45,7 +45,6 @@ impl Trace2e for Trace2eService {
         println!("PID: {} | IO Event Requested: FD {} | {} on {}", r.process_id, r.file_descriptor, r.method, r.container);
 
         let containers = self.containers.read().await;
-        let mut containers_handler = self.containers_handler.lock().await;
 
         if let Some(available) = containers.get(&r.file_descriptor) {
             // CT is already the track list
@@ -61,6 +60,7 @@ impl Trace2e for Trace2eService {
                 let (tx, rx) = oneshot::channel();
 
                 // Queuing the channel
+                let mut containers_handler = self.containers_handler.lock().await;
                 if let Some(queue) = containers_handler.get_mut(&r.file_descriptor) {
                     queue.push_back(tx);
                 } else {
@@ -97,7 +97,6 @@ impl Trace2e for Trace2eService {
         let r = request.into_inner();
 
         let mut containers = self.containers.write().await;
-        let mut containers_handler = self.containers_handler.lock().await;
 
         if let Some(available) = containers.get(&r.file_descriptor) {
             if !*available {
@@ -105,6 +104,7 @@ impl Trace2e for Trace2eService {
                 containers.insert(r.file_descriptor.clone(), true);
 
                 // Notify that the file is available
+                let mut containers_handler = self.containers_handler.lock().await;
                 if let Some(queue) = containers_handler.get_mut(&r.file_descriptor) {
                     if let Some(channel) = queue.pop_front() {
                         channel.send(()).unwrap();
