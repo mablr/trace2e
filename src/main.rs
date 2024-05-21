@@ -31,9 +31,11 @@ impl Trace2e for Trace2eService {
         let r = request.into_inner();
         println!("PID: {} | CT Event Notified: FD {} | IN {} | OUT {} | REMOTE {} | {} @ {}", r.process_id,  r.file_descriptor, r.input, r.output, r.remote, r.container, r.resource_identifier); 
 
-        // Adding CT to the tracklist (and set it as available -> have to be discussed...)
-        // could be more fine-grained using IN OUT flags
+        /*
+        Adding CT to the tracklist
 
+        If it is already in the hashmap, do nothing to avoid erasing of the previous container state.
+        */
         if {
             let containers_states = self.containers_states.read().await;
             containers_states.get(&r.resource_identifier).is_some()
@@ -41,13 +43,26 @@ impl Trace2e for Trace2eService {
             let mut containers_states = self.containers_states.write().await;
             containers_states.insert(r.resource_identifier.clone(), true);
         }
-        if {
-            let identifiers_map = self.identifiers_map.read().await;
-            identifiers_map.get(&(r.process_id.clone(), r.file_descriptor.clone())).is_some()
-        } == false {
-            let mut identifiers_map = self.identifiers_map.write().await;
-            identifiers_map.insert((r.process_id.clone(), r.file_descriptor.clone()), r.resource_identifier.clone());
-        }
+
+        /* 
+        At the process level, there is a bijection between the file_descriptor and the designated underlying container.
+
+        2 cases can be outlined:
+        - No existing entry for tuple (process_id, file_descriptor) 
+          It means a process declared a new fd mapped to a container.
+            => The relation must be added to the hashmap. 
+        - There is an entry
+          It means that a process was previously declared as fd mapped to a container.
+          Since the procedure was called with the existing (process_id, file_descriptor),
+          it also means that the previous fd was destroyed and a new one declared,
+          so that the new one could be mapped to a different container.
+            => The relation must be inserted into the hashmap.
+
+        So in any case we have to insert the relation (process_id, file_descriptor) - resource_identifier.
+         */
+        let mut identifiers_map = self.identifiers_map.write().await;
+        identifiers_map.insert((r.process_id.clone(), r.file_descriptor.clone()), r.resource_identifier.clone());
+
         Ok(Response::new(trace2e::Ack {}))
     }
 
