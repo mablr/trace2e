@@ -1,11 +1,13 @@
 use tonic::{transport::Server, Request, Response, Status};
+use tonic_reflection::server::Builder;
 use trace2e::{Ct, Io, Grant, Ack, trace2e_server::{Trace2e, Trace2eServer}};
 use std::sync::Arc;
 use tokio::sync::{Mutex, oneshot, RwLock};
 use std::collections::{HashMap, VecDeque};
 
 pub mod trace2e {
-  tonic::include_proto!("trace2e");
+    tonic::include_proto!("trace2e");
+    pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("../target/trace2e_descriptor.bin");
 }
 
 #[derive(Debug)]
@@ -167,7 +169,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let address = "[::1]:8080".parse().unwrap();
     let trace2e_service = Trace2eService::new();
 
-    Server::builder().add_service(Trace2eServer::new(trace2e_service))
+    let reflection_service = Builder::configure()
+        .register_encoded_file_descriptor_set(trace2e::FILE_DESCRIPTOR_SET)
+        .build()?;
+
+    Server::builder()
+        .add_service(Trace2eServer::new(trace2e_service))
+        .add_service(reflection_service)
         .serve(address)
         .await?;
 
