@@ -1,5 +1,5 @@
 [package]
-name = "trace2e_middleware"
+name = "trace2e"
 version = "0.1.0"
 edition = "2021"
 
