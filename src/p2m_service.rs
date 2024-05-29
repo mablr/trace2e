@@ -1,9 +1,13 @@
-use trace2e::p2m::{Ct, Io, Grant, Ack, p2m_server::P2m};
+use p2m::{Ct, Io, Grant, Ack, p2m_server::P2m};
 use tonic::{Request, Response, Status};
 use std::sync::Arc;
 use tokio::sync::{Mutex, oneshot, RwLock};
 use std::collections::{HashMap, VecDeque};
 
+pub mod p2m {
+    tonic::include_proto!("trace2e_api");
+    pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("../target/trace2e_api_descriptor.bin");
+}
 
 #[derive(Debug)]
 pub struct P2mService {

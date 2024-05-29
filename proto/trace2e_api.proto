@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package p2m;
+package trace2e_api;
 
-service p2m {
+service P2M {
     rpc CtEvent(Ct) returns (Ack);
     rpc IoEvent(Io) returns (Grant);
     rpc DoneIoEvent(Io) returns (Ack);
