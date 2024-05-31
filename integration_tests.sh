@@ -9,7 +9,7 @@ cargo build
 TRACE2E_PID=$!
 
 # Tests
-cargo test
+cargo test --verbose
 
 # Stop Middleware
 kill ${TRACE2E_PID}
