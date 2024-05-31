@@ -6,6 +6,7 @@ on:
   pull_request: {}
 
 env:
+  PROTOC_VERSION: 3.21.12
   CARGO_TERM_COLOR: always
 
 jobs:
@@ -15,6 +16,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install protoc
+      uses: taiki-e/install-action@v2
+      with:
+        tool: protoc@${{ env.PROTOC_VERSION }}
     - name: Run integration tests
       run: ./integration_tests.sh
       shell: bash
