@@ -30,6 +30,8 @@ impl P2mService {
 impl P2m for P2mService {
     async fn ct_event(&self, request: Request<Ct>) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
+
+        #[cfg(feature = "verbose")]
         println!("PID: {} | CT Event Notified: FD {} | IN {} | OUT {} | REMOTE {} | {} @ {}", r.process_id,  r.file_descriptor, r.input, r.output, r.remote, r.container, r.resource_identifier); 
 
         /*
@@ -70,6 +72,7 @@ impl P2m for P2mService {
     async fn io_event(&self, request: Request<Io>) -> Result<Response<Grant>, Status> {
         let r = request.into_inner();
 
+        #[cfg(feature = "verbose")]
         println!("PID: {} | IO Event Requested: FD {} | {} on {}", r.process_id, r.file_descriptor, r.method, r.container);
 
         if let Some(resource_identifier) = {
@@ -103,20 +106,28 @@ impl P2m for P2mService {
                     }
 
                     // Wait until the CT becomes available
+                    #[cfg(feature = "verbose")]
                     println!("-> Wait a bit PID {}", r.process_id);
+                    
                     rx.await.unwrap();
 
                     // CT is now available, set it as reserved
                     let mut containers_states = self.containers_states.write().await;
                     containers_states.insert(resource_identifier.clone(), false);
+                    
+                    #[cfg(feature = "verbose")]
                     println!("<- Now it's your turn PID {}", r.process_id);
                 }
             } else {
+                #[cfg(feature = "verbose")]
                 println!("Ressource {} does not exist", resource_identifier);
             }
         } else {
+            #[cfg(feature = "verbose")]
             println!("CT {} is not tracked", r.file_descriptor);
         }
+        
+        #[cfg(feature = "verbose")]
         println!("PID: {} | IO Event Authorized: FD {} | {} on {}", r.process_id, r.file_descriptor, r.method, r.container);
 
         Ok(Response::new(Grant { file_descriptor: r.file_descriptor }))
@@ -148,15 +159,19 @@ impl P2m for P2mService {
                         }
                     }
                 } else {
+                    #[cfg(feature = "verbose")]
                     println!("Ressource {} is already available", resource_identifier);
                 }
             } else {
+                #[cfg(feature = "verbose")]
                 println!("Ressource {} does not exist", resource_identifier);
             }
         } else {
+            #[cfg(feature = "verbose")]
             println!("CT {} is not tracked", r.file_descriptor);
         }
 
+        #[cfg(feature = "verbose")]
         println!("PID: {} | IO Event Done: FD {} | {} on {}", r.process_id, r.file_descriptor, r.method, r.container);     
 
         Ok(Response::new(Ack{}))
