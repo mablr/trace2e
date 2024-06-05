@@ -8,8 +8,11 @@ cargo build
 ./target/debug/trace2e &
 TRACE2E_PID=$!
 
-# Tests
-cargo test --verbose
+# Single thread tests
+cargo test integration_1p -- --test-threads 1
+
+# Multiple threads tests
+cargo test integration_mp
 
 # Stop Middleware
 kill ${TRACE2E_PID}
