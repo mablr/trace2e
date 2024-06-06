@@ -142,16 +142,18 @@ impl P2m for P2mService {
                 containers_states.get(&resource_identifier).cloned()
             } {
                 if !available {
-                    {
-                        // Give the relay to the next process in the queue
-                        let mut queuing_handler = self.queuing_handler.lock().await;
-                        if let Some(channel) = queuing_handler.get_mut(&resource_identifier).unwrap().pop_front() {
+                    // Give the relay to the next process in the queue
+                    let mut queuing_handler = self.queuing_handler.lock().await;
+                    if let Some(queue) = queuing_handler.get_mut(&resource_identifier) {
+                        if let Some(channel) = queue.pop_front() {
                             channel.send(()).unwrap();
                         } else {
-                            // No process is waiting, set CT as available
                             let mut containers_states = self.containers_states.write().await;
                             containers_states.insert(resource_identifier.clone(), true);
                         }
+                    } else {
+                        let mut containers_states = self.containers_states.write().await;
+                        containers_states.insert(resource_identifier.clone(), true);
                     }
                 } else {
                     #[cfg(feature = "verbose")]
