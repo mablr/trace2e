@@ -78,14 +78,20 @@ impl P2m for P2mService {
             let identifiers_map = self.identifiers_map.read().await;
             identifiers_map.get(&(r.process_id.clone(), r.file_descriptor.clone())).cloned()
         } {
-            let mut containers_states = self.containers_states.lock().await;
-            if containers_states.get(&resource_identifier).cloned() == Some(true) {
+            // Obtain MutexGuard on self.containers_states only if an entry is associated with the resource_identifier 
+            // and the state of this entry is true.
+            // TODO: put it into a function
+            if let Some(mut containers_states) = {
+                let containers_states = self.containers_states.lock().await;
+                if containers_states.get(&resource_identifier) == Some(&true) {
+                    Some(containers_states)
+                } else { // If the state is false or the entry doesn't exist, return None.
+                    None
+                }
+            } {
                 // CT is in the track list and is available, so it can be reserved
                 containers_states.insert(resource_identifier.clone(), false);
             } else {
-                // Release the lock on containers_states
-                drop(containers_states);
-
                 // CT is reserved
                 // Set up a oneshot channel to be notified when it becomes available
                 let (tx, rx) = oneshot::channel();
@@ -130,8 +136,17 @@ impl P2m for P2mService {
             let identifiers_map = self.identifiers_map.read().await;
             identifiers_map.get(&(r.process_id.clone(), r.file_descriptor.clone())).cloned()
         } {
-            let mut containers_states = self.containers_states.lock().await;
-            if containers_states.get(&resource_identifier).cloned() == Some(false) {
+            // Obtain MutexGuard on self.containers_states only if an entry is associated with the resource_identifier 
+            // and the state of this entry is false.
+            // TODO: put it into a function
+            if let Some(mut containers_states) = {
+                let containers_states = self.containers_states.lock().await;
+                if containers_states.get(&resource_identifier) == Some(&false) {
+                    Some(containers_states)
+                } else { // If the state is true or the entry doesn't exist, return None.
+                    None
+                }
+            } {
                 // Give the relay to the next process in the queue
                 if let Some(channel) = self.queuing_handler.lock().await
                     .get_mut(&resource_identifier)
@@ -139,7 +154,6 @@ impl P2m for P2mService {
                 {
                     channel.send(()).unwrap();
                 } else {
-                    //let mut containers_states = self.containers_states.write().await;
                     containers_states.insert(resource_identifier.clone(), true);
                 }
             } else {
