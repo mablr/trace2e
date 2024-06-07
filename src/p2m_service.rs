@@ -133,9 +133,10 @@ impl P2m for P2mService {
             let mut containers_states = self.containers_states.lock().await;
             if containers_states.get(&resource_identifier).cloned() == Some(false) {
                 // Give the relay to the next process in the queue
-                // TODO: put the lock in a block
-                let mut queuing_handler = self.queuing_handler.lock().await;
-                if let Some(channel) = queuing_handler.get_mut(&resource_identifier).and_then(|queue| queue.pop_front()) {
+                if let Some(channel) = self.queuing_handler.lock().await
+                    .get_mut(&resource_identifier)
+                    .and_then(|queue| queue.pop_front())
+                {
                     channel.send(()).unwrap();
                 } else {
                     //let mut containers_states = self.containers_states.write().await;
