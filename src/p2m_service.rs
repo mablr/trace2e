@@ -11,7 +11,7 @@ pub mod p2m {
 
 #[derive(Debug)]
 pub struct P2mService {
-    containers_states: Arc<RwLock<HashMap<String, bool>>>,
+    containers_states: Arc<Mutex<HashMap<String, bool>>>,
     identifiers_map: Arc<RwLock<HashMap<(u32, i32), String>>>,
     queuing_handler: Arc<Mutex<HashMap<String, VecDeque<oneshot::Sender<()>>>>>,
 }
@@ -19,7 +19,7 @@ pub struct P2mService {
 impl P2mService {
     pub fn new() -> Self {
         P2mService { 
-            containers_states: Arc::new(RwLock::new(HashMap::new())),
+            containers_states: Arc::new(Mutex::new(HashMap::new())),
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
             queuing_handler: Arc::new(Mutex::new(HashMap::new()))
         }
@@ -39,14 +39,12 @@ impl P2m for P2mService {
 
         If it is already in the hashmap, do nothing to avoid erasing of the previous container state.
         */
-        if {
-            let containers_states = self.containers_states.read().await;
-            containers_states.get(&r.resource_identifier).is_some()
-        } == false {
-            let mut containers_states = self.containers_states.write().await;
-            containers_states.insert(r.resource_identifier.clone(), true);
+        {
+            let mut containers_states = self.containers_states.lock().await;
+            if containers_states.get(&r.resource_identifier).is_some() == false {
+                containers_states.insert(r.resource_identifier.clone(), true);
+            }
         }
-
         /* 
         At the process level, there is a bijection between the file_descriptor and the designated underlying container.
 
@@ -63,9 +61,10 @@ impl P2m for P2mService {
 
         So in any case we have to insert the relation (process_id, file_descriptor) - resource_identifier.
          */
-        let mut identifiers_map = self.identifiers_map.write().await;
-        identifiers_map.insert((r.process_id.clone(), r.file_descriptor.clone()), r.resource_identifier.clone());
-
+        {
+            let mut identifiers_map = self.identifiers_map.write().await;
+            identifiers_map.insert((r.process_id.clone(), r.file_descriptor.clone()), r.resource_identifier.clone());
+        }
         Ok(Response::new(Ack {}))
     }
 
@@ -79,45 +78,41 @@ impl P2m for P2mService {
             let identifiers_map = self.identifiers_map.read().await;
             identifiers_map.get(&(r.process_id.clone(), r.file_descriptor.clone())).cloned()
         } {
-            if let Some(available) = {
-                let containers_states = self.containers_states.read().await;
+            let mut containers_states = self.containers_states.lock().await;
+            if let Some(true) = {
                 containers_states.get(&resource_identifier).cloned()
             } {
-                // CT is already the track list
-                if available {
-                    // CT is available
-                    let mut containers_states = self.containers_states.write().await;
-                    containers_states.insert(resource_identifier.clone(), false);
-                } else {
-                    // CT is reserved
-                    // Set up a oneshot channel to be notified when it becomes available
-                    let (tx, rx) = oneshot::channel();
-
-                    // Queuing the channel
-                    {
-                        let mut queuing_handler = self.queuing_handler.lock().await;
-                        if let Some(queue) = queuing_handler.get_mut(&resource_identifier) {
-                            queue.push_back(tx);
-                        } else {
-                            let mut queue = VecDeque::new();
-                            queue.push_back(tx);
-                            queuing_handler.insert(resource_identifier.clone(), queue);
-                        }
-                    }
-
-                    // Wait until the CT becomes available
-                    #[cfg(feature = "verbose")]
-                    println!("-> Wait a bit PID {}", r.process_id);
-                    
-                    rx.await.unwrap();
-
-                    // CT is now reserved for the current process
-                    #[cfg(feature = "verbose")]
-                    println!("<- Now it's your turn PID {}", r.process_id);
-                }
+                // CT is in the track list and is available, so it can be reserved
+                containers_states.insert(resource_identifier.clone(), false);
             } else {
+                // Release the lock on containers_states
+                drop(containers_states);
+
+                // CT is reserved
+                // Set up a oneshot channel to be notified when it becomes available
+                let (tx, rx) = oneshot::channel();
+
+                // Queuing the channel
+                {
+                    let mut queuing_handler = self.queuing_handler.lock().await;
+                    if let Some(queue) = queuing_handler.get_mut(&resource_identifier) {
+                        queue.push_back(tx);
+                    } else {
+                        let mut queue = VecDeque::new();
+                        queue.push_back(tx);
+                        queuing_handler.insert(resource_identifier.clone(), queue);
+                    }
+                }
+
+                // Wait until the CT becomes available
                 #[cfg(feature = "verbose")]
-                println!("Ressource {} does not exist", resource_identifier);
+                println!("-> Wait a bit PID {}", r.process_id);
+                
+                rx.await.unwrap();
+
+                // CT is now reserved for the current process
+                #[cfg(feature = "verbose")]
+                println!("<- Now it's your turn PID {}", r.process_id);
             }
         } else {
             #[cfg(feature = "verbose")]
@@ -137,31 +132,22 @@ impl P2m for P2mService {
             let identifiers_map = self.identifiers_map.read().await;
             identifiers_map.get(&(r.process_id.clone(), r.file_descriptor.clone())).cloned()
         } {
-            if let Some(available) = {
-                let containers_states = self.containers_states.read().await;
+            let mut containers_states = self.containers_states.lock().await;
+            if let Some(false) = {
                 containers_states.get(&resource_identifier).cloned()
             } {
-                if !available {
-                    // Give the relay to the next process in the queue
-                    let mut queuing_handler = self.queuing_handler.lock().await;
-                    if let Some(queue) = queuing_handler.get_mut(&resource_identifier) {
-                        if let Some(channel) = queue.pop_front() {
-                            channel.send(()).unwrap();
-                        } else {
-                            let mut containers_states = self.containers_states.write().await;
-                            containers_states.insert(resource_identifier.clone(), true);
-                        }
-                    } else {
-                        let mut containers_states = self.containers_states.write().await;
-                        containers_states.insert(resource_identifier.clone(), true);
-                    }
+                // Give the relay to the next process in the queue
+                // TODO: put the lock in a block
+                let mut queuing_handler = self.queuing_handler.lock().await;
+                if let Some(channel) = queuing_handler.get_mut(&resource_identifier).and_then(|queue| queue.pop_front()) {
+                    channel.send(()).unwrap();
                 } else {
-                    #[cfg(feature = "verbose")]
-                    println!("Ressource {} is already available", resource_identifier);
+                    //let mut containers_states = self.containers_states.write().await;
+                    containers_states.insert(resource_identifier.clone(), true);
                 }
             } else {
                 #[cfg(feature = "verbose")]
-                println!("Ressource {} does not exist", resource_identifier);
+                println!("Ressource {} is already available", resource_identifier);
             }
         } else {
             #[cfg(feature = "verbose")]
