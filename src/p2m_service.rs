@@ -79,9 +79,7 @@ impl P2m for P2mService {
             identifiers_map.get(&(r.process_id.clone(), r.file_descriptor.clone())).cloned()
         } {
             let mut containers_states = self.containers_states.lock().await;
-            if let Some(true) = {
-                containers_states.get(&resource_identifier).cloned()
-            } {
+            if containers_states.get(&resource_identifier).cloned() == Some(true) {
                 // CT is in the track list and is available, so it can be reserved
                 containers_states.insert(resource_identifier.clone(), false);
             } else {
@@ -133,9 +131,7 @@ impl P2m for P2mService {
             identifiers_map.get(&(r.process_id.clone(), r.file_descriptor.clone())).cloned()
         } {
             let mut containers_states = self.containers_states.lock().await;
-            if let Some(false) = {
-                containers_states.get(&resource_identifier).cloned()
-            } {
+            if containers_states.get(&resource_identifier).cloned() == Some(false) {
                 // Give the relay to the next process in the queue
                 // TODO: put the lock in a block
                 let mut queuing_handler = self.queuing_handler.lock().await;
