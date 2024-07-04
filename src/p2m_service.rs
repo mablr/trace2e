@@ -32,7 +32,7 @@ impl P2m for P2mService {
         let r = request.into_inner();
 
         #[cfg(feature = "verbose")]
-        println!("PID: {} | CT Event Notified: FD {} | IN {} | OUT {} | REMOTE {} | {} @ {}", r.process_id,  r.file_descriptor, r.input, r.output, r.remote, r.container, r.resource_identifier); 
+        println!("PID: {} | CT Event Notified: FD {} | UID: {} | IN {} | OUT {} | REMOTE {} | {} @ {}", r.process_id,  r.file_descriptor, r.user_id, r.input, r.output, r.remote, r.container, r.resource_identifier); 
 
         /*
         Adding CT to the tracklist

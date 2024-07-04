@@ -7,6 +7,7 @@ async fn integration_1p_1f_write() -> Result<(), Box<dyn std::error::Error>> {
     // CT declaration
     let file_creation = tonic::Request::new(Ct { 
         process_id: 10000,
+        user_id: 1000,
         file_descriptor: 3,
         container: "std::fs::File".to_string(),
         resource_identifier: "bar.txt".to_string(),
@@ -46,6 +47,7 @@ async fn integration_1p_1f_read() -> Result<(), Box<dyn std::error::Error>> {
     // CT declaration
     let file_creation = tonic::Request::new(Ct { 
         process_id: 10000,
+        user_id: 1000,
         file_descriptor: 3,
         container: "std::fs::File".to_string(),
         resource_identifier: "foo.txt".to_string(),
@@ -85,6 +87,7 @@ async fn integration_1p_1f_complex() -> Result<(), Box<dyn std::error::Error>> {
     // CT declaration
     let file_creation = tonic::Request::new(Ct { 
         process_id: 10000,
+        user_id: 1000,
         file_descriptor: 3,
         container: "std::fs::File".to_string(),
         resource_identifier: "foobar.txt".to_string(),
@@ -138,6 +141,7 @@ async fn integration_1p_1f_complex() -> Result<(), Box<dyn std::error::Error>> {
     // CT declaration
     let file_reopen = tonic::Request::new(Ct { 
         process_id: 10000,
+        user_id: 1000,
         file_descriptor: 4,
         container: "std::fs::File".to_string(),
         resource_identifier: "foobar.txt".to_string(),
