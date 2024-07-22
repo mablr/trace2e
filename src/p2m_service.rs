@@ -1,4 +1,4 @@
-use p2m::{Ct, Io, Grant, Ack, p2m_server::P2m};
+use p2m::{LocalCt, RemoteCt, IoInfo, IoResult, Grant, Ack, p2m_server::P2m};
 use tonic::{Request, Response, Status};
 use std::sync::Arc;
 use tokio::sync::{Mutex, oneshot, RwLock};
@@ -28,11 +28,11 @@ impl P2mService {
 
 #[tonic::async_trait]
 impl P2m for P2mService {
-    async fn ct_event(&self, request: Request<Ct>) -> Result<Response<Ack>, Status> {
+    async fn local_enroll(&self, request: Request<LocalCt>) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
 
         #[cfg(feature = "verbose")]
-        println!("PID: {} | CT Event Notified: FD {} | UID: {} | IN {} | OUT {} | REMOTE {} | {} @ {}", r.process_id,  r.file_descriptor, r.user_id, r.input, r.output, r.remote, r.container, r.resource_identifier); 
+        println!("PID: {} | CT Event Notified: FD {} | {}", r.process_id,  r.file_descriptor, r.path); 
 
         /*
         Adding CT to the tracklist
@@ -41,8 +41,8 @@ impl P2m for P2mService {
         */
         {
             let mut containers_states = self.containers_states.lock().await;
-            if containers_states.get(&r.resource_identifier).is_some() == false {
-                containers_states.insert(r.resource_identifier.clone(), true);
+            if containers_states.get(&r.path).is_some() == false {
+                containers_states.insert(r.path.clone(), true);
             }
         }
         /* 
@@ -63,16 +63,22 @@ impl P2m for P2mService {
          */
         {
             let mut identifiers_map = self.identifiers_map.write().await;
-            identifiers_map.insert((r.process_id.clone(), r.file_descriptor.clone()), r.resource_identifier.clone());
+            identifiers_map.insert((r.process_id.clone(), r.file_descriptor.clone()), r.path.clone());
         }
         Ok(Response::new(Ack {}))
     }
 
-    async fn io_event(&self, request: Request<Io>) -> Result<Response<Grant>, Status> {
+    async fn remote_enroll(&self, request: Request<RemoteCt>) -> Result<Response<Ack>, Status> {
+        let _ = request.into_inner();
+
+        Ok(Response::new(Ack {}))
+    }
+
+    async fn io_request(&self, request: Request<IoInfo>) -> Result<Response<Grant>, Status> {
         let r = request.into_inner();
 
         #[cfg(feature = "verbose")]
-        println!("PID: {} | IO Event Requested: FD {} | {} on {}", r.process_id, r.file_descriptor, r.method, r.container);
+        println!("PID: {} | IO Event Requested: FD {}", r.process_id, r.file_descriptor);
 
         if let Some(resource_identifier) = {
             let identifiers_map = self.identifiers_map.read().await;
@@ -124,12 +130,12 @@ impl P2m for P2mService {
         }
         
         #[cfg(feature = "verbose")]
-        println!("PID: {} | IO Event Authorized: FD {} | {} on {}", r.process_id, r.file_descriptor, r.method, r.container);
+        println!("PID: {} | IO Event Authorized: FD {}", r.process_id, r.file_descriptor);
 
-        Ok(Response::new(Grant { file_descriptor: r.file_descriptor }))
+        Ok(Response::new(Grant { id: 0 })) // TODO : to be updated
     }
 
-    async fn done_io_event(&self, request: Request<Io>) -> Result<Response<Ack>, Status> {
+    async fn io_report(&self, request: Request<IoResult>) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
 
         if let Some(resource_identifier) = {
@@ -166,7 +172,7 @@ impl P2m for P2mService {
         }
 
         #[cfg(feature = "verbose")]
-        println!("PID: {} | IO Event Done: FD {} | {} on {}", r.process_id, r.file_descriptor, r.method, r.container);     
+        println!("PID: {} | IO Event Done: FD {}", r.process_id, r.file_descriptor);     
 
         Ok(Response::new(Ack{}))
     }
