@@ -2,3 +2,4 @@
 *.lock
 *.pdf
 *.txt
+/.vscode
