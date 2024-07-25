@@ -1,8 +1,10 @@
 use p2m::{LocalCt, RemoteCt, IoInfo, IoResult, Grant, Ack, p2m_server::P2m};
 use tonic::{Request, Response, Status};
 use std::sync::Arc;
-use tokio::sync::{Mutex, oneshot, RwLock};
+use tokio::sync::{oneshot, Mutex, RwLock};
 use std::collections::{HashMap, VecDeque};
+
+use crate::container::ContainerManager;
 
 pub mod p2m {
     tonic::include_proto!("trace2e_api");
@@ -11,7 +13,7 @@ pub mod p2m {
 
 #[derive(Debug)]
 pub struct P2mService {
-    containers_states: Arc<Mutex<HashMap<String, bool>>>,
+    containers_states: Arc<Mutex<HashMap<String, ContainerManager>>>,
     identifiers_map: Arc<RwLock<HashMap<(u32, i32), String>>>,
     queuing_handler: Arc<Mutex<HashMap<String, VecDeque<oneshot::Sender<()>>>>>,
 }
@@ -24,6 +26,53 @@ impl P2mService {
             queuing_handler: Arc::new(Mutex::new(HashMap::new()))
         }
     }
+
+    async fn create_local_container(&self, path: String) {
+        /*
+        Adding CT to the tracklist
+        If it is already in the hashmap, do nothing to avoid erasing of the previous container state.
+        */
+        let mut containers_states = self.containers_states.lock().await;
+        if containers_states.contains_key(&path) == false {
+            containers_states.insert(path, ContainerManager::default());
+        }
+    }
+
+    async fn get_resource_identifier(&self, process_id: u32, file_descriptor: i32) -> Option<String> {
+        let identifiers_map = self.identifiers_map.read().await;
+        identifiers_map.get(&(process_id, file_descriptor)).cloned()
+    }
+
+    async fn try_container_reservation(&self, resource_identifier: String) -> bool {
+        let mut containers_states = self.containers_states.lock().await;
+        if containers_states.get(&resource_identifier).is_some_and(|container| container.is_available()) {
+            let container = containers_states.get_mut(&resource_identifier).unwrap();
+            container.set_availability(false);
+            true
+        } else { // If the state is not expected or the entry doesn't exist, return None.
+            false
+        }
+        
+    }
+
+    async fn container_release (&self, resource_identifier: String) -> bool {
+        let mut containers_states = self.containers_states.lock().await;
+        if containers_states.get(&resource_identifier).is_some_and(|container| container.is_available() == false) {
+            if let Some(channel) = self.queuing_handler.lock().await
+            .get_mut(&resource_identifier)
+            .and_then(|queue| queue.pop_front())
+            {
+                channel.send(()).unwrap();
+            } else {
+                let container = containers_states.get_mut(&resource_identifier).unwrap();
+                container.set_availability(true);
+            }
+            
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[tonic::async_trait]
@@ -34,17 +83,7 @@ impl P2m for P2mService {
         #[cfg(feature = "verbose")]
         println!("PID: {} | CT Event Notified: FD {} | {}", r.process_id,  r.file_descriptor, r.path); 
 
-        /*
-        Adding CT to the tracklist
-
-        If it is already in the hashmap, do nothing to avoid erasing of the previous container state.
-        */
-        {
-            let mut containers_states = self.containers_states.lock().await;
-            if containers_states.contains_key(&r.path) == false {
-                containers_states.insert(r.path.clone(), true);
-            }
-        }
+        self.create_local_container(r.path.clone()).await;
         /* 
         At the process level, there is a bijection between the file_descriptor and the designated underlying container.
 
@@ -80,24 +119,11 @@ impl P2m for P2mService {
         #[cfg(feature = "verbose")]
         println!("PID: {} | IO Event Requested: FD {}", r.process_id, r.file_descriptor);
 
-        if let Some(resource_identifier) = {
-            let identifiers_map = self.identifiers_map.read().await;
-            identifiers_map.get(&(r.process_id.clone(), r.file_descriptor.clone())).cloned()
-        } {
+        if let Some(resource_identifier) = self.get_resource_identifier(r.process_id, r.file_descriptor).await {
             // Obtain MutexGuard on self.containers_states only if an entry is associated with the resource_identifier 
             // and the state of this entry is true.
             // TODO: put it into a function
-            if let Some(mut containers_states) = {
-                let containers_states = self.containers_states.lock().await;
-                if containers_states.get(&resource_identifier) == Some(&true) {
-                    Some(containers_states)
-                } else { // If the state is false or the entry doesn't exist, return None.
-                    None
-                }
-            } {
-                // CT is in the track list and is available, so it can be reserved
-                containers_states.insert(resource_identifier.clone(), false);
-            } else {
+            if self.try_container_reservation(resource_identifier.clone()).await == false {
                 // CT is reserved
                 // Set up a oneshot channel to be notified when it becomes available
                 let (tx, rx) = oneshot::channel();
@@ -138,31 +164,11 @@ impl P2m for P2mService {
     async fn io_report(&self, request: Request<IoResult>) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
 
-        if let Some(resource_identifier) = {
-            let identifiers_map = self.identifiers_map.read().await;
-            identifiers_map.get(&(r.process_id.clone(), r.file_descriptor.clone())).cloned()
-        } {
+        if let Some(resource_identifier) = self.get_resource_identifier(r.process_id, r.file_descriptor).await {
             // Obtain MutexGuard on self.containers_states only if an entry is associated with the resource_identifier 
             // and the state of this entry is false.
             // TODO: put it into a function
-            if let Some(mut containers_states) = {
-                let containers_states = self.containers_states.lock().await;
-                if containers_states.get(&resource_identifier) == Some(&false) {
-                    Some(containers_states)
-                } else { // If the state is true or the entry doesn't exist, return None.
-                    None
-                }
-            } {
-                // Give the relay to the next process in the queue
-                if let Some(channel) = self.queuing_handler.lock().await
-                    .get_mut(&resource_identifier)
-                    .and_then(|queue| queue.pop_front())
-                {
-                    channel.send(()).unwrap();
-                } else {
-                    containers_states.insert(resource_identifier.clone(), true);
-                }
-            } else {
+            if self.container_release(resource_identifier.clone()).await == false {
                 #[cfg(feature = "verbose")]
                 println!("Ressource {} is already available", resource_identifier);
             }
