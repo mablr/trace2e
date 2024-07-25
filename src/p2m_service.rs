@@ -18,7 +18,7 @@ pub struct P2mService {
 
 impl P2mService {
     pub fn new() -> Self {
-        P2mService { 
+        P2mService {
             containers_states: Arc::new(Mutex::new(HashMap::new())),
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
             queuing_handler: Arc::new(Mutex::new(HashMap::new()))
@@ -41,7 +41,7 @@ impl P2m for P2mService {
         */
         {
             let mut containers_states = self.containers_states.lock().await;
-            if containers_states.get(&r.path).is_some() == false {
+            if containers_states.contains_key(&r.path) == false {
                 containers_states.insert(r.path.clone(), true);
             }
         }
