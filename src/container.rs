@@ -1,11 +1,11 @@
 #[derive(Debug)]
-pub struct ContainerManager {
+pub struct Container {
     available: bool,
 }
 
-impl ContainerManager {
+impl Container {
     pub fn default() -> Self {
-        ContainerManager {
+        Container {
             available: true,
         }
     }
