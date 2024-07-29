@@ -1,11 +1,12 @@
-use trace2e::p2m_service::{P2mService, p2m::{p2m_server::P2mServer, FILE_DESCRIPTOR_SET}};
+use trace2e::{containers::ContainersManager, p2m_service::{p2m::{p2m_server::P2mServer, FILE_DESCRIPTOR_SET}, P2mService}};
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let containers_manager = ContainersManager::default();
     let address = "[::1]:8080".parse().unwrap();
-    let p2m_service = P2mService::new();
+    let p2m_service = P2mService::new(containers_manager);
 
     let reflection_service = Builder::configure()
         .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)

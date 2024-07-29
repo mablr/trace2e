@@ -19,9 +19,9 @@ pub struct P2mService {
 }
 
 impl P2mService {
-    pub fn new() -> Self {
+    pub fn new(containers_manager: ContainersManager) -> Self {
         P2mService {
-            containers_manager: Arc::new(Mutex::new(ContainersManager::default())),
+            containers_manager: Arc::new(Mutex::new(containers_manager)),
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
             queuing_handler: Arc::new(Mutex::new(HashMap::new()))
         }
