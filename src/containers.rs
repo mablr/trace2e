@@ -6,17 +6,17 @@ pub struct Container {
 }
 
 impl Container {
-    pub fn default() -> Self {
+    fn new() -> Self {
         Container {
             available: true,
         }
     }
 
-    pub fn is_available(&self) -> bool{
+    fn is_available(&self) -> bool{
         self.available
     }
 
-    pub fn set_availability(&mut self, state: bool) {
+    fn set_availability(&mut self, state: bool) {
         self.available = state;
     }
 
@@ -30,7 +30,7 @@ pub struct ContainersManager {
 impl ContainersManager {
     pub fn register(&mut self, resource_identifier: String) {
         if self.containers.contains_key(&resource_identifier) == false {
-            self.containers.insert(resource_identifier, Container::default());
+            self.containers.insert(resource_identifier, Container::new());
         }
     }
 
