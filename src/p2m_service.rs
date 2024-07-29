@@ -112,11 +112,18 @@ impl P2m for P2mService {
             {
                 Ok(true) => (),
                 Ok(false) => self.wait_container_release(resource_identifier, r.process_id).await,
-                Err(msg) => eprintln!("{}", msg)
+                Err(message) => {
+                    #[cfg(feature = "verbose")]
+                    println!("{}", message);
+
+                    return Err(Status::not_found(message))
+                }
             }
         } else {
             #[cfg(feature = "verbose")]
             println!("CT {} is not tracked", r.file_descriptor);
+
+            return Err(Status::not_found(format!("CT {} is not tracked", r.file_descriptor)))
         }
         
         #[cfg(feature = "verbose")]
@@ -145,12 +152,20 @@ impl P2m for P2mService {
                     .try_release(resource_identifier)
                 {
                     Ok(()) => (),
-                    Err(msg) => eprintln!("{}", msg)
+                    Err(message) => {
+                        // Todo split error feedback
+                        #[cfg(feature = "verbose")]
+                        println!("{}", message);
+
+                        return Err(Status::not_found(message))
+                    }
                 }
             }
         } else {
             #[cfg(feature = "verbose")]
             println!("CT {} is not tracked", r.file_descriptor);
+
+            return Err(Status::not_found(format!("CT {} is not tracked", r.file_descriptor)))
         }
 
         #[cfg(feature = "verbose")]
