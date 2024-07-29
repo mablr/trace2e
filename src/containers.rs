@@ -1,5 +1,11 @@
 use std::collections::HashMap;
 
+
+/// Foundation object for traceability.
+/// 
+/// An instance of a [`Container`] holds all information necessary to provide traceability
+/// features for a system resource designated by file descriptor, such as consistent 
+/// IO ordering management, provenance recording and compliance enforcement.  
 #[derive(Debug)]
 pub struct Container {
     available: bool,
@@ -22,25 +28,44 @@ impl Container {
 
 }
 
+/// Global management structure for [`Container`] instances.
+/// 
+/// It offers a reliable and safe interface to acquire reservation in order to manipulate 
+/// `Containers`.
 #[derive(Debug, Default)]
 pub struct ContainersManager {
     containers: HashMap<String, Container>
 }
 
 impl ContainersManager {
-    pub fn register(&mut self, resource_identifier: String) {
+    /// This method checks the presence of the provided key before instantiating 
+    /// and inserting a new [`Container`] to avoid overwriting an existing [`Container`]
+    /// 
+    /// This will return `true` if a new [`Container`] has been instantiated and inserted,
+    /// and `false` if a [`Container`] already exists for the provided key. 
+    pub fn register(&mut self, resource_identifier: String) -> bool {
         if self.containers.contains_key(&resource_identifier) == false {
-            self.containers.insert(resource_identifier, Container::new());
+            let container = Container::new();
+            self.containers.insert(resource_identifier, container);
+            true
+        } else {
+            false
         }
     }
 
+    /// Reserve the [`Container`] registered with the provided key.
+    /// 
+    /// If the [`Container`] is available, it is set as reserved and `Ok(true)` is 
+    /// returned, if the [`Container`] is already reserved `Ok(false)` is returned.
+    /// 
+    /// # Errors
+    /// If there is no [`Container`] registered with the provided key an error is returned.
     pub fn try_reservation(&mut self, resource_identifier: String) -> Result<bool, String> {        
         if let Some(container) = self.containers.get_mut(&resource_identifier) {
             if container.is_available() {
                 container.set_availability(false);
                 Ok(true)
             } else {
-                // Already reserved, wait a bit
                 Ok(false)
             }
         } else {
@@ -49,6 +74,15 @@ impl ContainersManager {
         }
     }
 
+    /// Release the [`Container`] registered with the provided key.
+    /// 
+    /// If the [`Container`] is reserved, it is set as available and `Ok(())` is 
+    /// returned
+    /// 
+    /// # Errors
+    /// If the [`Container`] is already available an error is returned.
+    /// 
+    /// If there is no [`Container`] registered with the provided key an error is returned.
     pub fn try_release(&mut self, resource_identifier: String) -> Result<(), String> {        
         if let Some(container) = self.containers.get_mut(&resource_identifier) {
             if  container.is_available() == false {
