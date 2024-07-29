@@ -27,23 +27,6 @@ impl P2mService {
         }
     }
 
-    async fn get_resource_identifier(&self, process_id: u32, file_descriptor: i32) -> Option<String> {
-        self.identifiers_map.read()
-            .await
-            .get(&(process_id, file_descriptor)).cloned()
-    }
-
-    async fn container_reservation(&self, resource_identifier: String, process_id: u32) {
-        match self.containers_manager.lock()
-            .await
-            .try_reservation(resource_identifier.clone())
-        {
-            Ok(true) => (),
-            Ok(false) => self.wait_container_release(resource_identifier, process_id).await,
-            Err(msg) => eprintln!("{}", msg)
-        }
-    }
-
     async fn wait_container_release(&self, resource_identifier: String, _process_id: u32) {
             // Set up a oneshot channel to be notified when it becomes available
             let (tx, rx) = oneshot::channel();
@@ -69,23 +52,6 @@ impl P2mService {
             // CT is now reserved for the current process
             #[cfg(feature = "verbose")]
             println!("<- Now it's your turn PID {}", _process_id);
-    }
-
-    async fn container_release(&self, resource_identifier: String) {
-        if let Some(channel) = self.queuing_handler.lock().await
-            .get_mut(&resource_identifier)
-            .and_then(|queue| queue.pop_front())
-        {
-            channel.send(()).unwrap();
-        } else {
-            match self.containers_manager.lock()
-                .await
-                .try_release(resource_identifier)
-            {
-                Ok(()) => (),
-                Err(msg) => eprintln!("{}", msg)
-            }
-        }
     }
 }
 
@@ -135,8 +101,19 @@ impl P2m for P2mService {
         #[cfg(feature = "verbose")]
         println!("PID: {} | IO Event Requested: FD {}", r.process_id, r.file_descriptor);
 
-        if let Some(resource_identifier) = self.get_resource_identifier(r.process_id, r.file_descriptor).await {
-            self.container_reservation(resource_identifier.clone(), r.process_id).await; 
+        if let Some(resource_identifier) = self.identifiers_map.read()
+                                            .await
+                                            .get(&(r.process_id, r.file_descriptor))
+                                            .cloned()
+        {
+            match self.containers_manager.lock()
+                .await
+                .try_reservation(resource_identifier.clone())
+            {
+                Ok(true) => (),
+                Ok(false) => self.wait_container_release(resource_identifier, r.process_id).await,
+                Err(msg) => eprintln!("{}", msg)
+            }
         } else {
             #[cfg(feature = "verbose")]
             println!("CT {} is not tracked", r.file_descriptor);
@@ -151,8 +128,26 @@ impl P2m for P2mService {
     async fn io_report(&self, request: Request<IoResult>) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
 
-        if let Some(resource_identifier) = self.get_resource_identifier(r.process_id, r.file_descriptor).await {
-            self.container_release(resource_identifier.clone()).await;
+        if let Some(resource_identifier) = self.identifiers_map.read()
+                                                    .await
+                                                    .get(&(r.process_id, r.file_descriptor))
+                                                    .cloned()
+        {
+            if let Some(channel) = self.queuing_handler.lock()
+                                                .await
+                                                .get_mut(&resource_identifier)
+                                                .and_then(|queue| queue.pop_front())
+            {
+                channel.send(()).unwrap();
+            } else {
+                match self.containers_manager.lock()
+                    .await
+                    .try_release(resource_identifier)
+                {
+                    Ok(()) => (),
+                    Err(msg) => eprintln!("{}", msg)
+                }
+            }
         } else {
             #[cfg(feature = "verbose")]
             println!("CT {} is not tracked", r.file_descriptor);
