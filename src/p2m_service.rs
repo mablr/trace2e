@@ -1,10 +1,10 @@
 use p2m::{LocalCt, RemoteCt, IoInfo, IoResult, Grant, Ack, p2m_server::P2m};
 use tonic::{Request, Response, Status};
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{oneshot, Mutex, RwLock};
 use std::collections::{HashMap, VecDeque};
 
-use crate::containers::ContainersManager;
+use crate::containers::{ContainersManager, Identifier};
 
 pub mod p2m {
     tonic::include_proto!("trace2e_api");
@@ -14,8 +14,8 @@ pub mod p2m {
 #[derive(Debug)]
 pub struct P2mService {
     containers_manager: Arc<Mutex<ContainersManager>>,
-    identifiers_map: Arc<RwLock<HashMap<(u32, i32), String>>>,
-    queuing_handler: Arc<Mutex<HashMap<String, VecDeque<oneshot::Sender<()>>>>>,
+    identifiers_map: Arc<RwLock<HashMap<(u32, i32), Identifier>>>,
+    queuing_handler: Arc<Mutex<HashMap<Identifier, VecDeque<oneshot::Sender<()>>>>>,
 }
 
 impl P2mService {
@@ -27,7 +27,7 @@ impl P2mService {
         }
     }
 
-    async fn wait_container_release(&self, resource_identifier: String, _process_id: u32) {
+    async fn wait_container_release(&self, resource_identifier: Identifier, _process_id: u32) {
             // Set up a oneshot channel to be notified when it becomes available
             let (tx, rx) = oneshot::channel();
 
@@ -63,9 +63,10 @@ impl P2m for P2mService {
         #[cfg(feature = "verbose")]
         println!("PID: {} | CT Event Notified: FD {} | {}", r.process_id.clone(),  r.file_descriptor.clone(), r.path.clone()); 
 
+        let identifier = Identifier::File(r.path.clone());
         self.containers_manager.lock()
             .await
-            .register(r.path.clone());
+            .register(identifier.clone());
         /* 
         At the process level, there is a bijection between the file_descriptor and the designated underlying container.
 
@@ -82,15 +83,46 @@ impl P2m for P2mService {
 
         So in any case we have to insert the relation (process_id, file_descriptor) - resource_identifier.
          */
-        {
-            let mut identifiers_map = self.identifiers_map.write().await;
-            identifiers_map.insert((r.process_id.clone(), r.file_descriptor.clone()), r.path.clone());
-        }
+        let mut identifiers_map = self.identifiers_map.write().await;
+        identifiers_map.insert((r.process_id.clone(), r.file_descriptor.clone()), identifier.clone());
+
         Ok(Response::new(Ack {}))
     }
 
     async fn remote_enroll(&self, request: Request<RemoteCt>) -> Result<Response<Ack>, Status> {
-        let _ = request.into_inner();
+        let r = request.into_inner();
+
+        #[cfg(feature = "verbose")]
+        println!("PID: {} | CT Event Notified: FD {} | [{}-{}]", r.process_id.clone(), r.file_descriptor.clone(), r.local_socket.clone(), r.peer_socket.clone()); 
+
+        // Check consistency of the provided sockets
+        let local_socket = match r.local_socket.clone().parse::<SocketAddr>() {
+            Ok(socket) => socket,
+            Err(_) => {
+                #[cfg(feature = "verbose")]
+                println!("PID: {} | FD {} | Local socket string can not be parsed.", r.process_id.clone(), r.file_descriptor.clone());
+                
+                return Err(Status::invalid_argument(format!("Local socket string can not be parsed.")))
+            }
+        };
+        let peer_socket = match r.peer_socket.clone().parse::<SocketAddr>() {
+            Ok(socket) => socket,
+            Err(_) => {
+                #[cfg(feature = "verbose")]
+                println!("PID: {} | FD {} | Peer socket string can not be parsed.", r.process_id.clone(), r.file_descriptor.clone());
+                
+                return Err(Status::invalid_argument(format!("Peer socket string can not be parsed.")))
+            }
+        };
+
+        let identifier = Identifier::Stream(local_socket, peer_socket);
+
+        self.containers_manager.lock()
+            .await
+            .register(identifier.clone());
+
+        let mut identifiers_map = self.identifiers_map.write().await;
+        identifiers_map.insert((r.process_id.clone(), r.file_descriptor.clone()), identifier.clone());
 
         Ok(Response::new(Ack {}))
     }

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use super::Container;
+use super::{Container, Identifier};
 
 /// Global management structure for [`Container`] instances.
 /// 
@@ -8,7 +8,7 @@ use super::Container;
 /// `Containers`.
 #[derive(Debug, Default)]
 pub struct ContainersManager {
-    containers: HashMap<String, Container>
+    containers: HashMap<Identifier, Container>
 }
 
 impl ContainersManager {
@@ -17,7 +17,7 @@ impl ContainersManager {
     /// 
     /// This will return `true` if a new [`Container`] has been instantiated and inserted,
     /// and `false` if a [`Container`] already exists for the provided key. 
-    pub fn register(&mut self, resource_identifier: String) -> bool {
+    pub fn register(&mut self, resource_identifier: Identifier) -> bool {
         if self.containers.contains_key(&resource_identifier) == false {
             let container = Container::new();
             self.containers.insert(resource_identifier, container);
@@ -34,7 +34,7 @@ impl ContainersManager {
     /// 
     /// # Errors
     /// If there is no [`Container`] registered with the provided key an error is returned.
-    pub fn try_reservation(&mut self, resource_identifier: String) -> Result<bool, String> {        
+    pub fn try_reservation(&mut self, resource_identifier: Identifier) -> Result<bool, String> {        
         if let Some(container) = self.containers.get_mut(&resource_identifier) {
             if container.is_available() {
                 container.set_availability(false);
@@ -57,7 +57,7 @@ impl ContainersManager {
     /// If the [`Container`] is already available an error is returned.
     /// 
     /// If there is no [`Container`] registered with the provided key an error is returned.
-    pub fn try_release(&mut self, resource_identifier: String) -> Result<(), String> {        
+    pub fn try_release(&mut self, resource_identifier: Identifier) -> Result<(), String> {        
         if let Some(container) = self.containers.get_mut(&resource_identifier) {
             if  container.is_available() == false {
                 container.set_availability(true);
