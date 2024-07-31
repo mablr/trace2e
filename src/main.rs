@@ -1,6 +1,12 @@
-use trace2e::{containers::ContainersManager, p2m_service::{p2m::{p2m_server::P2mServer, FILE_DESCRIPTOR_SET}, P2mService}};
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
+use trace2e::{
+    containers::ContainersManager,
+    p2m_service::{
+        p2m::{p2m_server::P2mServer, FILE_DESCRIPTOR_SET},
+        P2mService,
+    },
+};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,5 +24,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .serve(address)
         .await?;
 
-    Ok(())       
+    Ok(())
 }
