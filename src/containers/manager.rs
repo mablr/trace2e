@@ -1,32 +1,6 @@
 use std::collections::HashMap;
 
-
-/// Foundation object for traceability.
-/// 
-/// An instance of a [`Container`] holds all information necessary to provide traceability
-/// features for a system resource designated by file descriptor, such as consistent 
-/// IO ordering management, provenance recording and compliance enforcement.  
-#[derive(Debug)]
-pub struct Container {
-    available: bool,
-}
-
-impl Container {
-    fn new() -> Self {
-        Container {
-            available: true,
-        }
-    }
-
-    fn is_available(&self) -> bool{
-        self.available
-    }
-
-    fn set_availability(&mut self, state: bool) {
-        self.available = state;
-    }
-
-}
+use super::Container;
 
 /// Global management structure for [`Container`] instances.
 /// 
@@ -96,51 +70,5 @@ impl ContainersManager {
             // Todo: Create specific error type
             Err(format!("Container '{}' is not registered, impossible to release it.", resource_identifier))
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn containers_manager_register() {
-        let mut containers_manager = ContainersManager::default();
-        let path1 = "/test/path/file1.txt".to_string();
-        let path2 = "/test/path/file2.txt".to_string();
-        assert_eq!(containers_manager.register(path1.clone()), true);
-        assert_eq!(containers_manager.register(path2.clone()), true);
-        assert_eq!(containers_manager.register(path1.clone()), false);
-    }
-
-    #[test]
-    fn containers_manager_try_reservation() {
-        let mut containers_manager = ContainersManager::default();
-        let path1 = "/test/path/file1.txt".to_string();
-        let path2 = "/test/path/file2.txt".to_string();
-        assert_eq!(containers_manager.register(path1.clone()), true);
-        assert_eq!(containers_manager.try_reservation(path1.clone()), Ok(true));
-        assert_eq!(containers_manager.try_reservation(path1.clone()), Ok(false));
-        assert_eq!(containers_manager.try_reservation(path2.clone()), 
-            Err(format!("Container '{}' is not registered, impossible to reserve it.", path2.clone()))
-        );
-    }
-
-    #[test]
-    fn containers_manager_try_release() {
-        let mut containers_manager = ContainersManager::default();
-        let path1 = "/test/path/file1.txt".to_string();
-        assert_eq!(containers_manager.try_release(path1.clone()),
-            Err(format!("Container '{}' is not registered, impossible to release it.", path1.clone()))
-        );
-        assert_eq!(containers_manager.register(path1.clone()), true);
-        assert_eq!(containers_manager.try_release(path1.clone()),
-            Err(format!("Container '{}' is not reserved, impossible to release it.", path1.clone()))
-        );
-        assert_eq!(containers_manager.try_reservation(path1.clone()), Ok(true));
-        assert_eq!(containers_manager.try_release(path1.clone()), Ok(()));
-        assert_eq!(containers_manager.try_release(path1.clone()),
-            Err(format!("Container '{}' is not reserved, impossible to release it.", path1.clone()))
-        );
     }
 }
