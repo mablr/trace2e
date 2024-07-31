@@ -69,10 +69,11 @@ impl P2m for P2mService {
         );
 
         let identifier = Identifier::File(r.path.clone());
-        self.containers_manager
-            .lock()
-            .await
-            .register(identifier.clone());
+        {
+            let mut containers_manager = self.containers_manager.lock().await;
+            containers_manager.register(Identifier::Process(r.process_id.clone()));
+            containers_manager.register(identifier.clone());
+        }
         /*
         At the process level, there is a bijection between the file_descriptor and the designated underlying container.
 
@@ -144,10 +145,11 @@ impl P2m for P2mService {
 
         let identifier = Identifier::Stream(local_socket, peer_socket);
 
-        self.containers_manager
-            .lock()
-            .await
-            .register(identifier.clone());
+        {
+            let mut containers_manager = self.containers_manager.lock().await;
+            containers_manager.register(Identifier::Process(r.process_id.clone()));
+            containers_manager.register(identifier.clone());
+        }
 
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert(
