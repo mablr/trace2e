@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use super::{Container, Identifier};
+use crate::identifiers::Identifier;
+
+use super::Container;
 
 /// Global management structure for [`Container`] instances.
 ///

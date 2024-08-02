@@ -4,7 +4,8 @@ use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{oneshot, Mutex, RwLock};
 use tonic::{Request, Response, Status};
 
-use crate::containers::{ContainersManager, Identifier};
+use crate::containers::ContainersManager;
+use crate::identifiers::Identifier;
 
 pub mod p2m {
     tonic::include_proto!("trace2e_api");
