@@ -1,10 +1,10 @@
 use p2m::{p2m_server::P2m, Ack, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::{net::SocketAddr, sync::Arc};
-use tokio::sync::{oneshot, Mutex, RwLock};
+use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tonic::{Request, Response, Status};
 
-use crate::containers::ContainersManager;
+use crate::containers::{ContainersManager, QueuingMessage};
 use crate::identifiers::Identifier;
 
 pub mod p2m {
@@ -16,43 +16,19 @@ pub mod p2m {
 pub struct P2mService {
     containers_manager: Arc<Mutex<ContainersManager>>,
     identifiers_map: Arc<RwLock<HashMap<(u32, i32), Identifier>>>,
-    queuing_handler: Arc<Mutex<HashMap<Identifier, VecDeque<oneshot::Sender<()>>>>>,
+    queuing_manager: mpsc::Sender<QueuingMessage>,
 }
 
 impl P2mService {
-    pub fn new(containers_manager: ContainersManager) -> Self {
+    pub fn new(
+        containers_manager: ContainersManager,
+        queuing_manager: mpsc::Sender<QueuingMessage>,
+    ) -> Self {
         P2mService {
             containers_manager: Arc::new(Mutex::new(containers_manager)),
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
-            queuing_handler: Arc::new(Mutex::new(HashMap::new())),
+            queuing_manager: queuing_manager,
         }
-    }
-
-    async fn wait_container_release(&self, resource_identifier: Identifier, _process_id: u32) {
-        // Set up a oneshot channel to be notified when it becomes available
-        let (tx, rx) = oneshot::channel();
-
-        // Queuing the channel
-        {
-            let mut queuing_handler = self.queuing_handler.lock().await;
-            if let Some(queue) = queuing_handler.get_mut(&resource_identifier) {
-                queue.push_back(tx);
-            } else {
-                let mut queue = VecDeque::new();
-                queue.push_back(tx);
-                queuing_handler.insert(resource_identifier.clone(), queue);
-            }
-        }
-
-        // Wait until the CT becomes available
-        #[cfg(feature = "verbose")]
-        println!("-> Wait a bit PID {}", _process_id);
-
-        rx.await.unwrap();
-
-        // CT is now reserved for the current process
-        #[cfg(feature = "verbose")]
-        println!("<- Now it's your turn PID {}", _process_id);
     }
 }
 
@@ -185,8 +161,12 @@ impl P2m for P2mService {
             {
                 Ok(true) => (),
                 Ok(false) => {
-                    self.wait_container_release(resource_identifier, r.process_id)
+                    let (tx, rx) = oneshot::channel();
+                    self.queuing_manager
+                        .send(QueuingMessage::EnterQueue(resource_identifier.clone(), tx))
                         .await
+                        .unwrap();
+                    rx.await.unwrap();
                 }
                 Err(message) => {
                     #[cfg(feature = "verbose")]
@@ -224,15 +204,12 @@ impl P2m for P2mService {
             .get(&(r.process_id, r.file_descriptor))
             .cloned()
         {
-            if let Some(channel) = self
-                .queuing_handler
-                .lock()
+            let (tx, rx) = oneshot::channel();
+            self.queuing_manager
+                .send(QueuingMessage::ExitQueue(resource_identifier.clone(), tx))
                 .await
-                .get_mut(&resource_identifier)
-                .and_then(|queue| queue.pop_front())
-            {
-                channel.send(()).unwrap();
-            } else {
+                .unwrap();
+            if rx.await.unwrap() {
                 match self
                     .containers_manager
                     .lock()
