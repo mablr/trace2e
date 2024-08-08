@@ -1,4 +1,4 @@
-use p2m::{p2m_server::P2m, Ack, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
+use p2m::{p2m_server::P2m, Ack, Flow, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
 use std::collections::HashMap;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{mpsc, oneshot, RwLock};
@@ -172,13 +172,19 @@ impl P2m for P2mService {
             .get(&(r.process_id, r.file_descriptor))
             .cloned()
         {
+            let (container_to_read, container_to_write) = match r.flow {
+                flow if flow == Flow::Input.into() => {
+                    (resource_identifier, Identifier::Process(r.process_id))
+                }
+                flow if flow == Flow::Output.into() => {
+                    (Identifier::Process(r.process_id), resource_identifier)
+                }
+                _ => return Err(Status::invalid_argument(format!("Unsupported Flow type"))),
+            };
             let (tx, rx) = oneshot::channel();
             let _ = self
                 .containers_manager
-                .send(ContainerAction::Reserve(
-                    Identifier::Process(r.process_id.clone()),
-                    tx,
-                ))
+                .send(ContainerAction::ReserveRead(container_to_read, tx))
                 .await;
             match rx.await.unwrap() {
                 ContainerResult::Wait(callback) => callback.await.unwrap(),
@@ -187,7 +193,7 @@ impl P2m for P2mService {
             let (tx, rx) = oneshot::channel();
             let _ = self
                 .containers_manager
-                .send(ContainerAction::Reserve(resource_identifier.clone(), tx))
+                .send(ContainerAction::ReserveWrite(container_to_write, tx))
                 .await;
             match rx.await.unwrap() {
                 ContainerResult::Wait(callback) => callback.await.unwrap(),

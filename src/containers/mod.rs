@@ -4,6 +4,4 @@ mod manager;
 mod tests;
 
 pub use container::Container;
-pub use manager::{
-    containers_manager, ContainerAction, ContainerResult, ContainersManager,
-};
+pub use manager::{containers_manager, ContainerAction, ContainerResult, ContainersManager};
