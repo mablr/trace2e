@@ -1,10 +1,10 @@
 use p2m::{p2m_server::P2m, Ack, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
 use std::collections::HashMap;
 use std::{net::SocketAddr, sync::Arc};
-use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
+use tokio::sync::{mpsc, oneshot, RwLock};
 use tonic::{Request, Response, Status};
 
-use crate::containers::{ContainersManager, QueuingMessage};
+use crate::containers::{ContainerAction, ContainerResult};
 use crate::identifiers::Identifier;
 
 pub mod p2m {
@@ -14,20 +14,15 @@ pub mod p2m {
 
 #[derive(Debug)]
 pub struct P2mService {
-    containers_manager: Arc<Mutex<ContainersManager>>,
+    containers_manager: mpsc::Sender<ContainerAction>,
     identifiers_map: Arc<RwLock<HashMap<(u32, i32), Identifier>>>,
-    queuing_manager: mpsc::Sender<QueuingMessage>,
 }
 
 impl P2mService {
-    pub fn new(
-        containers_manager: ContainersManager,
-        queuing_manager: mpsc::Sender<QueuingMessage>,
-    ) -> Self {
+    pub fn new(containers_manager: mpsc::Sender<ContainerAction>) -> Self {
         P2mService {
-            containers_manager: Arc::new(Mutex::new(containers_manager)),
+            containers_manager: containers_manager,
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
-            queuing_manager: queuing_manager,
         }
     }
 }
@@ -46,11 +41,24 @@ impl P2m for P2mService {
         );
 
         let identifier = Identifier::File(r.path.clone());
-        {
-            let mut containers_manager = self.containers_manager.lock().await;
-            containers_manager.register(Identifier::Process(r.process_id.clone()));
-            containers_manager.register(identifier.clone());
-        }
+
+        let (tx, rx) = oneshot::channel();
+        let _ = self
+            .containers_manager
+            .send(ContainerAction::Register(
+                Identifier::Process(r.process_id.clone()),
+                tx,
+            ))
+            .await;
+        rx.await.unwrap();
+
+        let (tx, rx) = oneshot::channel();
+        let _ = self
+            .containers_manager
+            .send(ContainerAction::Register(identifier.clone(), tx))
+            .await;
+        rx.await.unwrap();
+
         /*
         At the process level, there is a bijection between the file_descriptor and the designated underlying container.
 
@@ -122,11 +130,22 @@ impl P2m for P2mService {
 
         let identifier = Identifier::Stream(local_socket, peer_socket);
 
-        {
-            let mut containers_manager = self.containers_manager.lock().await;
-            containers_manager.register(Identifier::Process(r.process_id.clone()));
-            containers_manager.register(identifier.clone());
-        }
+        let (tx, rx) = oneshot::channel();
+        let _ = self
+            .containers_manager
+            .send(ContainerAction::Register(
+                Identifier::Process(r.process_id.clone()),
+                tx,
+            ))
+            .await;
+        rx.await.unwrap();
+
+        let (tx, rx) = oneshot::channel();
+        let _ = self
+            .containers_manager
+            .send(ContainerAction::Register(identifier.clone(), tx))
+            .await;
+        rx.await.unwrap();
 
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert(
@@ -153,27 +172,26 @@ impl P2m for P2mService {
             .get(&(r.process_id, r.file_descriptor))
             .cloned()
         {
-            match self
+            let (tx, rx) = oneshot::channel();
+            let _ = self
                 .containers_manager
-                .lock()
-                .await
-                .try_reservation(resource_identifier.clone())
-            {
-                Ok(true) => (),
-                Ok(false) => {
-                    let (tx, rx) = oneshot::channel();
-                    self.queuing_manager
-                        .send(QueuingMessage::EnterQueue(resource_identifier.clone(), tx))
-                        .await
-                        .unwrap();
-                    rx.await.unwrap();
-                }
-                Err(message) => {
-                    #[cfg(feature = "verbose")]
-                    println!("{}", message);
-
-                    return Err(Status::not_found(message));
-                }
+                .send(ContainerAction::Reserve(
+                    Identifier::Process(r.process_id.clone()),
+                    tx,
+                ))
+                .await;
+            match rx.await.unwrap() {
+                ContainerResult::Wait(callback) => callback.await.unwrap(),
+                _ => (),
+            }
+            let (tx, rx) = oneshot::channel();
+            let _ = self
+                .containers_manager
+                .send(ContainerAction::Reserve(resource_identifier.clone(), tx))
+                .await;
+            match rx.await.unwrap() {
+                ContainerResult::Wait(callback) => callback.await.unwrap(),
+                _ => (),
             }
         } else {
             #[cfg(feature = "verbose")]
@@ -205,27 +223,20 @@ impl P2m for P2mService {
             .cloned()
         {
             let (tx, rx) = oneshot::channel();
-            self.queuing_manager
-                .send(QueuingMessage::ExitQueue(resource_identifier.clone(), tx))
+            self.containers_manager
+                .send(ContainerAction::Release(
+                    Identifier::Process(r.process_id.clone()),
+                    tx,
+                ))
                 .await
                 .unwrap();
-            if rx.await.unwrap() {
-                match self
-                    .containers_manager
-                    .lock()
-                    .await
-                    .try_release(resource_identifier)
-                {
-                    Ok(()) => (),
-                    Err(message) => {
-                        // Todo split error feedback
-                        #[cfg(feature = "verbose")]
-                        println!("{}", message);
-
-                        return Err(Status::not_found(message));
-                    }
-                }
-            }
+            rx.await.unwrap();
+            let (tx, rx) = oneshot::channel();
+            self.containers_manager
+                .send(ContainerAction::Release(resource_identifier.clone(), tx))
+                .await
+                .unwrap();
+            rx.await.unwrap();
         } else {
             #[cfg(feature = "verbose")]
             println!("CT {} is not tracked", r.file_descriptor);
