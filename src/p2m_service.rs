@@ -34,7 +34,7 @@ impl P2m for P2mService {
 
         #[cfg(feature = "verbose")]
         println!(
-            "PID: {} | CT Event Notified: FD {} | {}",
+            "PID: {} | FD: {} | Local Enroll | {}",
             r.process_id.clone(),
             r.file_descriptor.clone(),
             r.path.clone()
@@ -89,7 +89,7 @@ impl P2m for P2mService {
 
         #[cfg(feature = "verbose")]
         println!(
-            "PID: {} | CT Event Notified: FD {} | [{}-{}]",
+            "PID: {} | FD: {} | Remote Enroll |  [{}-{}]",
             r.process_id.clone(),
             r.file_descriptor.clone(),
             r.local_socket.clone(),
@@ -101,7 +101,7 @@ impl P2m for P2mService {
             Ok(socket) => socket,
             Err(_) => {
                 #[cfg(feature = "verbose")]
-                println!(
+                eprintln!(
                     "PID: {} | FD {} | Local socket string can not be parsed.",
                     r.process_id.clone(),
                     r.file_descriptor.clone()
@@ -116,7 +116,7 @@ impl P2m for P2mService {
             Ok(socket) => socket,
             Err(_) => {
                 #[cfg(feature = "verbose")]
-                println!(
+                eprintln!(
                     "PID: {} | FD {} | Peer socket string can not be parsed.",
                     r.process_id.clone(),
                     r.file_descriptor.clone()
@@ -161,8 +161,18 @@ impl P2m for P2mService {
 
         #[cfg(feature = "verbose")]
         println!(
-            "PID: {} | IO Event Requested: FD {}",
-            r.process_id, r.file_descriptor
+            "PID: {} | FD: {} | Request for {}",
+            r.process_id,
+            r.file_descriptor,
+            {
+                if r.flow == 0 {
+                    "Input/Read  "
+                } else if r.flow == 1 {
+                    "Output/Write"
+                } else {
+                    "None"
+                }
+            },
         );
 
         if let Some(resource_identifier) = self
@@ -173,48 +183,82 @@ impl P2m for P2mService {
             .cloned()
         {
             let (container_to_read, container_to_write) = match r.flow {
-                flow if flow == Flow::Input.into() => {
-                    (resource_identifier, Identifier::Process(r.process_id))
-                }
-                flow if flow == Flow::Output.into() => {
-                    (Identifier::Process(r.process_id), resource_identifier)
-                }
+                flow if flow == Flow::Input.into() => (
+                    resource_identifier.clone(),
+                    Identifier::Process(r.process_id),
+                ),
+                flow if flow == Flow::Output.into() => (
+                    Identifier::Process(r.process_id),
+                    resource_identifier.clone(),
+                ),
                 _ => return Err(Status::invalid_argument(format!("Unsupported Flow type"))),
             };
             let (tx, rx) = oneshot::channel();
             let _ = self
                 .containers_manager
-                .send(ContainerAction::ReserveRead(container_to_read, tx))
+                .send(ContainerAction::ReserveRead(container_to_read.clone(), tx))
                 .await;
             match rx.await.unwrap() {
-                ContainerResult::Wait(callback) => callback.await.unwrap(),
-                _ => (),
+                ContainerResult::Wait(callback) => {
+                    #[cfg(feature = "verbose")]
+                    println!("⏸️  read wait {}", container_to_read.clone());
+                    callback.await.unwrap();
+                    #[cfg(feature = "verbose")]
+                    println!("⏯️  read got after wait {}", container_to_read.clone())
+                }
+                ContainerResult::Done => {
+                    #[cfg(feature = "verbose")]
+                    println!("⏩ read got {}", container_to_read.clone());
+                }
+                _ => unimplemented!(),
             }
             let (tx, rx) = oneshot::channel();
             let _ = self
                 .containers_manager
-                .send(ContainerAction::ReserveWrite(container_to_write, tx))
+                .send(ContainerAction::ReserveWrite(
+                    container_to_write.clone(),
+                    tx,
+                ))
                 .await;
             match rx.await.unwrap() {
-                ContainerResult::Wait(callback) => callback.await.unwrap(),
-                _ => (),
+                ContainerResult::Wait(callback) => {
+                    #[cfg(feature = "verbose")]
+                    println!("⏸️  write wait {}", container_to_write.clone());
+                    callback.await.unwrap();
+                    #[cfg(feature = "verbose")]
+                    println!("⏯️  write got after wait {}", container_to_write.clone());
+                }
+                ContainerResult::Done => {
+                    #[cfg(feature = "verbose")]
+                    println!("⏩ write got {}", container_to_write.clone());
+                }
+                _ => unimplemented!(),
             }
+            #[cfg(feature = "verbose")]
+            println!(
+                "PID: {} | FD: {} | {} Authorized | {}",
+                r.process_id,
+                r.file_descriptor,
+                {
+                    if r.flow == 0 {
+                        "Input/Read"
+                    } else if r.flow == 1 {
+                        "Output/Write"
+                    } else {
+                        "None"
+                    }
+                },
+                resource_identifier.clone(),
+            );
         } else {
             #[cfg(feature = "verbose")]
-            println!("CT {} is not tracked", r.file_descriptor);
+            eprintln!("CT {} is not tracked", r.file_descriptor);
 
             return Err(Status::not_found(format!(
                 "CT {} is not tracked",
                 r.file_descriptor
             )));
         }
-
-        #[cfg(feature = "verbose")]
-        println!(
-            "PID: {} | IO Event Authorized: FD {}",
-            r.process_id, r.file_descriptor
-        );
-
         Ok(Response::new(Grant { id: 0 })) // TODO : implement grant_id
     }
 
@@ -243,21 +287,21 @@ impl P2m for P2mService {
                 .await
                 .unwrap();
             rx.await.unwrap();
+
+            #[cfg(feature = "verbose")]
+            println!(
+                "PID: {} | FD: {} | IO Done | {}",
+                r.process_id, r.file_descriptor, resource_identifier.clone()
+            );
         } else {
             #[cfg(feature = "verbose")]
-            println!("CT {} is not tracked", r.file_descriptor);
+            eprintln!("CT {} is not tracked", r.file_descriptor);
 
             return Err(Status::not_found(format!(
                 "CT {} is not tracked",
                 r.file_descriptor
             )));
         }
-
-        #[cfg(feature = "verbose")]
-        println!(
-            "PID: {} | IO Event Done: FD {}",
-            r.process_id, r.file_descriptor
-        );
 
         Ok(Response::new(Ack {}))
     }
