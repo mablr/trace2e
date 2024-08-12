@@ -37,12 +37,12 @@ impl ContainersManager {
     ///
     /// # Errors
     /// If there is no [`Container`] registered with the provided key an error is returned.
-    pub fn try_read(&mut self, resource_identifier: Identifier) -> Result<(), ContainerError> {
+    pub fn try_read(&mut self, resource_identifier: Identifier) -> Result<bool, ContainerError> {
         if let Some(container) = self.containers.get_mut(&resource_identifier) {
             if container.reserve_read() {
-                Ok(())
+                Ok(true)
             } else {
-                Err(ContainerError::AlreadyReserved(resource_identifier.clone()))
+                Ok(false)
             }
         } else {
             Err(ContainerError::NotRegistered(resource_identifier.clone()))
@@ -56,12 +56,12 @@ impl ContainersManager {
     ///
     /// # Errors
     /// If there is no [`Container`] registered with the provided key an error is returned.
-    pub fn try_write(&mut self, resource_identifier: Identifier) -> Result<(), ContainerError> {
+    pub fn try_write(&mut self, resource_identifier: Identifier) -> Result<bool, ContainerError> {
         if let Some(container) = self.containers.get_mut(&resource_identifier) {
             if container.reserve_write() {
-                Ok(())
+                Ok(true)
             } else {
-                Err(ContainerError::AlreadyReserved(resource_identifier.clone()))
+                Ok(false)
             }
         } else {
             Err(ContainerError::NotRegistered(resource_identifier.clone()))
@@ -108,7 +108,7 @@ pub enum ContainerAction {
 pub enum ContainerResult {
     Done,
     Wait(oneshot::Receiver<()>),
-    Error,
+    Error(ContainerError),
 }
 
 pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
@@ -122,29 +122,29 @@ pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
             }
             ContainerAction::ReserveRead(identifier, responder) => {
                 match manager.try_read(identifier.clone()) {
-                    Ok(_) => {
+                    Ok(true) => {
                         responder.send(ContainerResult::Done).unwrap();
                     }
-                    Err(ContainerError::AlreadyReserved(id)) => {
-                        let callback = wait_container_release(&mut queues, id).await;
+                    Ok(false) => {
+                        let callback = wait_container_release(&mut queues, identifier).await;
                         responder.send(ContainerResult::Wait(callback)).unwrap();
                     }
-                    Err(_) => {
-                        responder.send(ContainerResult::Error).unwrap(); // Todo return containerError
+                    Err(e) => {
+                        responder.send(ContainerResult::Error(e)).unwrap();
                     }
                 };
             }
             ContainerAction::ReserveWrite(identifier, responder) => {
                 match manager.try_write(identifier.clone()) {
-                    Ok(_) => {
+                    Ok(true) => {
                         responder.send(ContainerResult::Done).unwrap();
                     }
-                    Err(ContainerError::AlreadyReserved(id)) => {
-                        let callback = wait_container_release(&mut queues, id).await;
+                    Ok(false) => {
+                        let callback = wait_container_release(&mut queues, identifier).await;
                         responder.send(ContainerResult::Wait(callback)).unwrap();
                     }
-                    Err(_) => {
-                        responder.send(ContainerResult::Error).unwrap(); // Todo return containerError
+                    Err(e) => {
+                        responder.send(ContainerResult::Error(e)).unwrap();
                     }
                 };
             }
@@ -158,7 +158,7 @@ pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
                 } else {
                     match manager.try_release(identifier.clone()) {
                         Ok(()) => responder.send(ContainerResult::Done).unwrap(),
-                        Err(_) => responder.send(ContainerResult::Error).unwrap(),
+                        Err(e) => responder.send(ContainerResult::Error(e)).unwrap(),
                     }
                 }
             }

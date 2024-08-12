@@ -33,6 +33,7 @@ impl Provenance {
         *grant_id += 1;
         *grant_id
     }
+
     pub async fn declare_flow(
         &self,
         source: Identifier,
@@ -55,7 +56,7 @@ impl Provenance {
                 #[cfg(feature = "verbose")]
                 println!("⏩ read got {}", source.clone());
             }
-            _ => unimplemented!(),
+            ContainerResult::Error(_) => todo!(),
         }
         let (tx, rx) = oneshot::channel();
         let _ = self
@@ -74,7 +75,7 @@ impl Provenance {
                 #[cfg(feature = "verbose")]
                 println!("⏩ write got {}", destination.clone());
             }
-            _ => unimplemented!(),
+            ContainerResult::Error(_) => todo!(),
         }
 
         Ok(Flow {

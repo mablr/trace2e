@@ -1,7 +1,5 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
-use manager::ContainerError;
-
 use crate::identifiers::Identifier;
 
 use super::*;
@@ -39,9 +37,9 @@ fn containers_manager_try_read() {
     assert_eq!(containers_manager.register(id2.clone()), true);
     assert_eq!(containers_manager.register(id3.clone()), true);
 
-    assert_eq!(containers_manager.try_read(id1.clone()), Ok(()));
-    assert_eq!(containers_manager.try_read(id2.clone()), Ok(()));
-    assert_eq!(containers_manager.try_read(id3.clone()), Ok(()));
+    assert_eq!(containers_manager.try_read(id1.clone()), Ok(true));
+    assert_eq!(containers_manager.try_read(id2.clone()), Ok(true));
+    assert_eq!(containers_manager.try_read(id3.clone()), Ok(true));
 }
 
 #[test]
@@ -82,13 +80,13 @@ fn containers_manager_try_read_already_read() {
     assert_eq!(containers_manager.register(id2.clone()), true);
     assert_eq!(containers_manager.register(id3.clone()), true);
 
-    assert_eq!(containers_manager.try_read(id1.clone()), Ok(()));
-    assert_eq!(containers_manager.try_read(id2.clone()), Ok(()));
-    assert_eq!(containers_manager.try_read(id3.clone()), Ok(()));
+    assert_eq!(containers_manager.try_read(id1.clone()), Ok(true));
+    assert_eq!(containers_manager.try_read(id2.clone()), Ok(true));
+    assert_eq!(containers_manager.try_read(id3.clone()), Ok(true));
 
-    assert_eq!(containers_manager.try_read(id1.clone()), Ok(()));
-    assert_eq!(containers_manager.try_read(id2.clone()), Ok(()));
-    assert_eq!(containers_manager.try_read(id3.clone()), Ok(()));
+    assert_eq!(containers_manager.try_read(id1.clone()), Ok(true));
+    assert_eq!(containers_manager.try_read(id2.clone()), Ok(true));
+    assert_eq!(containers_manager.try_read(id3.clone()), Ok(true));
 }
 
 #[test]
@@ -105,22 +103,13 @@ fn containers_manager_try_read_already_write() {
     assert_eq!(containers_manager.register(id2.clone()), true);
     assert_eq!(containers_manager.register(id3.clone()), true);
 
-    assert_eq!(containers_manager.try_write(id1.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id2.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id3.clone()), Ok(()));
+    assert_eq!(containers_manager.try_write(id1.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id2.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id3.clone()), Ok(true));
 
-    assert_eq!(
-        containers_manager.try_read(id1.clone()),
-        Err(ContainerError::AlreadyReserved(id1.clone()))
-    );
-    assert_eq!(
-        containers_manager.try_read(id2.clone()),
-        Err(ContainerError::AlreadyReserved(id2.clone()))
-    );
-    assert_eq!(
-        containers_manager.try_read(id3.clone()),
-        Err(ContainerError::AlreadyReserved(id3.clone()))
-    );
+    assert_eq!(containers_manager.try_read(id1.clone()), Ok(false));
+    assert_eq!(containers_manager.try_read(id2.clone()), Ok(false));
+    assert_eq!(containers_manager.try_read(id3.clone()), Ok(false));
 }
 
 #[test]
@@ -137,9 +126,9 @@ fn containers_manager_try_write() {
     assert_eq!(containers_manager.register(id2.clone()), true);
     assert_eq!(containers_manager.register(id3.clone()), true);
 
-    assert_eq!(containers_manager.try_write(id1.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id2.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id3.clone()), Ok(()));
+    assert_eq!(containers_manager.try_write(id1.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id2.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id3.clone()), Ok(true));
 }
 
 #[test]
@@ -180,22 +169,13 @@ fn containers_manager_try_write_already_read() {
     assert_eq!(containers_manager.register(id2.clone()), true);
     assert_eq!(containers_manager.register(id3.clone()), true);
 
-    assert_eq!(containers_manager.try_read(id1.clone()), Ok(()));
-    assert_eq!(containers_manager.try_read(id2.clone()), Ok(()));
-    assert_eq!(containers_manager.try_read(id3.clone()), Ok(()));
+    assert_eq!(containers_manager.try_read(id1.clone()), Ok(true));
+    assert_eq!(containers_manager.try_read(id2.clone()), Ok(true));
+    assert_eq!(containers_manager.try_read(id3.clone()), Ok(true));
 
-    assert_eq!(
-        containers_manager.try_write(id1.clone()),
-        Err(ContainerError::AlreadyReserved(id1.clone()))
-    );
-    assert_eq!(
-        containers_manager.try_write(id2.clone()),
-        Err(ContainerError::AlreadyReserved(id2.clone()))
-    );
-    assert_eq!(
-        containers_manager.try_write(id3.clone()),
-        Err(ContainerError::AlreadyReserved(id3.clone()))
-    );
+    assert_eq!(containers_manager.try_write(id1.clone()), Ok(false));
+    assert_eq!(containers_manager.try_write(id2.clone()), Ok(false));
+    assert_eq!(containers_manager.try_write(id3.clone()), Ok(false));
 }
 
 #[test]
@@ -212,22 +192,13 @@ fn containers_manager_try_write_already_write() {
     assert_eq!(containers_manager.register(id2.clone()), true);
     assert_eq!(containers_manager.register(id3.clone()), true);
 
-    assert_eq!(containers_manager.try_write(id1.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id2.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id3.clone()), Ok(()));
+    assert_eq!(containers_manager.try_write(id1.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id2.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id3.clone()), Ok(true));
 
-    assert_eq!(
-        containers_manager.try_write(id1.clone()),
-        Err(ContainerError::AlreadyReserved(id1.clone()))
-    );
-    assert_eq!(
-        containers_manager.try_write(id2.clone()),
-        Err(ContainerError::AlreadyReserved(id2.clone()))
-    );
-    assert_eq!(
-        containers_manager.try_write(id3.clone()),
-        Err(ContainerError::AlreadyReserved(id3.clone()))
-    );
+    assert_eq!(containers_manager.try_write(id1.clone()), Ok(false));
+    assert_eq!(containers_manager.try_write(id2.clone()), Ok(false));
+    assert_eq!(containers_manager.try_write(id3.clone()), Ok(false));
 }
 
 #[test]
@@ -244,17 +215,17 @@ fn containers_manager_try_release_write() {
     assert_eq!(containers_manager.register(id2.clone()), true);
     assert_eq!(containers_manager.register(id3.clone()), true);
 
-    assert_eq!(containers_manager.try_write(id1.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id2.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id3.clone()), Ok(()));
+    assert_eq!(containers_manager.try_write(id1.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id2.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id3.clone()), Ok(true));
 
     assert_eq!(containers_manager.try_release(id1.clone()), Ok(()));
     assert_eq!(containers_manager.try_release(id2.clone()), Ok(()));
     assert_eq!(containers_manager.try_release(id3.clone()), Ok(()));
 
-    assert_eq!(containers_manager.try_write(id1.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id2.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id3.clone()), Ok(()));
+    assert_eq!(containers_manager.try_write(id1.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id2.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id3.clone()), Ok(true));
 }
 
 #[test]
@@ -271,17 +242,17 @@ fn containers_manager_try_release_read() {
     assert_eq!(containers_manager.register(id2.clone()), true);
     assert_eq!(containers_manager.register(id3.clone()), true);
 
-    assert_eq!(containers_manager.try_read(id1.clone()), Ok(()));
-    assert_eq!(containers_manager.try_read(id2.clone()), Ok(()));
-    assert_eq!(containers_manager.try_read(id3.clone()), Ok(()));
+    assert_eq!(containers_manager.try_read(id1.clone()), Ok(true));
+    assert_eq!(containers_manager.try_read(id2.clone()), Ok(true));
+    assert_eq!(containers_manager.try_read(id3.clone()), Ok(true));
 
     assert_eq!(containers_manager.try_release(id1.clone()), Ok(()));
     assert_eq!(containers_manager.try_release(id2.clone()), Ok(()));
     assert_eq!(containers_manager.try_release(id3.clone()), Ok(()));
 
-    assert_eq!(containers_manager.try_write(id1.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id2.clone()), Ok(()));
-    assert_eq!(containers_manager.try_write(id3.clone()), Ok(()));
+    assert_eq!(containers_manager.try_write(id1.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id2.clone()), Ok(true));
+    assert_eq!(containers_manager.try_write(id3.clone()), Ok(true));
 }
 
 #[test]
