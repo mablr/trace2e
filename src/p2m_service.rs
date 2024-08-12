@@ -6,7 +6,7 @@ use tonic::{Request, Response, Status};
 
 use crate::containers::ContainerAction;
 use crate::identifiers::Identifier;
-use crate::provenance::{Flow as ProvFlow, Provenance};
+use crate::provenance::{Flow as ProvFlow, ProvenanceManager};
 
 pub mod p2m {
     tonic::include_proto!("trace2e_api");
@@ -17,7 +17,7 @@ pub mod p2m {
 pub struct P2mService {
     containers_manager: mpsc::Sender<ContainerAction>,
     identifiers_map: Arc<RwLock<HashMap<(u32, i32), Identifier>>>,
-    provenance: Provenance,
+    provenance: ProvenanceManager,
     flows: Arc<Mutex<HashMap<u64, ProvFlow>>>,
 }
 
@@ -26,7 +26,7 @@ impl P2mService {
         P2mService {
             containers_manager: containers_manager.clone(),
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
-            provenance: Provenance::new(containers_manager),
+            provenance: ProvenanceManager::new(containers_manager),
             flows: Arc::new(Mutex::new(HashMap::new())),
         }
     }

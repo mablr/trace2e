@@ -7,20 +7,15 @@ use crate::{
     identifiers::Identifier,
 };
 
-#[derive(Debug, Clone)]
-pub struct Flow {
-    pub id: u64,
-    pub source: Identifier,
-    pub destination: Identifier,
-}
+use super::{error::ProvenanceError, Flow};
 
 #[derive(Debug)]
-pub struct Provenance {
+pub struct ProvenanceManager {
     containers_manager: mpsc::Sender<ContainerAction>,
     grant_counter: Arc<Mutex<u64>>,
 }
 
-impl Provenance {
+impl ProvenanceManager {
     pub fn new(containers_manager: mpsc::Sender<ContainerAction>) -> Self {
         Self {
             containers_manager,
@@ -38,7 +33,7 @@ impl Provenance {
         &self,
         source: Identifier,
         destination: Identifier,
-    ) -> Result<Flow, Error> {
+    ) -> Result<Flow, ProvenanceError> {
         let (tx, rx) = oneshot::channel();
         let _ = self
             .containers_manager
@@ -56,7 +51,7 @@ impl Provenance {
                 #[cfg(feature = "verbose")]
                 println!("⏩ read got {}", source.clone());
             }
-            ContainerResult::Error(_) => todo!(),
+            ContainerResult::Error(e) => return Err(ProvenanceError::Inconsistency(e)),
         }
         let (tx, rx) = oneshot::channel();
         let _ = self
@@ -75,7 +70,7 @@ impl Provenance {
                 #[cfg(feature = "verbose")]
                 println!("⏩ write got {}", destination.clone());
             }
-            ContainerResult::Error(_) => todo!(),
+            ContainerResult::Error(e) => return Err(ProvenanceError::Inconsistency(e)),
         }
 
         Ok(Flow {
