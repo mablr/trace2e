@@ -1,11 +1,12 @@
 use p2m::{p2m_server::P2m, Ack, Flow, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
 use std::collections::HashMap;
 use std::{net::SocketAddr, sync::Arc};
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tonic::{Request, Response, Status};
 
-use crate::containers::{ContainerAction, ContainerResult};
+use crate::containers::ContainerAction;
 use crate::identifiers::Identifier;
+use crate::provenance::{Flow as ProvFlow, Provenance};
 
 pub mod p2m {
     tonic::include_proto!("trace2e_api");
@@ -16,13 +17,17 @@ pub mod p2m {
 pub struct P2mService {
     containers_manager: mpsc::Sender<ContainerAction>,
     identifiers_map: Arc<RwLock<HashMap<(u32, i32), Identifier>>>,
+    provenance: Provenance,
+    flows: Arc<Mutex<HashMap<u64, ProvFlow>>>,
 }
 
 impl P2mService {
     pub fn new(containers_manager: mpsc::Sender<ContainerAction>) -> Self {
         P2mService {
-            containers_manager: containers_manager,
+            containers_manager: containers_manager.clone(),
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
+            provenance: Provenance::new(containers_manager),
+            flows: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -182,58 +187,25 @@ impl P2m for P2mService {
             .get(&(r.process_id, r.file_descriptor))
             .cloned()
         {
-            let (container_to_read, container_to_write) = match r.flow {
-                flow if flow == Flow::Input.into() => (
-                    resource_identifier.clone(),
-                    Identifier::Process(r.process_id),
-                ),
-                flow if flow == Flow::Output.into() => (
-                    Identifier::Process(r.process_id),
-                    resource_identifier.clone(),
-                ),
+            let flow = match r.flow {
+                flow_type if flow_type == Flow::Input.into() => self
+                    .provenance
+                    .declare_flow(
+                        resource_identifier.clone(),
+                        Identifier::Process(r.process_id),
+                    )
+                    .await
+                    .unwrap(),
+                flow_type if flow_type == Flow::Output.into() => self
+                    .provenance
+                    .declare_flow(
+                        Identifier::Process(r.process_id),
+                        resource_identifier.clone(),
+                    )
+                    .await
+                    .unwrap(),
                 _ => return Err(Status::invalid_argument(format!("Unsupported Flow type"))),
             };
-            let (tx, rx) = oneshot::channel();
-            let _ = self
-                .containers_manager
-                .send(ContainerAction::ReserveRead(container_to_read.clone(), tx))
-                .await;
-            match rx.await.unwrap() {
-                ContainerResult::Wait(callback) => {
-                    #[cfg(feature = "verbose")]
-                    println!("⏸️  read wait {}", container_to_read.clone());
-                    callback.await.unwrap();
-                    #[cfg(feature = "verbose")]
-                    println!("⏯️  read got after wait {}", container_to_read.clone())
-                }
-                ContainerResult::Done => {
-                    #[cfg(feature = "verbose")]
-                    println!("⏩ read got {}", container_to_read.clone());
-                }
-                _ => unimplemented!(),
-            }
-            let (tx, rx) = oneshot::channel();
-            let _ = self
-                .containers_manager
-                .send(ContainerAction::ReserveWrite(
-                    container_to_write.clone(),
-                    tx,
-                ))
-                .await;
-            match rx.await.unwrap() {
-                ContainerResult::Wait(callback) => {
-                    #[cfg(feature = "verbose")]
-                    println!("⏸️  write wait {}", container_to_write.clone());
-                    callback.await.unwrap();
-                    #[cfg(feature = "verbose")]
-                    println!("⏯️  write got after wait {}", container_to_write.clone());
-                }
-                ContainerResult::Done => {
-                    #[cfg(feature = "verbose")]
-                    println!("⏩ write got {}", container_to_write.clone());
-                }
-                _ => unimplemented!(),
-            }
             #[cfg(feature = "verbose")]
             println!(
                 "PID: {} | FD: {} | {} Authorized | {}",
@@ -250,6 +222,9 @@ impl P2m for P2mService {
                 },
                 resource_identifier.clone(),
             );
+            let mut flows = self.flows.lock().await;
+            flows.insert(flow.id, flow.clone());
+            Ok(Response::new(Grant { id: flow.id }))
         } else {
             #[cfg(feature = "verbose")]
             eprintln!("CT {} is not tracked", r.file_descriptor);
@@ -259,40 +234,47 @@ impl P2m for P2mService {
                 r.file_descriptor
             )));
         }
-        Ok(Response::new(Grant { id: 0 })) // TODO : implement grant_id
     }
 
     async fn io_report(&self, request: Request<IoResult>) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
 
-        if let Some(resource_identifier) = self
+        if let Some(_resource_identifier) = self
             .identifiers_map
             .read()
             .await
             .get(&(r.process_id, r.file_descriptor))
             .cloned()
         {
-            let (tx, rx) = oneshot::channel();
-            self.containers_manager
-                .send(ContainerAction::Release(
-                    Identifier::Process(r.process_id.clone()),
-                    tx,
-                ))
-                .await
-                .unwrap();
-            rx.await.unwrap();
-            let (tx, rx) = oneshot::channel();
-            self.containers_manager
-                .send(ContainerAction::Release(resource_identifier.clone(), tx))
-                .await
-                .unwrap();
-            rx.await.unwrap();
+            if let Some(flow) = self.flows.lock().await.get(&(r.grant_id)).cloned() {
+                match self.provenance.record_flow(flow).await {
+                    Ok(_) => {
+                        #[cfg(feature = "verbose")]
+                        println!(
+                            "PID: {} | FD: {} | IO Done | {}",
+                            r.process_id,
+                            r.file_descriptor,
+                            _resource_identifier.clone()
+                        );
 
-            #[cfg(feature = "verbose")]
-            println!(
-                "PID: {} | FD: {} | IO Done | {}",
-                r.process_id, r.file_descriptor, resource_identifier.clone()
-            );
+                        Ok(Response::new(Ack {}))
+                    }
+                    Err(_) => {
+                        #[cfg(feature = "verbose")]
+                        eprintln!("Provenance recording failure, Flow {}", r.grant_id);
+
+                        Err(Status::internal("Provenance recording failure"))
+                    }
+                }
+            } else {
+                #[cfg(feature = "verbose")]
+                eprintln!("Flow {} does not exist", r.grant_id);
+
+                return Err(Status::not_found(format!(
+                    "Flow {} does not exist",
+                    r.grant_id
+                )));
+            }
         } else {
             #[cfg(feature = "verbose")]
             eprintln!("CT {} is not tracked", r.file_descriptor);
@@ -302,7 +284,5 @@ impl P2m for P2mService {
                 r.file_descriptor
             )));
         }
-
-        Ok(Response::new(Ack {}))
     }
 }

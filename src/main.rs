@@ -12,9 +12,7 @@ use trace2e::{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
-    // let queuing_handler = Arc::new(Mutex::new(QueuingHandler::default()));
 
-    // tokio::spawn(congestion_manager(receiver, queuing_handler));
     tokio::spawn(containers_manager(receiver));
 
     let address = "[::1]:8080".parse().unwrap();

@@ -1,6 +1,4 @@
-use trace2e::p2m_service::p2m::{
-    p2m_client::P2mClient, Ack, Flow, Grant, IoInfo, IoResult, LocalCt,
-};
+use trace2e::p2m_service::p2m::{p2m_client::P2mClient, Ack, Flow, IoInfo, IoResult, LocalCt};
 
 #[tokio::test]
 async fn integration_1p_1f_write() -> Result<(), Box<dyn std::error::Error>> {
@@ -21,14 +19,14 @@ async fn integration_1p_1f_write() -> Result<(), Box<dyn std::error::Error>> {
         file_descriptor: 3,
         flow: Flow::Input.into(),
     });
-    let result_write_request = client.io_request(write_request).await?.into_inner();
-    assert_eq!(result_write_request, Grant { id: 0 });
+    let result_write_request = client.io_request(write_request).await?;
+    let grant_id = result_write_request.into_inner().id;
 
     // Write done
     let write_done = tonic::Request::new(IoResult {
         process_id: 10000,
         file_descriptor: 3,
-        grant_id: 0,
+        grant_id,
         result: true,
     });
     let result_write_done = client.io_report(write_done).await?.into_inner();
@@ -55,14 +53,14 @@ async fn integration_1p_1f_read() -> Result<(), Box<dyn std::error::Error>> {
         file_descriptor: 3,
         flow: Flow::Output.into(),
     });
-    let result_read_request = client.io_request(read_request).await?.into_inner();
-    assert_eq!(result_read_request, Grant { id: 0 });
+    let result_read_request = client.io_request(read_request).await?;
+    let grant_id = result_read_request.into_inner().id;
 
     // Read done
     let read_done = tonic::Request::new(IoResult {
         process_id: 10000,
         file_descriptor: 3,
-        grant_id: 0,
+        grant_id,
         result: true,
     });
     let result_read_done = client.io_report(read_done).await?.into_inner();
@@ -89,14 +87,14 @@ async fn integration_1p_1f_complex() -> Result<(), Box<dyn std::error::Error>> {
         file_descriptor: 3,
         flow: Flow::Input.into(),
     });
-    let result_write_request1 = client.io_request(write_request1).await?.into_inner();
-    assert_eq!(result_write_request1, Grant { id: 0 });
+    let result_write_request1 = client.io_request(write_request1).await?;
+    let grant_id = result_write_request1.into_inner().id;
 
     // Write done
     let write_done1 = tonic::Request::new(IoResult {
         process_id: 10000,
         file_descriptor: 3,
-        grant_id: 0,
+        grant_id,
         result: true,
     });
     let result_write_done1 = client.io_report(write_done1).await?.into_inner();
@@ -108,14 +106,14 @@ async fn integration_1p_1f_complex() -> Result<(), Box<dyn std::error::Error>> {
         file_descriptor: 3,
         flow: Flow::Input.into(),
     });
-    let result_write_request2 = client.io_request(write_request2).await?.into_inner();
-    assert_eq!(result_write_request2, Grant { id: 0 });
+    let result_write_request2 = client.io_request(write_request2).await?;
+    let grant_id = result_write_request2.into_inner().id;
 
     // Write done
     let write_done2 = tonic::Request::new(IoResult {
         process_id: 10000,
         file_descriptor: 3,
-        grant_id: 0,
+        grant_id,
         result: true,
     });
     let result_write_done2 = client.io_report(write_done2).await?.into_inner();
@@ -146,8 +144,8 @@ async fn integration_1p_1f_complex() -> Result<(), Box<dyn std::error::Error>> {
         grant_id: 0,
         result: true,
     });
-    let result_seek_done = client.io_report(seek_done).await?.into_inner();
-    assert_eq!(result_seek_done, Ack {});
+    let result_seek_done = client.io_report(seek_done).await.unwrap_err();
+    assert_eq!(result_seek_done.message(), "Flow 0 does not exist");
 
     // Read event
     let read_request = tonic::Request::new(IoInfo {
@@ -155,14 +153,14 @@ async fn integration_1p_1f_complex() -> Result<(), Box<dyn std::error::Error>> {
         file_descriptor: 4,
         flow: Flow::Output.into(),
     });
-    let result_read_request = client.io_request(read_request).await?.into_inner();
-    assert_eq!(result_read_request, Grant { id: 0 });
+    let result_read_request = client.io_request(read_request).await?;
+    let grant_id = result_read_request.into_inner().id;
 
     // Read done
     let read_done = tonic::Request::new(IoResult {
         process_id: 10000,
         file_descriptor: 4,
-        grant_id: 0,
+        grant_id,
         result: true,
     });
     let result_read_done = client.io_report(read_done).await?.into_inner();
