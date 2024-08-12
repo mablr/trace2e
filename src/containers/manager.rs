@@ -3,33 +3,7 @@ use tokio::sync::{mpsc, oneshot};
 
 use crate::identifiers::Identifier;
 
-use super::Container;
-
-/// Global management structure for [`Container`] instances.
-///
-/// It offers a reliable and safe interface to acquire reservation in order to manipulate
-/// `Containers`.
-/// Error types for `ContainersManager`
-#[derive(Debug, PartialEq)]
-pub enum ContainerError {
-    NotRegistered(Identifier),
-    AlreadyReserved(Identifier),
-    NotReserved(Identifier),
-}
-
-impl std::fmt::Display for ContainerError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ContainerError::NotRegistered(id) => write!(f, "Container '{}' is not registered.", id),
-            ContainerError::AlreadyReserved(id) => {
-                write!(f, "Container '{}' is already reserved.", id)
-            }
-            ContainerError::NotReserved(id) => write!(f, "Container '{}' is not reserved.", id),
-        }
-    }
-}
-
-impl std::error::Error for ContainerError {}
+use super::{Container, ContainerError};
 
 /// Global management structure for [`Container`] instances.
 ///
