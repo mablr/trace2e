@@ -76,18 +76,8 @@ impl ContainersManager {
     /// If the [`Container`] is already available or not registered, an error is returned.
     pub fn try_release(&mut self, resource_identifier: Identifier) -> Result<(), ContainerError> {
         if let Some(container) = self.containers.get_mut(&resource_identifier) {
-            if container.is_write() {
-                if container.release_write() {
-                    Ok(())
-                } else {
-                    Err(ContainerError::NotReserved(resource_identifier.clone()))
-                }
-            } else if container.is_read() {
-                if container.release_read() {
-                    Ok(())
-                } else {
-                    Err(ContainerError::NotReserved(resource_identifier.clone()))
-                }
+            if container.release_write() || container.release_read() {
+                Ok(())
             } else {
                 Err(ContainerError::NotReserved(resource_identifier.clone()))
             }
@@ -109,6 +99,19 @@ pub enum ContainerResult {
     Done,
     Wait(oneshot::Receiver<()>),
     Error(ContainerError),
+}
+
+impl std::cmp::PartialEq for ContainerResult {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            ContainerResult::Done => matches!(other, ContainerResult::Done),
+            ContainerResult::Wait(_) => matches!(other, ContainerResult::Wait(_)),
+            ContainerResult::Error(e_self) => match other {
+                ContainerResult::Error(e_other) => e_self == e_other,
+                _ => false,
+            },
+        }
+    }
 }
 
 pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {

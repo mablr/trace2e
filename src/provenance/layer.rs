@@ -7,7 +7,7 @@ use crate::{
     identifiers::Identifier,
 };
 
-use super::{error::ProvenanceError, Flow};
+use super::{Flow, ProvenanceError};
 
 #[derive(Debug)]
 pub struct ProvenanceLayer {

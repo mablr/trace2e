@@ -20,14 +20,6 @@ impl Container {
         }
     }
 
-    pub fn is_read(&self) -> bool {
-        self.read_count != 0
-    }
-
-    pub fn is_write(&self) -> bool {
-        self.write_locked
-    }
-
     /// Reserve the container for reading
     pub fn reserve_read(&mut self) -> bool {
         if !self.write_locked {

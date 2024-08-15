@@ -40,12 +40,14 @@ mod tests {
             SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
         );
         let stream_v6 = Identifier::Stream(
-            SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 1)), 12312),
+            SocketAddr::new(
+                IpAddr::V6(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 1)),
+                12312,
+            ),
             SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 2)), 8081),
         );
         assert_eq!(format!("{}", stream_v4), "127.0.0.1:12312<->127.0.0.1:8081");
         assert_eq!(format!("{}", stream_v6), "[fc00::1]:12312<->[fc00::2]:8081");
-
     }
 
     #[test]
@@ -55,6 +57,5 @@ mod tests {
         let process_recycled_pid = Identifier::Process(pid, 10001);
         assert_eq!(format!("{}", process), format!("{}", pid));
         assert_eq!(format!("{}", process_recycled_pid), format!("{}", pid));
-
     }
 }
