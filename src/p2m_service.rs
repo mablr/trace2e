@@ -1,12 +1,12 @@
+use crate::containers::ContainerAction;
+use crate::identifiers::Identifier;
+use crate::provenance::{Flow as ProvFlow, ProvenanceLayer};
 use p2m::{p2m_server::P2m, Ack, Flow, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
+use procfs::process::Process;
 use std::collections::HashMap;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
 use tonic::{Request, Response, Status};
-
-use crate::containers::ContainerAction;
-use crate::identifiers::Identifier;
-use crate::provenance::{Flow as ProvFlow, ProvenanceManager};
 
 pub mod p2m {
     tonic::include_proto!("trace2e_api");
@@ -17,7 +17,7 @@ pub mod p2m {
 pub struct P2mService {
     containers_manager: mpsc::Sender<ContainerAction>,
     identifiers_map: Arc<RwLock<HashMap<(u32, i32), Identifier>>>,
-    provenance: ProvenanceManager,
+    provenance: ProvenanceLayer,
     flows: Arc<Mutex<HashMap<u64, ProvFlow>>>,
 }
 
@@ -26,7 +26,7 @@ impl P2mService {
         P2mService {
             containers_manager: containers_manager.clone(),
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
-            provenance: ProvenanceManager::new(containers_manager),
+            provenance: ProvenanceLayer::new(containers_manager),
             flows: Arc::new(Mutex::new(HashMap::new())),
         }
     }
@@ -37,6 +37,18 @@ impl P2m for P2mService {
     async fn local_enroll(&self, request: Request<LocalCt>) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
 
+        let process_starttime = match Process::new(r.process_id.try_into().unwrap())
+            .and_then(|p| p.stat())
+            .map(|stat| stat.starttime)
+        {
+            Ok(starttime) => starttime,
+            Err(e) => return Err(Status::from_error(Box::new(e))),
+        };
+        let process_identifier =
+            Identifier::Process(r.process_id.try_into().unwrap(), process_starttime);
+
+        let resource_identifier = Identifier::File(r.path.clone());
+
         #[cfg(feature = "verbose")]
         println!(
             "PID: {} | FD: {} | Local Enroll | {}",
@@ -45,22 +57,17 @@ impl P2m for P2mService {
             r.path.clone()
         );
 
-        let identifier = Identifier::File(r.path.clone());
-
         let (tx, rx) = oneshot::channel();
         let _ = self
             .containers_manager
-            .send(ContainerAction::Register(
-                Identifier::Process(r.process_id.clone()),
-                tx,
-            ))
+            .send(ContainerAction::Register(process_identifier, tx))
             .await;
         rx.await.unwrap();
 
         let (tx, rx) = oneshot::channel();
         let _ = self
             .containers_manager
-            .send(ContainerAction::Register(identifier.clone(), tx))
+            .send(ContainerAction::Register(resource_identifier.clone(), tx))
             .await;
         rx.await.unwrap();
 
@@ -81,16 +88,22 @@ impl P2m for P2mService {
         So in any case we have to insert the relation (process_id, file_descriptor) - resource_identifier.
          */
         let mut identifiers_map = self.identifiers_map.write().await;
-        identifiers_map.insert(
-            (r.process_id.clone(), r.file_descriptor.clone()),
-            identifier.clone(),
-        );
+        identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
 
         Ok(Response::new(Ack {}))
     }
 
     async fn remote_enroll(&self, request: Request<RemoteCt>) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
+
+        let process_starttime = match Process::new(r.process_id.try_into().unwrap())
+            .and_then(|p| p.stat())
+            .map(|stat| stat.starttime)
+        {
+            Ok(starttime) => starttime,
+            Err(e) => return Err(Status::from_error(Box::new(e))),
+        };
+        let process_identifier = Identifier::Process(r.process_id, process_starttime);
 
         #[cfg(feature = "verbose")]
         println!(
@@ -138,10 +151,7 @@ impl P2m for P2mService {
         let (tx, rx) = oneshot::channel();
         let _ = self
             .containers_manager
-            .send(ContainerAction::Register(
-                Identifier::Process(r.process_id.clone()),
-                tx,
-            ))
+            .send(ContainerAction::Register(process_identifier, tx))
             .await;
         rx.await.unwrap();
 
@@ -163,6 +173,15 @@ impl P2m for P2mService {
 
     async fn io_request(&self, request: Request<IoInfo>) -> Result<Response<Grant>, Status> {
         let r = request.into_inner();
+
+        let process_starttime = match Process::new(r.process_id.try_into().unwrap())
+            .and_then(|p| p.stat())
+            .map(|stat| stat.starttime)
+        {
+            Ok(starttime) => starttime,
+            Err(e) => return Err(Status::from_error(Box::new(e))),
+        };
+        let process_identifier = Identifier::Process(r.process_id, process_starttime);
 
         #[cfg(feature = "verbose")]
         println!(
@@ -190,18 +209,12 @@ impl P2m for P2mService {
             let flow = match r.flow {
                 flow_type if flow_type == Flow::Input.into() => self
                     .provenance
-                    .declare_flow(
-                        resource_identifier.clone(),
-                        Identifier::Process(r.process_id),
-                    )
+                    .declare_flow(resource_identifier.clone(), process_identifier)
                     .await
                     .unwrap(),
                 flow_type if flow_type == Flow::Output.into() => self
                     .provenance
-                    .declare_flow(
-                        Identifier::Process(r.process_id),
-                        resource_identifier.clone(),
-                    )
+                    .declare_flow(process_identifier, resource_identifier.clone())
                     .await
                     .unwrap(),
                 _ => return Err(Status::invalid_argument(format!("Unsupported Flow type"))),

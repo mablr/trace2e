@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 pub enum Identifier {
     File(String),
     Stream(SocketAddr, SocketAddr),
-    Process(u32),
+    Process(u32, u64),
 }
 
 impl fmt::Display for Identifier {
@@ -15,7 +15,7 @@ impl fmt::Display for Identifier {
             Identifier::Stream(local_socket, peer_socket) => {
                 write!(f, "[{}-{}]", local_socket, peer_socket)
             }
-            Identifier::Process(pid) => write!(f, "{}", pid),
+            Identifier::Process(pid, _) => write!(f, "{}", pid),
         }
     }
 }

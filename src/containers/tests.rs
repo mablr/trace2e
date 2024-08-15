@@ -12,7 +12,7 @@ fn containers_manager_register() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3 = Identifier::Process(1);
+    let id3 = Identifier::Process(1, 1);
 
     assert_eq!(containers_manager.register(id1.clone()), true);
     assert_eq!(containers_manager.register(id2.clone()), true);
@@ -24,6 +24,19 @@ fn containers_manager_register() {
 }
 
 #[test]
+fn containers_manager_register_recycled_pid() {
+    let mut containers_manager = ContainersManager::default();
+
+    let id1 = Identifier::Process(1, 1);
+    let id2 = Identifier::Process(1, 2);
+
+    assert_eq!(containers_manager.register(id1.clone()), true);
+    assert_eq!(containers_manager.register(id1.clone()), false);
+    assert_eq!(containers_manager.register(id2.clone()), true);
+    assert_eq!(containers_manager.register(id2.clone()), false);
+}
+
+#[test]
 fn containers_manager_try_read() {
     let mut containers_manager = ContainersManager::default();
     let id1 = Identifier::File("/test/path/file1.txt".to_string());
@@ -31,7 +44,7 @@ fn containers_manager_try_read() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3 = Identifier::Process(1);
+    let id3 = Identifier::Process(1, 1);
 
     assert_eq!(containers_manager.register(id1.clone()), true);
     assert_eq!(containers_manager.register(id2.clone()), true);
@@ -50,7 +63,7 @@ fn containers_manager_try_read_unregistered() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3: Identifier = Identifier::Process(1);
+    let id3: Identifier = Identifier::Process(1, 1);
 
     assert_eq!(
         containers_manager.try_read(id1.clone()),
@@ -74,7 +87,7 @@ fn containers_manager_try_read_already_read() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3: Identifier = Identifier::Process(1);
+    let id3: Identifier = Identifier::Process(1, 1);
 
     assert_eq!(containers_manager.register(id1.clone()), true);
     assert_eq!(containers_manager.register(id2.clone()), true);
@@ -97,7 +110,7 @@ fn containers_manager_try_read_already_write() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3: Identifier = Identifier::Process(1);
+    let id3: Identifier = Identifier::Process(1, 1);
 
     assert_eq!(containers_manager.register(id1.clone()), true);
     assert_eq!(containers_manager.register(id2.clone()), true);
@@ -120,7 +133,7 @@ fn containers_manager_try_write() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3: Identifier = Identifier::Process(1);
+    let id3: Identifier = Identifier::Process(1, 1);
 
     assert_eq!(containers_manager.register(id1.clone()), true);
     assert_eq!(containers_manager.register(id2.clone()), true);
@@ -139,7 +152,7 @@ fn containers_manager_try_write_unregistered() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3: Identifier = Identifier::Process(1);
+    let id3: Identifier = Identifier::Process(1, 1);
 
     assert_eq!(
         containers_manager.try_write(id1.clone()),
@@ -163,7 +176,7 @@ fn containers_manager_try_write_already_read() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3: Identifier = Identifier::Process(1);
+    let id3: Identifier = Identifier::Process(1, 1);
 
     assert_eq!(containers_manager.register(id1.clone()), true);
     assert_eq!(containers_manager.register(id2.clone()), true);
@@ -186,7 +199,7 @@ fn containers_manager_try_write_already_write() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3: Identifier = Identifier::Process(1);
+    let id3: Identifier = Identifier::Process(1, 1);
 
     assert_eq!(containers_manager.register(id1.clone()), true);
     assert_eq!(containers_manager.register(id2.clone()), true);
@@ -209,7 +222,7 @@ fn containers_manager_try_release_write() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3: Identifier = Identifier::Process(1);
+    let id3: Identifier = Identifier::Process(1, 1);
 
     assert_eq!(containers_manager.register(id1.clone()), true);
     assert_eq!(containers_manager.register(id2.clone()), true);
@@ -236,7 +249,7 @@ fn containers_manager_try_release_read() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3: Identifier = Identifier::Process(1);
+    let id3: Identifier = Identifier::Process(1, 1);
 
     assert_eq!(containers_manager.register(id1.clone()), true);
     assert_eq!(containers_manager.register(id2.clone()), true);
@@ -263,7 +276,7 @@ fn containers_manager_try_release_available() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3: Identifier = Identifier::Process(1);
+    let id3: Identifier = Identifier::Process(1, 1);
 
     assert_eq!(containers_manager.register(id1.clone()), true);
     assert_eq!(containers_manager.register(id2.clone()), true);
@@ -291,7 +304,7 @@ fn containers_manager_try_release_unregistered() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
-    let id3: Identifier = Identifier::Process(1);
+    let id3: Identifier = Identifier::Process(1, 1);
 
     assert_eq!(
         containers_manager.try_release(id1.clone()),

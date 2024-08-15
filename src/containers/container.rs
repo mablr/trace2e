@@ -1,3 +1,5 @@
+use crate::identifiers::Identifier;
+
 /// Foundation object for traceability.
 ///
 /// An instance of a [`Container`] holds all information necessary to provide traceability
@@ -11,7 +13,7 @@ pub struct Container {
 
 impl Container {
     /// Create a new container
-    pub fn new() -> Self {
+    pub fn new(identifier: Identifier) -> Self {
         Self {
             read_count: 0,
             write_locked: false,

@@ -22,7 +22,7 @@ impl ContainersManager {
     /// and `false` if a [`Container`] already exists for the provided key.
     pub fn register(&mut self, resource_identifier: Identifier) -> bool {
         if !self.containers.contains_key(&resource_identifier) {
-            let container = Container::new();
+            let container = Container::new(resource_identifier.clone());
             self.containers.insert(resource_identifier, container);
             true
         } else {

@@ -6,7 +6,7 @@ async fn integration_mp_mt_1f_write1() -> Result<(), Box<dyn std::error::Error>>
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 3,
         path: "bar.txt".to_string(),
     });
@@ -15,7 +15,7 @@ async fn integration_mp_mt_1f_write1() -> Result<(), Box<dyn std::error::Error>>
 
     // Write event
     let write_request = tonic::Request::new(IoInfo {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 3,
         flow: Flow::Output.into(),
     });
@@ -24,7 +24,7 @@ async fn integration_mp_mt_1f_write1() -> Result<(), Box<dyn std::error::Error>>
 
     // Write done
     let write_done = tonic::Request::new(IoResult {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 3,
         grant_id,
         result: true,
@@ -40,7 +40,7 @@ async fn integration_mp_mt_1f_write2() -> Result<(), Box<dyn std::error::Error>>
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 4,
         path: "bar1.txt".to_string(),
     });
@@ -49,7 +49,7 @@ async fn integration_mp_mt_1f_write2() -> Result<(), Box<dyn std::error::Error>>
 
     // Write event
     let write_request = tonic::Request::new(IoInfo {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 4,
         flow: Flow::Output.into(),
     });
@@ -58,7 +58,7 @@ async fn integration_mp_mt_1f_write2() -> Result<(), Box<dyn std::error::Error>>
 
     // Write done
     let write_done = tonic::Request::new(IoResult {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 4,
         grant_id,
         result: true,
@@ -74,7 +74,7 @@ async fn integration_mp_mt_1f_write3() -> Result<(), Box<dyn std::error::Error>>
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 5,
         path: "bar2.txt".to_string(),
     });
@@ -83,7 +83,7 @@ async fn integration_mp_mt_1f_write3() -> Result<(), Box<dyn std::error::Error>>
 
     // Write event
     let write_request = tonic::Request::new(IoInfo {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 5,
         flow: Flow::Output.into(),
     });
@@ -92,7 +92,7 @@ async fn integration_mp_mt_1f_write3() -> Result<(), Box<dyn std::error::Error>>
 
     // Write done
     let write_done = tonic::Request::new(IoResult {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 5,
         grant_id,
         result: true,
@@ -108,7 +108,7 @@ async fn integration_mp_mt_1f_read1() -> Result<(), Box<dyn std::error::Error>> 
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 6,
         path: "bar3.txt".to_string(),
     });
@@ -117,7 +117,7 @@ async fn integration_mp_mt_1f_read1() -> Result<(), Box<dyn std::error::Error>> 
 
     // Read event
     let read_request = tonic::Request::new(IoInfo {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 6,
         flow: Flow::Input.into(),
     });
@@ -126,7 +126,7 @@ async fn integration_mp_mt_1f_read1() -> Result<(), Box<dyn std::error::Error>> 
 
     // Read done
     let read_done = tonic::Request::new(IoResult {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 6,
         grant_id,
         result: true,
@@ -142,7 +142,7 @@ async fn integration_mp_mt_1f_read2() -> Result<(), Box<dyn std::error::Error>> 
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 7,
         path: "bar4.txt".to_string(),
     });
@@ -151,7 +151,7 @@ async fn integration_mp_mt_1f_read2() -> Result<(), Box<dyn std::error::Error>> 
 
     // Read event
     let read_request = tonic::Request::new(IoInfo {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 7,
         flow: Flow::Input.into(),
     });
@@ -160,7 +160,7 @@ async fn integration_mp_mt_1f_read2() -> Result<(), Box<dyn std::error::Error>> 
 
     // Read done
     let read_done = tonic::Request::new(IoResult {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 7,
         grant_id,
         result: true,
@@ -176,7 +176,7 @@ async fn integration_mp_mt_1f_read3() -> Result<(), Box<dyn std::error::Error>> 
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 8,
         path: "bar5.txt".to_string(),
     });
@@ -185,7 +185,7 @@ async fn integration_mp_mt_1f_read3() -> Result<(), Box<dyn std::error::Error>> 
 
     // Read event
     let read_request = tonic::Request::new(IoInfo {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 8,
         flow: Flow::Input.into(),
     });
@@ -194,7 +194,7 @@ async fn integration_mp_mt_1f_read3() -> Result<(), Box<dyn std::error::Error>> 
 
     // Read done
     let read_done = tonic::Request::new(IoResult {
-        process_id: 10000,
+        process_id: 1,
         file_descriptor: 8,
         grant_id,
         result: true,

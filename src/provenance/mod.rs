@@ -1,6 +1,6 @@
 mod error;
 mod flow;
-mod manager;
+mod layer;
 
 pub use flow::Flow;
-pub use manager::ProvenanceManager;
+pub use layer::ProvenanceLayer;

@@ -10,12 +10,12 @@ use crate::{
 use super::{error::ProvenanceError, Flow};
 
 #[derive(Debug)]
-pub struct ProvenanceManager {
+pub struct ProvenanceLayer {
     containers_manager: mpsc::Sender<ContainerAction>,
     grant_counter: Arc<Mutex<u64>>,
 }
 
-impl ProvenanceManager {
+impl ProvenanceLayer {
     pub fn new(containers_manager: mpsc::Sender<ContainerAction>) -> Self {
         Self {
             containers_manager,
@@ -82,6 +82,7 @@ impl ProvenanceManager {
 
     pub async fn record_flow(&self, flow: Flow) -> Result<(), Error> {
         let (tx, rx) = oneshot::channel();
+
         self.containers_manager
             .send(ContainerAction::Release(flow.source, tx))
             .await
