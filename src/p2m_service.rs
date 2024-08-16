@@ -299,3 +299,168 @@ impl P2m for P2mService {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Command;
+    use crate::containers::containers_manager;
+
+    #[tokio::test]
+    async fn p2m_scenario_1p_1f_write() -> Result<(), Box<dyn std::error::Error>> {
+        let (sender, receiver) = mpsc::channel(32);
+        tokio::spawn(containers_manager(receiver));
+        let client = P2mService::new(sender);
+        let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    
+        // CT declaration
+        let file_creation = tonic::Request::new(LocalCt {
+            process_id: process.id(),
+            file_descriptor: 3,
+            path: "bar.txt".to_string(),
+        });
+        let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+        assert_eq!(result_file_creation, Ack {});
+    
+        // Write event
+        let write_request = tonic::Request::new(IoInfo {
+            process_id: process.id(),
+            file_descriptor: 3,
+            flow: Flow::Output.into(),
+        });
+        let result_write_request = client.io_request(write_request).await?;
+        let grant_id = result_write_request.into_inner().id;
+    
+        // Write done
+        let write_done = tonic::Request::new(IoResult {
+            process_id: process.id(),
+            file_descriptor: 3,
+            grant_id,
+            result: true,
+        });
+        let result_write_done = client.io_report(write_done).await?.into_inner();
+        assert_eq!(result_write_done, Ack {});
+    
+        process.kill()?;
+        Ok(())
+    }
+    
+    #[tokio::test]
+    async fn p2m_scenario_1p_1f_read() -> Result<(), Box<dyn std::error::Error>> {
+        let (sender, receiver) = mpsc::channel(32);
+        tokio::spawn(containers_manager(receiver));
+        let client = P2mService::new(sender);
+        let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    
+        // CT declaration
+        let file_creation = tonic::Request::new(LocalCt {
+            process_id: process.id(),
+            file_descriptor: 3,
+            path: "bar.txt".to_string(),
+        });
+        let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+        assert_eq!(result_file_creation, Ack {});
+    
+        // Read event
+        let read_request = tonic::Request::new(IoInfo {
+            process_id: process.id(),
+            file_descriptor: 3,
+            flow: Flow::Input.into(),
+        });
+        let result_read_request = client.io_request(read_request).await?;
+        let grant_id = result_read_request.into_inner().id;
+    
+        // Read done
+        let read_done = tonic::Request::new(IoResult {
+            process_id: process.id(),
+            file_descriptor: 3,
+            grant_id,
+            result: true,
+        });
+        let result_read_done = client.io_report(read_done).await?.into_inner();
+        assert_eq!(result_read_done, Ack {});
+    
+        process.kill()?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn p2m_scenario_1p_1s_write() -> Result<(), Box<dyn std::error::Error>> {
+        let (sender, receiver) = mpsc::channel(32);
+        tokio::spawn(containers_manager(receiver));
+        let client = P2mService::new(sender);
+        let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    
+        // CT declaration
+        let stream_creation = tonic::Request::new(RemoteCt {
+            process_id: process.id(),
+            file_descriptor: 3,
+            local_socket: "10.0.0.1:54321".to_string(),
+            peer_socket: "10.0.0.2:8081".to_string()
+        });
+        let result_stream_creation = client.remote_enroll(stream_creation).await?.into_inner();
+        assert_eq!(result_stream_creation, Ack {});
+    
+        // Write event
+        let write_request = tonic::Request::new(IoInfo {
+            process_id: process.id(),
+            file_descriptor: 3,
+            flow: Flow::Output.into(),
+        });
+        let result_write_request = client.io_request(write_request).await?;
+        let grant_id = result_write_request.into_inner().id;
+    
+        // Write done
+        let write_done = tonic::Request::new(IoResult {
+            process_id: process.id(),
+            file_descriptor: 3,
+            grant_id,
+            result: true,
+        });
+        let result_write_done = client.io_report(write_done).await?.into_inner();
+        assert_eq!(result_write_done, Ack {});
+    
+        process.kill()?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn p2m_scenario_1p_1s_read() -> Result<(), Box<dyn std::error::Error>> {
+        let (sender, receiver) = mpsc::channel(32);
+        tokio::spawn(containers_manager(receiver));
+        let client = P2mService::new(sender);
+        let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    
+        // CT declaration
+        let stream_creation = tonic::Request::new(RemoteCt {
+            process_id: process.id(),
+            file_descriptor: 3,
+            local_socket: "10.0.0.1:54321".to_string(),
+            peer_socket: "10.0.0.2:8081".to_string()
+        });
+        let result_stream_creation = client.remote_enroll(stream_creation).await?.into_inner();
+        assert_eq!(result_stream_creation, Ack {});
+    
+        // Read event
+        let read_request = tonic::Request::new(IoInfo {
+            process_id: process.id(),
+            file_descriptor: 3,
+            flow: Flow::Input.into(),
+        });
+        let result_read_request = client.io_request(read_request).await?;
+        let grant_id = result_read_request.into_inner().id;
+    
+        // Read done
+        let read_done = tonic::Request::new(IoResult {
+            process_id: process.id(),
+            file_descriptor: 3,
+            grant_id,
+            result: true,
+        });
+        let result_read_done = client.io_report(read_done).await?.into_inner();
+        assert_eq!(result_read_done, Ack {});
+    
+        process.kill()?;
+        Ok(())
+    }
+}
