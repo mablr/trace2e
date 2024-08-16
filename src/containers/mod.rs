@@ -6,4 +6,7 @@ mod tests;
 
 pub use container::Container;
 pub use error::ContainerError;
-pub use manager::{containers_manager, ContainerAction, ContainerResult, ContainersManager};
+pub use manager::{
+    containers_manager, ContainerAction, ContainerReservationResult, ContainerResult,
+    ContainersManager,
+};

@@ -1,9 +1,9 @@
-use std::{fmt::Error, sync::Arc};
+use std::sync::Arc;
 
 use tokio::sync::{mpsc, oneshot, Mutex};
 
 use crate::{
-    containers::{ContainerAction, ContainerResult},
+    containers::{ContainerAction, ContainerReservationResult, ContainerResult},
     identifiers::Identifier,
 };
 
@@ -40,18 +40,20 @@ impl ProvenanceLayer {
             .send(ContainerAction::ReserveRead(source.clone(), tx))
             .await;
         match rx.await.unwrap() {
-            ContainerResult::Wait(callback) => {
+            ContainerReservationResult::Wait(callback) => {
                 #[cfg(feature = "verbose")]
                 println!("⏸️  read wait {}", source.clone());
                 callback.await.unwrap();
                 #[cfg(feature = "verbose")]
                 println!("⏯️  read got after wait {}", source.clone())
             }
-            ContainerResult::Done => {
+            ContainerReservationResult::Done => {
                 #[cfg(feature = "verbose")]
                 println!("⏩ read got {}", source.clone());
             }
-            ContainerResult::Error(e) => return Err(ProvenanceError::Inconsistency(e)),
+            ContainerReservationResult::Error(e) => {
+                return Err(ProvenanceError::ContainerFailure(e))
+            }
         }
         let (tx, rx) = oneshot::channel();
         let _ = self
@@ -59,18 +61,20 @@ impl ProvenanceLayer {
             .send(ContainerAction::ReserveWrite(destination.clone(), tx))
             .await;
         match rx.await.unwrap() {
-            ContainerResult::Wait(callback) => {
+            ContainerReservationResult::Wait(callback) => {
                 #[cfg(feature = "verbose")]
                 println!("⏸️  write wait {}", destination.clone());
                 callback.await.unwrap();
                 #[cfg(feature = "verbose")]
                 println!("⏯️  write got after wait {}", destination.clone());
             }
-            ContainerResult::Done => {
+            ContainerReservationResult::Done => {
                 #[cfg(feature = "verbose")]
                 println!("⏩ write got {}", destination.clone());
             }
-            ContainerResult::Error(e) => return Err(ProvenanceError::Inconsistency(e)),
+            ContainerReservationResult::Error(e) => {
+                return Err(ProvenanceError::ContainerFailure(e))
+            }
         }
 
         Ok(Flow {
@@ -80,20 +84,32 @@ impl ProvenanceLayer {
         })
     }
 
-    pub async fn record_flow(&self, flow: Flow) -> Result<(), Error> {
+    pub async fn record_flow(&self, flow: Flow) -> Result<(), ProvenanceError> {
         let (tx, rx) = oneshot::channel();
 
         self.containers_manager
-            .send(ContainerAction::Release(flow.source, tx))
+            .send(ContainerAction::Release(flow.source.clone(), tx))
             .await
             .unwrap();
-        rx.await.unwrap();
+        match rx.await.unwrap() {
+            ContainerResult::Done => {
+                #[cfg(feature = "verbose")]
+                println!("⏯️  release {}", flow.source);
+            }
+            ContainerResult::Error(e) => return Err(ProvenanceError::ContainerFailure(e)),
+        }
         let (tx, rx) = oneshot::channel();
         self.containers_manager
-            .send(ContainerAction::Release(flow.destination, tx))
+            .send(ContainerAction::Release(flow.destination.clone(), tx))
             .await
             .unwrap();
-        rx.await.unwrap();
+        match rx.await.unwrap() {
+            ContainerResult::Done => {
+                #[cfg(feature = "verbose")]
+                println!("⏯️  release {}", flow.destination);
+            }
+            ContainerResult::Error(e) => return Err(ProvenanceError::ContainerFailure(e)),
+        }
         Ok(())
     }
 }

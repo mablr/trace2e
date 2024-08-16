@@ -89,15 +89,36 @@ impl ContainersManager {
 
 pub enum ContainerAction {
     Register(Identifier, oneshot::Sender<ContainerResult>),
-    ReserveRead(Identifier, oneshot::Sender<ContainerResult>),
-    ReserveWrite(Identifier, oneshot::Sender<ContainerResult>),
+    ReserveRead(Identifier, oneshot::Sender<ContainerReservationResult>),
+    ReserveWrite(Identifier, oneshot::Sender<ContainerReservationResult>),
     Release(Identifier, oneshot::Sender<ContainerResult>),
+}
+
+#[derive(Debug)]
+pub enum ContainerReservationResult {
+    Done,
+    Wait(oneshot::Receiver<()>),
+    Error(ContainerError),
+}
+
+impl std::cmp::PartialEq for ContainerReservationResult {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            ContainerReservationResult::Done => matches!(other, ContainerReservationResult::Done),
+            ContainerReservationResult::Wait(_) => {
+                matches!(other, ContainerReservationResult::Wait(_))
+            }
+            ContainerReservationResult::Error(e_self) => match other {
+                ContainerReservationResult::Error(e_other) => e_self == e_other,
+                _ => false,
+            },
+        }
+    }
 }
 
 #[derive(Debug)]
 pub enum ContainerResult {
     Done,
-    Wait(oneshot::Receiver<()>),
     Error(ContainerError),
 }
 
@@ -105,7 +126,6 @@ impl std::cmp::PartialEq for ContainerResult {
     fn eq(&self, other: &Self) -> bool {
         match self {
             ContainerResult::Done => matches!(other, ContainerResult::Done),
-            ContainerResult::Wait(_) => matches!(other, ContainerResult::Wait(_)),
             ContainerResult::Error(e_self) => match other {
                 ContainerResult::Error(e_other) => e_self == e_other,
                 _ => false,
@@ -126,28 +146,36 @@ pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
             ContainerAction::ReserveRead(identifier, responder) => {
                 match manager.try_read(identifier.clone()) {
                     Ok(true) => {
-                        responder.send(ContainerResult::Done).unwrap();
+                        responder.send(ContainerReservationResult::Done).unwrap();
                     }
                     Ok(false) => {
                         let callback = wait_container_release(&mut queues, identifier).await;
-                        responder.send(ContainerResult::Wait(callback)).unwrap();
+                        responder
+                            .send(ContainerReservationResult::Wait(callback))
+                            .unwrap();
                     }
                     Err(e) => {
-                        responder.send(ContainerResult::Error(e)).unwrap();
+                        responder
+                            .send(ContainerReservationResult::Error(e))
+                            .unwrap();
                     }
                 };
             }
             ContainerAction::ReserveWrite(identifier, responder) => {
                 match manager.try_write(identifier.clone()) {
                     Ok(true) => {
-                        responder.send(ContainerResult::Done).unwrap();
+                        responder.send(ContainerReservationResult::Done).unwrap();
                     }
                     Ok(false) => {
                         let callback = wait_container_release(&mut queues, identifier).await;
-                        responder.send(ContainerResult::Wait(callback)).unwrap();
+                        responder
+                            .send(ContainerReservationResult::Wait(callback))
+                            .unwrap();
                     }
                     Err(e) => {
-                        responder.send(ContainerResult::Error(e)).unwrap();
+                        responder
+                            .send(ContainerReservationResult::Error(e))
+                            .unwrap();
                     }
                 };
             }

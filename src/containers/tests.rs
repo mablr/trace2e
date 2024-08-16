@@ -1,4 +1,7 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::{
+    fmt::Debug,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+};
 
 use tokio::sync::{
     mpsc,
@@ -312,36 +315,12 @@ fn containers_manager_try_release_not_registered() {
     let id3 = Identifier::Process(1, 1);
 
     assert_eq!(
-        containers_manager.try_read(id1.clone()),
-        Err(ContainerError::NotRegistered(id1.clone()))
-    );
-    assert_eq!(
-        containers_manager.try_write(id1.clone()),
-        Err(ContainerError::NotRegistered(id1.clone()))
-    );
-    assert_eq!(
         containers_manager.try_release(id1.clone()),
         Err(ContainerError::NotRegistered(id1.clone()))
     );
     assert_eq!(
-        containers_manager.try_read(id2.clone()),
-        Err(ContainerError::NotRegistered(id2.clone()))
-    );
-    assert_eq!(
-        containers_manager.try_write(id2.clone()),
-        Err(ContainerError::NotRegistered(id2.clone()))
-    );
-    assert_eq!(
         containers_manager.try_release(id2.clone()),
         Err(ContainerError::NotRegistered(id2.clone()))
-    );
-    assert_eq!(
-        containers_manager.try_read(id3.clone()),
-        Err(ContainerError::NotRegistered(id3.clone()))
-    );
-    assert_eq!(
-        containers_manager.try_write(id3.clone()),
-        Err(ContainerError::NotRegistered(id3.clone()))
     );
     assert_eq!(
         containers_manager.try_release(id3.clone()),
@@ -353,20 +332,7 @@ fn containers_manager_try_release_not_registered() {
 fn container_error_display_not_registered() {
     let mut containers_manager = ContainersManager::default();
     let id1 = Identifier::File("/test/path/file1.txt".to_string());
-    let id2 = Identifier::Stream(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
-    );
-    let id3 = Identifier::Process(1, 1);
 
-    assert_eq!(
-        format!("{}", containers_manager.try_read(id1.clone()).unwrap_err()),
-        format!("{}", ContainerError::NotRegistered(id1.clone()))
-    );
-    assert_eq!(
-        format!("{}", containers_manager.try_write(id1.clone()).unwrap_err()),
-        format!("{}", ContainerError::NotRegistered(id1.clone()))
-    );
     assert_eq!(
         format!(
             "{}",
@@ -374,51 +340,14 @@ fn container_error_display_not_registered() {
         ),
         format!("{}", ContainerError::NotRegistered(id1.clone()))
     );
-    assert_eq!(
-        format!("{}", containers_manager.try_read(id2.clone()).unwrap_err()),
-        format!("{}", ContainerError::NotRegistered(id2.clone()))
-    );
-    assert_eq!(
-        format!("{}", containers_manager.try_write(id2.clone()).unwrap_err()),
-        format!("{}", ContainerError::NotRegistered(id2.clone()))
-    );
-    assert_eq!(
-        format!(
-            "{}",
-            containers_manager.try_release(id2.clone()).unwrap_err()
-        ),
-        format!("{}", ContainerError::NotRegistered(id2.clone()))
-    );
-    assert_eq!(
-        format!("{}", containers_manager.try_read(id3.clone()).unwrap_err()),
-        format!("{}", ContainerError::NotRegistered(id3.clone()))
-    );
-    assert_eq!(
-        format!("{}", containers_manager.try_write(id3.clone()).unwrap_err()),
-        format!("{}", ContainerError::NotRegistered(id3.clone()))
-    );
-    assert_eq!(
-        format!(
-            "{}",
-            containers_manager.try_release(id3.clone()).unwrap_err()
-        ),
-        format!("{}", ContainerError::NotRegistered(id3.clone()))
-    );
 }
 
 #[test]
 fn container_error_display_not_reserved() {
     let mut containers_manager = ContainersManager::default();
     let id1 = Identifier::File("/test/path/file1.txt".to_string());
-    let id2 = Identifier::Stream(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
-    );
-    let id3 = Identifier::Process(1, 1);
 
     assert_eq!(containers_manager.register(id1.clone()), true);
-    assert_eq!(containers_manager.register(id2.clone()), true);
-    assert_eq!(containers_manager.register(id3.clone()), true);
 
     assert_eq!(
         format!(
@@ -427,44 +356,34 @@ fn container_error_display_not_reserved() {
         ),
         format!("{}", ContainerError::NotReserved(id1.clone()))
     );
-    assert_eq!(
-        format!(
-            "{}",
-            containers_manager.try_release(id2.clone()).unwrap_err()
-        ),
-        format!("{}", ContainerError::NotReserved(id2.clone()))
-    );
-    assert_eq!(
-        format!(
-            "{}",
-            containers_manager.try_release(id3.clone()).unwrap_err()
-        ),
-        format!("{}", ContainerError::NotReserved(id3.clone()))
-    );
 }
 
 #[test]
-fn container_result_partial_eq() {
-    let done1 = ContainerResult::Done;
-    let done2 = ContainerResult::Done;
+fn container_reservation_result_partial_eq() {
+    let done1 = ContainerReservationResult::Done;
+    let done2 = ContainerReservationResult::Done;
     let (_, rx1) = oneshot::channel();
-    let wait1 = ContainerResult::Wait(rx1);
+    let wait1 = ContainerReservationResult::Wait(rx1);
     let (_, rx2) = oneshot::channel();
-    let wait2 = ContainerResult::Wait(rx2);
+    let wait2 = ContainerReservationResult::Wait(rx2);
     let id1 = Identifier::File("/test/path/file1.txt".to_string());
     let id2 = Identifier::File("/test/path/file2.txt".to_string());
     let error_not_registered1_id1 =
-        ContainerResult::Error(ContainerError::NotRegistered(id1.clone()));
+        ContainerReservationResult::Error(ContainerError::NotRegistered(id1.clone()));
     let error_not_registered2_id1 =
-        ContainerResult::Error(ContainerError::NotRegistered(id1.clone()));
+        ContainerReservationResult::Error(ContainerError::NotRegistered(id1.clone()));
     let error_not_registered1_id2 =
-        ContainerResult::Error(ContainerError::NotRegistered(id2.clone()));
+        ContainerReservationResult::Error(ContainerError::NotRegistered(id2.clone()));
     let error_not_registered2_id2 =
-        ContainerResult::Error(ContainerError::NotRegistered(id2.clone()));
-    let error_not_reserved1_id1 = ContainerResult::Error(ContainerError::NotReserved(id1.clone()));
-    let error_not_reserved2_id1 = ContainerResult::Error(ContainerError::NotReserved(id1.clone()));
-    let error_not_reserved1_id2 = ContainerResult::Error(ContainerError::NotReserved(id2.clone()));
-    let error_not_reserved2_id2 = ContainerResult::Error(ContainerError::NotReserved(id2.clone()));
+        ContainerReservationResult::Error(ContainerError::NotRegistered(id2.clone()));
+    let error_not_reserved1_id1 =
+        ContainerReservationResult::Error(ContainerError::NotReserved(id1.clone()));
+    let error_not_reserved2_id1 =
+        ContainerReservationResult::Error(ContainerError::NotReserved(id1.clone()));
+    let error_not_reserved1_id2 =
+        ContainerReservationResult::Error(ContainerError::NotReserved(id2.clone()));
+    let error_not_reserved2_id2 =
+        ContainerReservationResult::Error(ContainerError::NotReserved(id2.clone()));
 
     assert_eq!(done1, done2);
     assert_eq!(wait1, wait2);
@@ -487,6 +406,44 @@ fn container_result_partial_eq() {
 
     assert_ne!(error_not_reserved1_id1, done1);
     assert_ne!(error_not_reserved1_id1, wait1);
+    assert_ne!(error_not_reserved1_id1, error_not_registered1_id1);
+
+    assert_ne!(error_not_registered1_id1, error_not_registered1_id2);
+    assert_ne!(error_not_reserved1_id1, error_not_reserved1_id2);
+}
+
+#[test]
+fn container_result_partial_eq() {
+    let done1 = ContainerResult::Done;
+    let done2 = ContainerResult::Done;
+    let id1 = Identifier::File("/test/path/file1.txt".to_string());
+    let id2 = Identifier::File("/test/path/file2.txt".to_string());
+    let error_not_registered1_id1 =
+        ContainerResult::Error(ContainerError::NotRegistered(id1.clone()));
+    let error_not_registered2_id1 =
+        ContainerResult::Error(ContainerError::NotRegistered(id1.clone()));
+    let error_not_registered1_id2 =
+        ContainerResult::Error(ContainerError::NotRegistered(id2.clone()));
+    let error_not_registered2_id2 =
+        ContainerResult::Error(ContainerError::NotRegistered(id2.clone()));
+    let error_not_reserved1_id1 = ContainerResult::Error(ContainerError::NotReserved(id1.clone()));
+    let error_not_reserved2_id1 = ContainerResult::Error(ContainerError::NotReserved(id1.clone()));
+    let error_not_reserved1_id2 = ContainerResult::Error(ContainerError::NotReserved(id2.clone()));
+    let error_not_reserved2_id2 = ContainerResult::Error(ContainerError::NotReserved(id2.clone()));
+
+    assert_eq!(done1, done2);
+    assert_eq!(error_not_registered1_id1, error_not_registered2_id1);
+    assert_eq!(error_not_registered1_id2, error_not_registered2_id2);
+    assert_eq!(error_not_reserved1_id1, error_not_reserved2_id1);
+    assert_eq!(error_not_reserved1_id2, error_not_reserved2_id2);
+
+    assert_ne!(done1, error_not_registered1_id1);
+    assert_ne!(done1, error_not_reserved1_id1);
+
+    assert_ne!(error_not_registered1_id1, done1);
+    assert_ne!(error_not_registered1_id1, error_not_reserved1_id1);
+
+    assert_ne!(error_not_reserved1_id1, done1);
     assert_ne!(error_not_reserved1_id1, error_not_registered1_id1);
 
     assert_ne!(error_not_registered1_id1, error_not_registered1_id2);
@@ -529,7 +486,7 @@ async fn containers_manager_action_reserve_no_queue_read_write(
         .await;
     assert_eq!(
         rx.await.unwrap(),
-        ContainerResult::Error(ContainerError::NotRegistered(id1.clone()))
+        ContainerReservationResult::Error(ContainerError::NotRegistered(id1.clone()))
     );
 
     let (tx, rx) = oneshot::channel();
@@ -538,7 +495,7 @@ async fn containers_manager_action_reserve_no_queue_read_write(
         .await;
     assert_eq!(
         rx.await.unwrap(),
-        ContainerResult::Error(ContainerError::NotRegistered(id2.clone()))
+        ContainerReservationResult::Error(ContainerError::NotRegistered(id2.clone()))
     );
 
     let (tx, rx) = oneshot::channel();
@@ -557,13 +514,13 @@ async fn containers_manager_action_reserve_no_queue_read_write(
     let _ = sender
         .send(ContainerAction::ReserveRead(id1.clone(), tx))
         .await;
-    assert_eq!(rx.await.unwrap(), ContainerResult::Done);
+    assert_eq!(rx.await.unwrap(), ContainerReservationResult::Done);
 
     let (tx, rx) = oneshot::channel();
     let _ = sender
         .send(ContainerAction::ReserveWrite(id2.clone(), tx))
         .await;
-    assert_eq!(rx.await.unwrap(), ContainerResult::Done);
+    assert_eq!(rx.await.unwrap(), ContainerReservationResult::Done);
 
     Ok(())
 }
@@ -587,19 +544,19 @@ async fn containers_manager_action_reserve_no_queue_multi_read(
     let _ = sender
         .send(ContainerAction::ReserveRead(id1.clone(), tx))
         .await;
-    assert_eq!(rx.await.unwrap(), ContainerResult::Done);
+    assert_eq!(rx.await.unwrap(), ContainerReservationResult::Done);
 
     let (tx, rx) = oneshot::channel();
     let _ = sender
         .send(ContainerAction::ReserveRead(id1.clone(), tx))
         .await;
-    assert_eq!(rx.await.unwrap(), ContainerResult::Done);
+    assert_eq!(rx.await.unwrap(), ContainerReservationResult::Done);
 
     let (tx, rx) = oneshot::channel();
     let _ = sender
         .send(ContainerAction::ReserveRead(id1.clone(), tx))
         .await;
-    assert_eq!(rx.await.unwrap(), ContainerResult::Done);
+    assert_eq!(rx.await.unwrap(), ContainerReservationResult::Done);
 
     Ok(())
 }
@@ -623,7 +580,7 @@ async fn containers_manager_action_reserve_queue_multi_write(
     let _ = sender
         .send(ContainerAction::ReserveWrite(id1.clone(), tx))
         .await;
-    assert_eq!(rx.await.unwrap(), ContainerResult::Done);
+    assert_eq!(rx.await.unwrap(), ContainerReservationResult::Done);
 
     let (tx, rx) = oneshot::channel();
     let _ = sender
@@ -631,7 +588,7 @@ async fn containers_manager_action_reserve_queue_multi_write(
         .await;
     assert_eq!(
         rx.await.unwrap(),
-        ContainerResult::Wait(oneshot::channel().1)
+        ContainerReservationResult::Wait(oneshot::channel().1)
     );
 
     let (tx, rx) = oneshot::channel();
@@ -640,7 +597,7 @@ async fn containers_manager_action_reserve_queue_multi_write(
         .await;
     assert_eq!(
         rx.await.unwrap(),
-        ContainerResult::Wait(oneshot::channel().1)
+        ContainerReservationResult::Wait(oneshot::channel().1)
     );
 
     Ok(())
@@ -665,7 +622,7 @@ async fn containers_manager_action_reserve_queue_read_write(
     let _ = sender
         .send(ContainerAction::ReserveWrite(id1.clone(), tx))
         .await;
-    assert_eq!(rx.await.unwrap(), ContainerResult::Done);
+    assert_eq!(rx.await.unwrap(), ContainerReservationResult::Done);
 
     let (tx, rx) = oneshot::channel();
     let _ = sender
@@ -673,7 +630,7 @@ async fn containers_manager_action_reserve_queue_read_write(
         .await;
     assert_eq!(
         rx.await.unwrap(),
-        ContainerResult::Wait(oneshot::channel().1)
+        ContainerReservationResult::Wait(oneshot::channel().1)
     );
 
     let (tx, rx) = oneshot::channel();
@@ -682,7 +639,7 @@ async fn containers_manager_action_reserve_queue_read_write(
         .await;
     assert_eq!(
         rx.await.unwrap(),
-        ContainerResult::Wait(oneshot::channel().1)
+        ContainerReservationResult::Wait(oneshot::channel().1)
     );
 
     Ok(())
@@ -727,13 +684,13 @@ async fn containers_manager_action_release() -> Result<(), Box<dyn std::error::E
     let _ = sender
         .send(ContainerAction::ReserveRead(id1.clone(), tx))
         .await;
-    assert_eq!(rx.await.unwrap(), ContainerResult::Done);
+    assert_eq!(rx.await.unwrap(), ContainerReservationResult::Done);
 
     let (tx, rx) = oneshot::channel();
     let _ = sender
         .send(ContainerAction::ReserveWrite(id2.clone(), tx))
         .await;
-    assert_eq!(rx.await.unwrap(), ContainerResult::Done);
+    assert_eq!(rx.await.unwrap(), ContainerReservationResult::Done);
 
     let (tx, rx) = oneshot::channel();
     let _ = sender.send(ContainerAction::Release(id1.clone(), tx)).await;
@@ -764,14 +721,14 @@ async fn containers_manager_action_reserve_wait_release() -> Result<(), RecvErro
     let _ = sender
         .send(ContainerAction::ReserveWrite(id1.clone(), tx))
         .await;
-    assert_eq!(rx.await.unwrap(), ContainerResult::Done);
+    assert_eq!(rx.await.unwrap(), ContainerReservationResult::Done);
 
     let (tx, rx) = oneshot::channel();
     let _ = sender
         .send(ContainerAction::ReserveRead(id1.clone(), tx))
         .await;
     let callback = match rx.await.unwrap() {
-        ContainerResult::Wait(callback) => callback,
+        ContainerReservationResult::Wait(callback) => callback,
         _ => panic!(),
     };
 

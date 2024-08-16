@@ -2,13 +2,13 @@ use crate::containers::ContainerError;
 
 #[derive(Debug, PartialEq)]
 pub enum ProvenanceError {
-    Inconsistency(ContainerError),
+    ContainerFailure(ContainerError),
 }
 
 impl std::fmt::Display for ProvenanceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProvenanceError::Inconsistency(e) => write!(f, "Provenance inconsistency: {}", e),
+            ProvenanceError::ContainerFailure(e) => write!(f, "Provenance error: {}", e),
         }
     }
 }
