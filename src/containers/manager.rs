@@ -1,91 +1,15 @@
-use std::collections::{HashMap, VecDeque};
-use tokio::sync::{mpsc, oneshot};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::Arc,
+};
+use tokio::{
+    sync::{mpsc, oneshot, Mutex, RwLock},
+    time::{timeout, Duration},
+};
 
 use crate::identifiers::Identifier;
 
-use super::{Container, ContainerError};
-
-/// Global management structure for [`Container`] instances.
-///
-/// It offers a reliable and safe interface to acquire reservation in order to manipulate
-/// `Containers`.
-#[derive(Debug, Default)]
-pub struct ContainersManager {
-    containers: HashMap<Identifier, Container>,
-}
-
-impl ContainersManager {
-    /// This method checks the presence of the provided key before instantiating
-    /// and inserting a new [`Container`] to avoid overwriting an existing [`Container`]
-    ///
-    /// This will return `true` if a new [`Container`] has been instantiated and inserted,
-    /// and `false` if a [`Container`] already exists for the provided key.
-    pub fn register(&mut self, resource_identifier: Identifier) -> bool {
-        if !self.containers.contains_key(&resource_identifier) {
-            let container = Container::new(resource_identifier.clone());
-            self.containers.insert(resource_identifier, container);
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Attempt to acquire a read lock on the [`Container`] registered with the provided key.
-    ///
-    /// If the [`Container`] is available, it is reserved for reading and `Ok` is returned.
-    /// If the [`Container`] is already reserved for writing, an error is returned.
-    ///
-    /// # Errors
-    /// If there is no [`Container`] registered with the provided key an error is returned.
-    pub fn try_read(&mut self, resource_identifier: Identifier) -> Result<bool, ContainerError> {
-        if let Some(container) = self.containers.get_mut(&resource_identifier) {
-            if container.reserve_read() {
-                Ok(true)
-            } else {
-                Ok(false)
-            }
-        } else {
-            Err(ContainerError::NotRegistered(resource_identifier.clone()))
-        }
-    }
-
-    /// Attempt to acquire a write lock on the [`Container`] registered with the provided key.
-    ///
-    /// If the [`Container`] is available, it is reserved for writing and `Ok` is returned.
-    /// If the [`Container`] is already reserved, an error is returned.
-    ///
-    /// # Errors
-    /// If there is no [`Container`] registered with the provided key an error is returned.
-    pub fn try_write(&mut self, resource_identifier: Identifier) -> Result<bool, ContainerError> {
-        if let Some(container) = self.containers.get_mut(&resource_identifier) {
-            if container.reserve_write() {
-                Ok(true)
-            } else {
-                Ok(false)
-            }
-        } else {
-            Err(ContainerError::NotRegistered(resource_identifier.clone()))
-        }
-    }
-
-    /// Release the reservation on the [`Container`] registered with the provided key.
-    ///
-    /// If the [`Container`] is reserved, it is set as available and `Ok(())` is returned.
-    ///
-    /// # Errors
-    /// If the [`Container`] is already available or not registered, an error is returned.
-    pub fn try_release(&mut self, resource_identifier: Identifier) -> Result<(), ContainerError> {
-        if let Some(container) = self.containers.get_mut(&resource_identifier) {
-            if container.release_write() || container.release_read() {
-                Ok(())
-            } else {
-                Err(ContainerError::NotReserved(resource_identifier.clone()))
-            }
-        } else {
-            Err(ContainerError::NotRegistered(resource_identifier.clone()))
-        }
-    }
-}
+use super::ContainerError;
 
 pub enum ContainerAction {
     Register(Identifier, oneshot::Sender<ContainerResult>),
@@ -96,7 +20,6 @@ pub enum ContainerAction {
 
 #[derive(Debug)]
 pub enum ContainerReservationResult {
-    Done,
     Wait(oneshot::Receiver<()>),
     Error(ContainerError),
 }
@@ -104,7 +27,6 @@ pub enum ContainerReservationResult {
 impl std::cmp::PartialEq for ContainerReservationResult {
     fn eq(&self, other: &Self) -> bool {
         match self {
-            ContainerReservationResult::Done => matches!(other, ContainerReservationResult::Done),
             ContainerReservationResult::Wait(_) => {
                 matches!(other, ContainerReservationResult::Wait(_))
             }
@@ -116,99 +38,118 @@ impl std::cmp::PartialEq for ContainerReservationResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ContainerResult {
     Done,
     Error(ContainerError),
 }
 
-impl std::cmp::PartialEq for ContainerResult {
-    fn eq(&self, other: &Self) -> bool {
-        match self {
-            ContainerResult::Done => matches!(other, ContainerResult::Done),
-            ContainerResult::Error(e_self) => match other {
-                ContainerResult::Error(e_other) => e_self == e_other,
-                _ => false,
-            },
-        }
-    }
-}
-
 pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
-    let mut queues = HashMap::new();
-    let mut manager = ContainersManager::default();
+    let mut containers = HashMap::new();
+    let containers_read_release_handles = Arc::new(Mutex::new(HashMap::new()));
+    let containers_write_release_handles = Arc::new(Mutex::new(HashMap::new()));
+
     while let Some(message) = receiver.recv().await {
         match message {
             ContainerAction::Register(identifier, responder) => {
-                manager.register(identifier);
+                if !containers.contains_key(&identifier) {
+                    containers.insert(identifier, Arc::new(RwLock::new(())));
+                }
                 responder.send(ContainerResult::Done).unwrap();
             }
             ContainerAction::ReserveRead(identifier, responder) => {
-                match manager.try_read(identifier.clone()) {
-                    Ok(true) => {
-                        responder.send(ContainerReservationResult::Done).unwrap();
-                    }
-                    Ok(false) => {
-                        let callback = wait_container_release(&mut queues, identifier).await;
+                if let Some(container) = containers.get(&identifier).cloned() {
+                    let containers_read_release_handles =
+                        Arc::clone(&containers_read_release_handles);
+                    tokio::spawn(async move {
+                        let (reservation_result, reservation) = oneshot::channel();
                         responder
-                            .send(ContainerReservationResult::Wait(callback))
+                            .send(ContainerReservationResult::Wait(reservation))
                             .unwrap();
-                    }
-                    Err(e) => {
-                        responder
-                            .send(ContainerReservationResult::Error(e))
-                            .unwrap();
-                    }
-                };
+                        let guard = container.read().await;
+                        let (release_callback, release) = oneshot::channel();
+                        reservation_result.send(()).unwrap();
+                        containers_read_release_handles
+                            .lock()
+                            .await
+                            .entry(identifier.clone())
+                            .or_insert_with(VecDeque::new)
+                            .push_back(release_callback);
+
+                        if timeout(Duration::from_millis(5), release).await.is_err() {
+                            todo!() // kill the blocking process
+                        }
+                        drop(guard);
+                    });
+                } else {
+                    responder
+                        .send(ContainerReservationResult::Error(
+                            ContainerError::NotRegistered(identifier),
+                        ))
+                        .unwrap();
+                }
             }
             ContainerAction::ReserveWrite(identifier, responder) => {
-                match manager.try_write(identifier.clone()) {
-                    Ok(true) => {
-                        responder.send(ContainerReservationResult::Done).unwrap();
-                    }
-                    Ok(false) => {
-                        let callback = wait_container_release(&mut queues, identifier).await;
+                if let Some(container) = containers.get(&identifier).cloned() {
+                    let containers_write_release_handles =
+                        Arc::clone(&containers_write_release_handles);
+                    tokio::spawn(async move {
+                        let (reservation_result, reservation) = oneshot::channel();
                         responder
-                            .send(ContainerReservationResult::Wait(callback))
+                            .send(ContainerReservationResult::Wait(reservation))
                             .unwrap();
-                    }
-                    Err(e) => {
-                        responder
-                            .send(ContainerReservationResult::Error(e))
-                            .unwrap();
-                    }
-                };
+                        let guard = container.write().await;
+                        let (release_callback, release) = oneshot::channel();
+                        reservation_result.send(()).unwrap();
+                        containers_write_release_handles
+                            .lock()
+                            .await
+                            .insert(identifier.clone(), release_callback);
+                        if timeout(Duration::from_millis(5), release).await.is_err() {
+                            todo!() // kill the blocking process
+                        }
+                        drop(guard);
+                    });
+                } else {
+                    responder
+                        .send(ContainerReservationResult::Error(
+                            ContainerError::NotRegistered(identifier),
+                        ))
+                        .unwrap();
+                }
             }
             ContainerAction::Release(identifier, responder) => {
-                if let Some(channel) = queues
-                    .get_mut(&identifier)
-                    .and_then(|queue| queue.pop_front())
-                {
-                    channel.send(()).unwrap();
-                    responder.send(ContainerResult::Done).unwrap();
-                } else {
-                    match manager.try_release(identifier.clone()) {
-                        Ok(()) => responder.send(ContainerResult::Done).unwrap(),
-                        Err(e) => responder.send(ContainerResult::Error(e)).unwrap(),
+                if containers.contains_key(&identifier) {
+                    if let Some(handle) = containers_read_release_handles
+                        .lock()
+                        .await
+                        .get_mut(&identifier)
+                        .and_then(|queue| queue.pop_front())
+                    {
+                        handle.send(()).unwrap();
+                        responder.send(ContainerResult::Done).unwrap();
+                    } else if let Some(handle) = containers_write_release_handles
+                        .lock()
+                        .await
+                        .remove(&identifier)
+                    {
+                        handle.send(()).unwrap();
+                        responder.send(ContainerResult::Done).unwrap();
+                    } else {
+                        responder
+                            .send(ContainerResult::Error(ContainerError::NotReserved(
+                                identifier,
+                            )))
+                            .unwrap();
                     }
+                } else {
+                    responder
+                        .send(ContainerResult::Error(ContainerError::NotRegistered(
+                            identifier,
+                        )))
+                        .unwrap();
                 }
             }
         }
     }
-}
-
-async fn wait_container_release(
-    queues: &mut HashMap<Identifier, VecDeque<oneshot::Sender<()>>>,
-    resource_identifier: Identifier,
-) -> oneshot::Receiver<()> {
-    // Set up a oneshot channel to be notified when it becomes available
-    let (tx, rx) = oneshot::channel();
-    if let Some(queue) = queues.get_mut(&resource_identifier) {
-        queue.push_back(tx);
-    } else {
-        let mut queue = VecDeque::new();
-        queue.push_back(tx);
-        queues.insert(resource_identifier.clone(), queue);
-    }
-    rx
 }

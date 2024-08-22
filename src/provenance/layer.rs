@@ -47,14 +47,10 @@ impl ProvenanceLayer {
                 #[cfg(feature = "verbose")]
                 println!("⏯️  read got after wait {}", source.clone())
             }
-            ContainerReservationResult::Done => {
-                #[cfg(feature = "verbose")]
-                println!("⏩ read got {}", source.clone());
-            }
             ContainerReservationResult::Error(e) => {
                 return Err(ProvenanceError::ContainerFailure(e))
             }
-        }
+        };
         let (tx, rx) = oneshot::channel();
         let _ = self
             .containers_manager
@@ -63,19 +59,15 @@ impl ProvenanceLayer {
         match rx.await.unwrap() {
             ContainerReservationResult::Wait(callback) => {
                 #[cfg(feature = "verbose")]
-                println!("⏸️  write wait {}", destination.clone());
+                println!("⏸️  write wait {}", source.clone());
                 callback.await.unwrap();
                 #[cfg(feature = "verbose")]
-                println!("⏯️  write got after wait {}", destination.clone());
-            }
-            ContainerReservationResult::Done => {
-                #[cfg(feature = "verbose")]
-                println!("⏩ write got {}", destination.clone());
+                println!("⏯️  write got after wait {}", source.clone())
             }
             ContainerReservationResult::Error(e) => {
                 return Err(ProvenanceError::ContainerFailure(e))
             }
-        }
+        };
 
         Ok(Flow {
             id: self.get_grant_id().await,

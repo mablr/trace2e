@@ -1,6 +1,6 @@
 use crate::containers::ContainerError;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ProvenanceError {
     ContainerFailure(ContainerError),
 }

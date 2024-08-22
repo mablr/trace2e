@@ -1,6 +1,6 @@
 use crate::identifiers::Identifier;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum ContainerError {
     NotRegistered(Identifier),
     NotReserved(Identifier),

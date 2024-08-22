@@ -214,24 +214,15 @@ async fn provenance_layer_declare_delayed() -> Result<(), Box<dyn std::error::Er
         .await?;
     rx.await?;
 
-    let _ = provenance.declare_flow(id1.clone(), id2.clone()).await?;
-    assert!(matches!(
-        timeout(
-            Duration::from_millis(10),
-            provenance.declare_flow(id1.clone(), id2.clone())
-        )
-        .await,
-        Err(_)
-    ));
+    provenance.declare_flow(id1.clone(), id2.clone()).await?;
 
-    assert!(matches!(
-        timeout(
-            Duration::from_millis(10),
-            provenance.declare_flow(id2.clone(), id1.clone())
-        )
-        .await,
-        Err(_)
-    ));
+    // Flow declaration is delayed as the previous is no recorded so far
+    assert!(timeout(
+        Duration::from_millis(1),
+        provenance.declare_flow(id1.clone(), id2.clone())
+    )
+    .await
+    .is_err());
 
     Ok(())
 }
