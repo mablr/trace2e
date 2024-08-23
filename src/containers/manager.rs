@@ -46,8 +46,8 @@ pub enum ContainerResult {
 
 pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
     let mut containers = HashMap::new();
-    let containers_read_release_handles = Arc::new(Mutex::new(HashMap::new()));
-    let containers_write_release_handles = Arc::new(Mutex::new(HashMap::new()));
+    let read_release_handles = Arc::new(Mutex::new(HashMap::new()));
+    let write_release_handles = Arc::new(Mutex::new(HashMap::new()));
 
     while let Some(message) = receiver.recv().await {
         match message {
@@ -59,8 +59,7 @@ pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
             }
             ContainerAction::ReserveRead(identifier, responder) => {
                 if let Some(container) = containers.get(&identifier).cloned() {
-                    let containers_read_release_handles =
-                        Arc::clone(&containers_read_release_handles);
+                    let read_release_handles = Arc::clone(&read_release_handles);
                     tokio::spawn(async move {
                         let (reservation_result, reservation) = oneshot::channel();
                         responder
@@ -69,13 +68,13 @@ pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
                         let guard = container.read().await;
                         let (release_callback, release) = oneshot::channel();
                         reservation_result.send(()).unwrap();
-                        containers_read_release_handles
+                        read_release_handles
                             .lock()
                             .await
                             .entry(identifier.clone())
                             .or_insert_with(VecDeque::new)
                             .push_back(release_callback);
-
+                    
                         if timeout(Duration::from_millis(50), release).await.is_err() {
                             todo!() // kill the blocking process
                         }
@@ -91,8 +90,7 @@ pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
             }
             ContainerAction::ReserveWrite(identifier, responder) => {
                 if let Some(container) = containers.get(&identifier).cloned() {
-                    let containers_write_release_handles =
-                        Arc::clone(&containers_write_release_handles);
+                    let write_release_handles = Arc::clone(&write_release_handles);
                     tokio::spawn(async move {
                         let (reservation_result, reservation) = oneshot::channel();
                         responder
@@ -101,7 +99,7 @@ pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
                         let guard = container.write().await;
                         let (release_callback, release) = oneshot::channel();
                         reservation_result.send(()).unwrap();
-                        containers_write_release_handles
+                        write_release_handles
                             .lock()
                             .await
                             .insert(identifier.clone(), release_callback);
@@ -120,7 +118,7 @@ pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
             }
             ContainerAction::Release(identifier, responder) => {
                 if containers.contains_key(&identifier) {
-                    if let Some(handle) = containers_read_release_handles
+                    if let Some(handle) = read_release_handles
                         .lock()
                         .await
                         .get_mut(&identifier)
@@ -128,7 +126,7 @@ pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
                     {
                         handle.send(()).unwrap();
                         responder.send(ContainerResult::Done).unwrap();
-                    } else if let Some(handle) = containers_write_release_handles
+                    } else if let Some(handle) = write_release_handles
                         .lock()
                         .await
                         .remove(&identifier)
