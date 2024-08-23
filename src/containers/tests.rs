@@ -140,7 +140,7 @@ async fn containers_manager_action_reserve_read_timeout() {
         .await;
     match rx2.await.unwrap() {
         ContainerReservationResult::Wait(result) => {
-            assert!(timeout(Duration::from_millis(10), result).await.is_err())
+            assert!(timeout(Duration::from_millis(100), result).await.is_err())
         }
         _ => (),
     };
@@ -217,7 +217,7 @@ async fn containers_manager_action_reserve_write_timeout() {
         .await;
     match rx2.await.unwrap() {
         ContainerReservationResult::Wait(result) => {
-            assert!(timeout(Duration::from_millis(10), result).await.is_err())
+            assert!(timeout(Duration::from_millis(100), result).await.is_err())
         }
         _ => (),
     };
@@ -251,7 +251,7 @@ async fn containers_manager_action_reserve_2write_timeout() {
         .await;
     match rx2.await.unwrap() {
         ContainerReservationResult::Wait(result) => {
-            assert!(timeout(Duration::from_millis(10), result).await.is_err())
+            assert!(timeout(Duration::from_millis(100), result).await.is_err())
         }
         _ => (),
     };

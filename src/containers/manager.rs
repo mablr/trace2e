@@ -76,7 +76,7 @@ pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
                             .or_insert_with(VecDeque::new)
                             .push_back(release_callback);
 
-                        if timeout(Duration::from_millis(5), release).await.is_err() {
+                        if timeout(Duration::from_millis(50), release).await.is_err() {
                             todo!() // kill the blocking process
                         }
                         drop(guard);
@@ -105,7 +105,7 @@ pub async fn containers_manager(mut receiver: mpsc::Receiver<ContainerAction>) {
                             .lock()
                             .await
                             .insert(identifier.clone(), release_callback);
-                        if timeout(Duration::from_millis(5), release).await.is_err() {
+                        if timeout(Duration::from_millis(50), release).await.is_err() {
                             todo!() // kill the blocking process
                         }
                         drop(guard);
