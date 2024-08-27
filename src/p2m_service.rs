@@ -1,11 +1,10 @@
-use crate::containers::ContainerAction;
 use crate::identifiers::Identifier;
-use crate::provenance::{Flow as ProvFlow, ProvenanceLayer};
+use crate::provenance::{ProvenanceAction, ProvenanceResult};
 use p2m::{p2m_server::P2m, Ack, Flow, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
 use procfs::process::Process;
 use std::collections::HashMap;
 use std::{net::SocketAddr, sync::Arc};
-use tokio::sync::{mpsc, oneshot, Mutex, RwLock};
+use tokio::sync::{mpsc, oneshot, RwLock};
 use tonic::{Request, Response, Status};
 
 pub mod p2m {
@@ -15,19 +14,15 @@ pub mod p2m {
 
 #[derive(Debug)]
 pub struct P2mService {
-    containers_manager: mpsc::Sender<ContainerAction>,
     identifiers_map: Arc<RwLock<HashMap<(u32, i32), Identifier>>>,
-    provenance: ProvenanceLayer,
-    flows: Arc<Mutex<HashMap<u64, ProvFlow>>>,
+    provenance: mpsc::Sender<ProvenanceAction>,
 }
 
 impl P2mService {
-    pub fn new(containers_manager: mpsc::Sender<ContainerAction>) -> Self {
+    pub fn new(provenance_layer: mpsc::Sender<ProvenanceAction>) -> Self {
         P2mService {
-            containers_manager: containers_manager.clone(),
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
-            provenance: ProvenanceLayer::new(containers_manager),
-            flows: Arc::new(Mutex::new(HashMap::new())),
+            provenance: provenance_layer,
         }
     }
 }
@@ -59,15 +54,18 @@ impl P2m for P2mService {
 
         let (tx, rx) = oneshot::channel();
         let _ = self
-            .containers_manager
-            .send(ContainerAction::Register(process_identifier, tx))
+            .provenance
+            .send(ProvenanceAction::RegisterContainer(process_identifier, tx))
             .await;
         rx.await.unwrap();
 
         let (tx, rx) = oneshot::channel();
         let _ = self
-            .containers_manager
-            .send(ContainerAction::Register(resource_identifier.clone(), tx))
+            .provenance
+            .send(ProvenanceAction::RegisterContainer(
+                resource_identifier.clone(),
+                tx,
+            ))
             .await;
         rx.await.unwrap();
 
@@ -150,15 +148,15 @@ impl P2m for P2mService {
 
         let (tx, rx) = oneshot::channel();
         let _ = self
-            .containers_manager
-            .send(ContainerAction::Register(process_identifier, tx))
+            .provenance
+            .send(ProvenanceAction::RegisterContainer(process_identifier, tx))
             .await;
         rx.await.unwrap();
 
         let (tx, rx) = oneshot::channel();
         let _ = self
-            .containers_manager
-            .send(ContainerAction::Register(identifier.clone(), tx))
+            .provenance
+            .send(ProvenanceAction::RegisterContainer(identifier.clone(), tx))
             .await;
         rx.await.unwrap();
 
@@ -206,19 +204,45 @@ impl P2m for P2mService {
             .get(&(r.process_id, r.file_descriptor))
             .cloned()
         {
-            let flow = match r.flow {
-                flow_type if flow_type == Flow::Input.into() => self
-                    .provenance
-                    .declare_flow(resource_identifier.clone(), process_identifier)
-                    .await
-                    .unwrap(),
-                flow_type if flow_type == Flow::Output.into() => self
-                    .provenance
-                    .declare_flow(process_identifier, resource_identifier.clone())
-                    .await
-                    .unwrap(),
+            let (tx, rx) = oneshot::channel();
+            let _ = match r.flow {
+                flow_type if flow_type == Flow::Input.into() => {
+                    self.provenance
+                        .send(ProvenanceAction::DeclareFlow(
+                            process_identifier.clone(),
+                            resource_identifier.clone(),
+                            false,
+                            tx,
+                        ))
+                        .await
+                }
+                flow_type if flow_type == Flow::Output.into() => {
+                    self.provenance
+                        .send(ProvenanceAction::DeclareFlow(
+                            process_identifier.clone(),
+                            resource_identifier.clone(),
+                            true,
+                            tx,
+                        ))
+                        .await
+                }
                 _ => return Err(Status::invalid_argument(format!("Unsupported Flow type"))),
             };
+
+            let grant_id = match rx.await.unwrap() {
+                ProvenanceResult::Declared(grant_id) => grant_id,
+                _ => {
+                    #[cfg(feature = "verbose")]
+                    eprintln!(
+                        "Provenance declaration failure, Flow ({} - {})",
+                        process_identifier.clone(),
+                        resource_identifier.clone()
+                    );
+
+                    return Err(Status::internal("Provenance declaration failure"));
+                }
+            };
+
             #[cfg(feature = "verbose")]
             println!(
                 "PID: {} | FD: {} | {} Authorized | {}",
@@ -235,17 +259,16 @@ impl P2m for P2mService {
                 },
                 resource_identifier.clone(),
             );
-            let mut flows = self.flows.lock().await;
-            flows.insert(flow.id, flow.clone());
-            Ok(Response::new(Grant { id: flow.id }))
+
+            Ok(Response::new(Grant { id: grant_id }))
         } else {
             #[cfg(feature = "verbose")]
             eprintln!("CT {} is not tracked", r.file_descriptor);
 
-            return Err(Status::not_found(format!(
+            Err(Status::not_found(format!(
                 "CT {} is not tracked",
                 r.file_descriptor
-            )));
+            )))
         }
     }
 
@@ -259,57 +282,59 @@ impl P2m for P2mService {
             .get(&(r.process_id, r.file_descriptor))
             .cloned()
         {
-            if let Some(flow) = self.flows.lock().await.get(&(r.grant_id)).cloned() {
-                match self.provenance.record_flow(flow).await {
-                    Ok(_) => {
-                        #[cfg(feature = "verbose")]
-                        println!(
-                            "PID: {} | FD: {} | IO Done | {}",
-                            r.process_id,
-                            r.file_descriptor,
-                            _resource_identifier.clone()
-                        );
+            let (tx, rx) = oneshot::channel();
+            let _ = self
+                .provenance
+                .send(ProvenanceAction::RecordFlow(r.grant_id, tx))
+                .await;
+            match rx.await.unwrap() {
+                ProvenanceResult::Recorded => {
+                    #[cfg(feature = "verbose")]
+                    println!(
+                        "PID: {} | FD: {} | IO Done | {}",
+                        r.process_id,
+                        r.file_descriptor,
+                        _resource_identifier.clone()
+                    );
 
-                        Ok(Response::new(Ack {}))
-                    }
-                    Err(_) => {
-                        #[cfg(feature = "verbose")]
-                        eprintln!("Provenance recording failure, Flow {}", r.grant_id);
-
-                        Err(Status::internal("Provenance recording failure"))
-                    }
+                    Ok(Response::new(Ack {}))
                 }
-            } else {
-                #[cfg(feature = "verbose")]
-                eprintln!("Flow {} does not exist", r.grant_id);
+                ProvenanceResult::Error(e) => {
+                    #[cfg(feature = "verbose")]
+                    eprintln!("{}", e);
 
-                return Err(Status::not_found(format!(
-                    "Flow {} does not exist",
-                    r.grant_id
-                )));
+                    Err(Status::from_error(Box::new(e)))
+                }
+                _ => {
+                    #[cfg(feature = "verbose")]
+                    eprintln!("Provenance error, recording failure Flow {}", r.grant_id);
+
+                    Err(Status::internal(format!("Provenance error, recording failure Flow {}", r.grant_id)))
+                }
             }
         } else {
             #[cfg(feature = "verbose")]
             eprintln!("CT {} is not tracked", r.file_descriptor);
 
-            return Err(Status::not_found(format!(
+            Err(Status::not_found(format!(
                 "CT {} is not tracked",
                 r.file_descriptor
-            )));
+            )))
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::provenance::provenance_layer;
+
     use super::*;
-    use crate::containers::containers_manager;
     use std::process::Command;
 
     #[tokio::test]
     async fn p2m_scenario_1p_1f_write() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(containers_manager(receiver));
+        tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -348,7 +373,7 @@ mod tests {
     #[tokio::test]
     async fn p2m_scenario_1p_1f_read() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(containers_manager(receiver));
+        tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -387,7 +412,7 @@ mod tests {
     #[tokio::test]
     async fn p2m_scenario_1p_1s_write() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(containers_manager(receiver));
+        tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -427,7 +452,7 @@ mod tests {
     #[tokio::test]
     async fn p2m_scenario_1p_1s_read() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(containers_manager(receiver));
+        tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 

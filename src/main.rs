@@ -2,18 +2,18 @@ use tokio::sync::mpsc;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
 use trace2e::{
-    containers::containers_manager,
     p2m_service::{
         p2m::{p2m_server::P2mServer, FILE_DESCRIPTOR_SET},
         P2mService,
     },
+    provenance::provenance_layer,
 };
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
 
-    tokio::spawn(containers_manager(receiver));
+    tokio::spawn(provenance_layer(receiver));
 
     let address = "[::1]:8080".parse().unwrap();
     let p2m_service = P2mService::new(sender);

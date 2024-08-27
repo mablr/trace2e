@@ -153,7 +153,7 @@ async fn integration_1p_1f_complex() -> Result<(), Box<dyn std::error::Error>> {
         result: true,
     });
     let result_seek_done = client.io_report(seek_done).await.unwrap_err();
-    assert_eq!(result_seek_done.message(), "Flow 0 does not exist");
+    assert_eq!(result_seek_done.message(), "Provenance error: unable to record Flow 0");
 
     // Read event
     let read_request = tonic::Request::new(IoInfo {
