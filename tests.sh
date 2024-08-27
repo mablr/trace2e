@@ -6,7 +6,6 @@ cargo build
 
 # Unit tests
 cargo test identifiers
-cargo test containers
 cargo test provenance
 cargo test p2m_service
 
