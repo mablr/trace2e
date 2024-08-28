@@ -5,19 +5,17 @@ set -eux -o pipefail
 cargo build
 
 # Unit tests
-cargo test identifiers
-cargo test provenance
-cargo test p2m_service
+cargo test unit
 
 # Launch Middleware
 ./target/debug/trace2e &
 TRACE2E_PID=$!
 
-# Single thread integration tests
-cargo test integration_1p -- --test-threads 1
+# Synchronous integration tests
+cargo test integration_sync -- --test-threads 1
 
-# Multiple threads integration tests
-cargo test integration_mp
+# Async integration tests
+cargo test integration_async
 
 # Stop Middleware
 kill ${TRACE2E_PID}

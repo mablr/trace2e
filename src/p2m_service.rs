@@ -309,7 +309,10 @@ impl P2m for P2mService {
                     #[cfg(feature = "verbose")]
                     eprintln!("Provenance error, recording failure Flow {}", r.grant_id);
 
-                    Err(Status::internal(format!("Provenance error, recording failure Flow {}", r.grant_id)))
+                    Err(Status::internal(format!(
+                        "Provenance error, recording failure Flow {}",
+                        r.grant_id
+                    )))
                 }
             }
         } else {
@@ -332,7 +335,7 @@ mod tests {
     use std::process::Command;
 
     #[tokio::test]
-    async fn p2m_scenario_1p_1f_write() -> Result<(), Box<dyn std::error::Error>> {
+    async fn unit_p2m_scenario_1p_1f_write() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
         tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);
@@ -371,7 +374,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn p2m_scenario_1p_1f_read() -> Result<(), Box<dyn std::error::Error>> {
+    async fn unit_p2m_scenario_1p_1f_read() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
         tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);
@@ -410,7 +413,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn p2m_scenario_1p_1s_write() -> Result<(), Box<dyn std::error::Error>> {
+    async fn unit_p2m_scenario_1p_1s_write() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
         tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);
@@ -450,7 +453,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn p2m_scenario_1p_1s_read() -> Result<(), Box<dyn std::error::Error>> {
+    async fn unit_p2m_scenario_1p_1s_read() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
         tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);

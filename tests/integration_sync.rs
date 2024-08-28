@@ -3,7 +3,7 @@ use std::process::Command;
 use trace2e::p2m_service::p2m::{p2m_client::P2mClient, Ack, Flow, IoInfo, IoResult, LocalCt};
 
 #[tokio::test]
-async fn integration_1p_1f_write() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_sync_write() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
     // CT declaration
@@ -39,7 +39,7 @@ async fn integration_1p_1f_write() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-async fn integration_1p_1f_read() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_sync_read() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -76,7 +76,7 @@ async fn integration_1p_1f_read() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tokio::test]
-async fn integration_1p_1f_complex() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_sync_complex() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -153,7 +153,10 @@ async fn integration_1p_1f_complex() -> Result<(), Box<dyn std::error::Error>> {
         result: true,
     });
     let result_seek_done = client.io_report(seek_done).await.unwrap_err();
-    assert_eq!(result_seek_done.message(), "Provenance error: unable to record Flow 0");
+    assert_eq!(
+        result_seek_done.message(),
+        "Provenance error: unable to record Flow 0"
+    );
 
     // Read event
     let read_request = tonic::Request::new(IoInfo {

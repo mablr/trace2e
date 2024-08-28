@@ -3,7 +3,7 @@ use std::process::Command;
 use trace2e::p2m_service::p2m::{p2m_client::P2mClient, Ack, Flow, IoInfo, IoResult, LocalCt};
 
 #[tokio::test]
-async fn integration_mp_1t_1f_write1() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_mp_1f_write1() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -40,7 +40,7 @@ async fn integration_mp_1t_1f_write1() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[tokio::test]
-async fn integration_mp_1t_1f_write2() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_mp_1f_write2() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -77,7 +77,7 @@ async fn integration_mp_1t_1f_write2() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[tokio::test]
-async fn integration_mp_1t_1f_write3() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_mp_1f_write3() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -114,7 +114,7 @@ async fn integration_mp_1t_1f_write3() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[tokio::test]
-async fn integration_mp_1t_1f_read1() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_mp_1f_read1() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -151,7 +151,7 @@ async fn integration_mp_1t_1f_read1() -> Result<(), Box<dyn std::error::Error>> 
 }
 
 #[tokio::test]
-async fn integration_mp_1t_1f_read2() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_mp_1f_read2() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -188,7 +188,7 @@ async fn integration_mp_1t_1f_read2() -> Result<(), Box<dyn std::error::Error>> 
 }
 
 #[tokio::test]
-async fn integration_mp_1t_1f_read3() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_mp_1f_read3() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 

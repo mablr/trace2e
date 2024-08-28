@@ -1,14 +1,14 @@
 use trace2e::p2m_service::p2m::{p2m_client::P2mClient, Ack, Flow, IoInfo, IoResult, LocalCt};
 
 #[tokio::test]
-async fn integration_mp_mt_1f_write1() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_1p_mf_write1() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
         process_id: 1,
         file_descriptor: 3,
-        path: "bar.txt".to_string(),
+        path: "bar0.txt".to_string(),
     });
     let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
     assert_eq!(result_file_creation, Ack {});
@@ -35,7 +35,7 @@ async fn integration_mp_mt_1f_write1() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[tokio::test]
-async fn integration_mp_mt_1f_write2() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_1p_mf_write2() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
@@ -69,7 +69,7 @@ async fn integration_mp_mt_1f_write2() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[tokio::test]
-async fn integration_mp_mt_1f_write3() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_1p_mf_write3() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
@@ -103,7 +103,7 @@ async fn integration_mp_mt_1f_write3() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[tokio::test]
-async fn integration_mp_mt_1f_read1() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_1p_mf_read1() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
@@ -137,7 +137,7 @@ async fn integration_mp_mt_1f_read1() -> Result<(), Box<dyn std::error::Error>> 
 }
 
 #[tokio::test]
-async fn integration_mp_mt_1f_read2() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_1p_mf_read2() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
@@ -171,7 +171,7 @@ async fn integration_mp_mt_1f_read2() -> Result<(), Box<dyn std::error::Error>> 
 }
 
 #[tokio::test]
-async fn integration_mp_mt_1f_read3() -> Result<(), Box<dyn std::error::Error>> {
+async fn integration_async_1p_mf_read3() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
