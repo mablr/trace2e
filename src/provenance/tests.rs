@@ -1,4 +1,6 @@
-use tokio::sync::{mpsc, oneshot};
+use std::time::Duration;
+
+use tokio::{sync::{mpsc, oneshot}, time::timeout};
 
 use crate::identifiers::Identifier;
 
@@ -160,9 +162,10 @@ async fn provenance_layer_declare_delayed() -> Result<(), Box<dyn std::error::Er
             tx,
         ))
         .await?;
-    match rx.await.unwrap() {
-        ProvenanceResult::Declared(_) => (),
-        _ => panic!(),
+    
+    match timeout(Duration::from_millis(1), rx).await {
+        Err(_) => (), // Elapsed because flow declaration is supposed to be delayed
+        _ => panic!()
     }
 
     Ok(())
