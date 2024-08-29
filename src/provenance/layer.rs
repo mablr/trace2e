@@ -7,7 +7,7 @@ use tokio::{
 
 use crate::identifiers::Identifier;
 
-use super::ProvenanceError;
+use super::{Labels, ProvenanceError};
 
 fn flow_is_valid(id1: Identifier, id2: Identifier) -> bool {
     match id1 {
@@ -47,7 +47,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
         match message {
             ProvenanceAction::RegisterContainer(identifier, responder) => {
                 if !containers.contains_key(&identifier) {
-                    containers.insert(identifier.clone(), Arc::new(RwLock::new(())));
+                    containers.insert(identifier.clone(), Arc::new(RwLock::new(Labels::new(identifier.clone()))));
                 }
                 responder.send(ProvenanceResult::Registered).unwrap();
             }
@@ -59,7 +59,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                         let grant_counter = Arc::clone(&grant_counter);
                         let flows_release_handles = Arc::clone(&flows_release_handles);
                         tokio::spawn(async move {
-                            let (_rguard, _wguard) = {
+                            let (source_labels, mut destination_labels) = {
                                 if output {
                                     #[cfg(feature = "verbose")]
                                     println!("⏸️  read wait for {}", id1.clone());
@@ -105,9 +105,10 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
 
                             #[cfg(feature = "verbose")]
                             println!(
-                                "⏹️  Flow {} granted ({} -> {})",
+                                "✅  Flow {} granted ({} {} {})",
                                 grant_id,
                                 id1.clone(),
+                                if output {"->"} else {"<-"},
                                 id2.clone()
                             );
 
@@ -120,17 +121,41 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
 
                                 #[cfg(test)]
                                 panic!("⚠️  Reservation timeout");
+                            } else {
+                                #[cfg(feature = "verbose")]
+                                println!(
+                                    "⏺️  Flow {} recording ({} {} {})",
+                                    grant_id,
+                                    id1.clone(),
+                                    if output {"->"} else {"<-"},
+                                    id2.clone()
+                                );
+
+                                destination_labels.update_prov(&source_labels);
+
+                                #[cfg(feature = "verbose")]
+                                if output {
+                                    println!(
+                                        "🆕 Provenance: {{{}: {:?},  {}: {:?}}}",
+                                        id1.clone(),
+                                        source_labels.get_prov(),
+                                        id2.clone(),
+                                        destination_labels.get_prov(),
+                                    );
+                                } else {
+                                    println!(
+                                        "🆕 Provenance: {{{}: {:?},  {}: {:?}}}",
+                                        id2.clone(),
+                                        source_labels.get_prov(),
+                                        id1.clone(),
+                                        destination_labels.get_prov(),
+                                    );
+                                }
+
                             }
-                            #[cfg(feature = "verbose")]
-                            println!(
-                                "⏹️  Flow {} recording ({} -> {})",
-                                grant_id,
-                                id1.clone(),
-                                id2.clone()
-                            );
 
                             #[cfg(feature = "verbose")]
-                            println!("⏹️  Flow {} destruction", grant_id);
+                            println!("🗑️  Flow {} destruction", grant_id);
                         });
                     } else {
                         responder
@@ -149,8 +174,6 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
             }
             ProvenanceAction::RecordFlow(grant_id, responder) => {
                 if let Some(handle) = flows_release_handles.lock().await.remove(&grant_id) {
-                    #[cfg(feature = "verbose")]
-                    println!("⏯️  release Flow {}", grant_id);
                     handle.send(()).unwrap();
                     responder.send(ProvenanceResult::Recorded).unwrap();
                 } else {
