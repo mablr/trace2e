@@ -155,7 +155,7 @@ async fn integration_sync_complex() -> Result<(), Box<dyn std::error::Error>> {
     let result_seek_done = client.io_report(seek_done).await.unwrap_err();
     assert_eq!(
         result_seek_done.message(),
-        "Provenance error: unable to record Flow 0"
+        "Provenance error: unable to record Flow 0."
     );
 
     // Read event

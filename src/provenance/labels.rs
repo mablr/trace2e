@@ -2,7 +2,7 @@ use crate::identifiers::Identifier;
 
 #[derive(Debug, Clone)]
 pub struct Labels {
-    provenance: Vec<Identifier>
+    provenance: Vec<Identifier>,
 }
 
 impl Labels {
@@ -10,7 +10,7 @@ impl Labels {
         let mut labels = Labels {
             provenance: Vec::new(),
         };
-        
+
         if let Identifier::File(_) = identifier {
             labels.provenance.push(identifier);
         }

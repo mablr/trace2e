@@ -47,7 +47,10 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
         match message {
             ProvenanceAction::RegisterContainer(identifier, responder) => {
                 if !containers.contains_key(&identifier) {
-                    containers.insert(identifier.clone(), Arc::new(RwLock::new(Labels::new(identifier.clone()))));
+                    containers.insert(
+                        identifier.clone(),
+                        Arc::new(RwLock::new(Labels::new(identifier.clone()))),
+                    );
                 }
                 responder.send(ProvenanceResult::Registered).unwrap();
             }
@@ -108,7 +111,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                 "✅  Flow {} granted ({} {} {})",
                                 grant_id,
                                 id1.clone(),
-                                if output {"->"} else {"<-"},
+                                if output { "->" } else { "<-" },
                                 id2.clone()
                             );
 
@@ -127,7 +130,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                     "⏺️  Flow {} recording ({} {} {})",
                                     grant_id,
                                     id1.clone(),
-                                    if output {"->"} else {"<-"},
+                                    if output { "->" } else { "<-" },
                                     id2.clone()
                                 );
 
@@ -151,7 +154,6 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                         destination_labels.get_prov(),
                                     );
                                 }
-
                             }
 
                             #[cfg(feature = "verbose")]
@@ -160,15 +162,15 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                     } else {
                         responder
                             .send(ProvenanceResult::Error(
-                                ProvenanceError::DeclarationFailure(id1, id2), // todo specific error not declared container ?
+                                ProvenanceError::MissingRegistration(id1, id2),
                             ))
                             .unwrap();
                     }
                 } else {
                     responder
-                        .send(ProvenanceResult::Error(
-                            ProvenanceError::DeclarationFailure(id1, id2), // todo specific error invalid flow ?
-                        ))
+                        .send(ProvenanceResult::Error(ProvenanceError::InvalidFlow(
+                            id1, id2,
+                        )))
                         .unwrap();
                 }
             }

@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    time::Duration,
+};
 
 use tokio::{
     sync::{mpsc, oneshot},
@@ -8,6 +11,42 @@ use tokio::{
 use crate::identifiers::Identifier;
 
 use super::*;
+
+#[test]
+fn unit_labels_new() {
+    let id1 = Identifier::Process(1, 1);
+    let id2 = Identifier::File("/path/to/file1.txt".to_string());
+    let id3 = Identifier::Stream(
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
+    );
+
+    let id1_labels = Labels::new(id1.clone());
+    let id2_labels = Labels::new(id2.clone());
+    let id3_labels = Labels::new(id3.clone());
+
+    assert_eq!(id1_labels.get_prov(), vec![]);
+    assert_eq!(id2_labels.get_prov(), vec![id2.clone()]);
+    assert_eq!(id3_labels.get_prov(), vec![]);
+}
+
+#[test]
+fn unit_labels_update() {
+    let id1 = Identifier::Process(1, 1);
+    let id2 = Identifier::File("/path/to/file1.txt".to_string());
+    let id3 = Identifier::File("/path/to/file2.txt".to_string());
+
+    let mut id1_labels = Labels::new(id1.clone());
+    let id2_labels = Labels::new(id2.clone());
+    let mut id3_labels = Labels::new(id3.clone());
+
+    id1_labels.update_prov(&id2_labels);
+    id3_labels.update_prov(&id1_labels);
+
+    assert_eq!(id1_labels.get_prov(), vec![id2.clone()]);
+    assert_eq!(id2_labels.get_prov(), vec![id2.clone()]);
+    assert_eq!(id3_labels.get_prov(), vec![id3.clone(), id2.clone()]);
+}
 
 #[tokio::test]
 async fn unit_provenance_layer_declare_flow() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,7 +63,7 @@ async fn unit_provenance_layer_declare_flow() -> Result<(), Box<dyn std::error::
         .await?;
     match rx.await.unwrap() {
         ProvenanceResult::Registered => (),
-        _ => panic!(),
+        _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
@@ -33,7 +72,7 @@ async fn unit_provenance_layer_declare_flow() -> Result<(), Box<dyn std::error::
         .await?;
     match rx.await.unwrap() {
         ProvenanceResult::Registered => (),
-        _ => panic!(),
+        _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
@@ -42,8 +81,77 @@ async fn unit_provenance_layer_declare_flow() -> Result<(), Box<dyn std::error::
         .await?;
     match rx.await.unwrap() {
         ProvenanceResult::Declared(_) => (),
-        _ => panic!(),
+        _ => panic!("Flow was expected to be declared successfully."),
     };
+    Ok(())
+}
+
+#[tokio::test]
+async fn unit_provenance_layer_declare_missing_container() -> Result<(), Box<dyn std::error::Error>>
+{
+    let (sender, receiver) = mpsc::channel(32);
+
+    tokio::spawn(provenance_layer(receiver));
+
+    let id1 = Identifier::Process(1, 1);
+    let id2 = Identifier::Process(2, 1);
+    let id3 = Identifier::File("/path/to/file1.txt".to_string());
+
+    let (tx, rx) = oneshot::channel();
+    sender
+        .send(ProvenanceAction::RegisterContainer(id1.clone(), tx))
+        .await?;
+    match rx.await.unwrap() {
+        ProvenanceResult::Registered => (),
+        _ => panic!("Container was expected to be registered successfully."),
+    };
+
+    let (tx, rx) = oneshot::channel();
+    sender
+        .send(ProvenanceAction::DeclareFlow(
+            id1.clone(),
+            id3.clone(),
+            false,
+            tx,
+        ))
+        .await?;
+    match rx.await.unwrap() {
+        ProvenanceResult::Error(e) => {
+            assert_eq!(
+                format!("{}", e),
+                format!(
+                    "Provenance error: ({} || {}) are not registered.",
+                    id1.clone(),
+                    id3.clone()
+                )
+            );
+        }
+        _ => panic!("A Flow MissingRegistration was expected."),
+    };
+
+    let (tx, rx) = oneshot::channel();
+    sender
+        .send(ProvenanceAction::DeclareFlow(
+            id2.clone(),
+            id3.clone(),
+            false,
+            tx,
+        ))
+        .await?;
+    match rx.await.unwrap() {
+        ProvenanceResult::Error(e) => {
+            assert_eq!(
+                format!("{}", e),
+                format!(
+                    "Provenance error: ({} || {}) are not registered.",
+                    id2.clone(),
+                    id3.clone()
+                )
+            );
+        }
+        _ => panic!("A Flow MissingRegistration was expected."),
+    };
+
     Ok(())
 }
 
@@ -62,7 +170,7 @@ async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std:
         .await?;
     match rx.await.unwrap() {
         ProvenanceResult::Registered => (),
-        _ => panic!(),
+        _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
@@ -71,7 +179,7 @@ async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std:
         .await?;
     match rx.await.unwrap() {
         ProvenanceResult::Registered => (),
-        _ => panic!(),
+        _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
@@ -83,13 +191,19 @@ async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std:
             tx,
         ))
         .await?;
-    assert_eq!(
-        rx.await.unwrap(),
-        ProvenanceResult::Error(ProvenanceError::DeclarationFailure(
-            id1.clone(),
-            id1.clone()
-        ))
-    );
+    match rx.await.unwrap() {
+        ProvenanceResult::Error(e) => {
+            assert_eq!(
+                format!("{}", e),
+                format!(
+                    "Provenance error: {}<->{} Flow is invalid.",
+                    id1.clone(),
+                    id1.clone()
+                )
+            );
+        }
+        _ => panic!("Flow is supposed to be invalid"),
+    };
 
     let (tx, rx) = oneshot::channel();
     sender
@@ -100,13 +214,20 @@ async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std:
             tx,
         ))
         .await?;
-    assert_eq!(
-        rx.await.unwrap(),
-        ProvenanceResult::Error(ProvenanceError::DeclarationFailure(
-            id2.clone(),
-            id2.clone()
-        ))
-    );
+    match rx.await.unwrap() {
+        ProvenanceResult::Error(e) => {
+            assert_eq!(
+                format!("{}", e),
+                format!(
+                    "Provenance error: {}<->{} Flow is invalid.",
+                    id2.clone(),
+                    id2.clone()
+                )
+            );
+        }
+        _ => panic!("Flow is supposed to be invalid"),
+    };
+
     Ok(())
 }
 
@@ -125,7 +246,7 @@ async fn unit_provenance_layer_record() -> Result<(), Box<dyn std::error::Error>
         .await?;
     match rx.await.unwrap() {
         ProvenanceResult::Registered => (),
-        _ => panic!(),
+        _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
@@ -134,7 +255,7 @@ async fn unit_provenance_layer_record() -> Result<(), Box<dyn std::error::Error>
         .await?;
     match rx.await.unwrap() {
         ProvenanceResult::Registered => (),
-        _ => panic!(),
+        _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
@@ -143,7 +264,7 @@ async fn unit_provenance_layer_record() -> Result<(), Box<dyn std::error::Error>
         .await?;
     let grant_id = match rx.await.unwrap() {
         ProvenanceResult::Declared(grant_id) => grant_id,
-        _ => panic!(),
+        _ => panic!("Flow was expected to be declared successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
@@ -152,7 +273,27 @@ async fn unit_provenance_layer_record() -> Result<(), Box<dyn std::error::Error>
         .await?;
     match rx.await.unwrap() {
         ProvenanceResult::Recorded => (),
-        _ => panic!(),
+        _ => panic!("Flow was expected to be recorded successfully."),
+    };
+    Ok(())
+}
+
+#[tokio::test]
+async fn unit_provenance_layer_record_failure() -> Result<(), Box<dyn std::error::Error>> {
+    let (sender, receiver) = mpsc::channel(32);
+
+    tokio::spawn(provenance_layer(receiver));
+
+    let (tx, rx) = oneshot::channel();
+    sender.send(ProvenanceAction::RecordFlow(0, tx)).await?;
+    match rx.await.unwrap() {
+        ProvenanceResult::Error(e) => {
+            assert_eq!(
+                format!("{}", e),
+                "Provenance error: unable to record Flow 0."
+            );
+        }
+        _ => panic!("A Flow RecordingFailure was expected."),
     };
     Ok(())
 }
@@ -172,7 +313,7 @@ async fn unit_provenance_layer_declare_flow_delayed() -> Result<(), Box<dyn std:
         .await?;
     match rx.await.unwrap() {
         ProvenanceResult::Registered => (),
-        _ => panic!(),
+        _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
@@ -181,7 +322,7 @@ async fn unit_provenance_layer_declare_flow_delayed() -> Result<(), Box<dyn std:
         .await?;
     match rx.await.unwrap() {
         ProvenanceResult::Registered => (),
-        _ => panic!(),
+        _ => panic!("Container was expected to be registered successfully."),
     };
     let (tx1, rx1) = oneshot::channel();
     sender
@@ -204,11 +345,11 @@ async fn unit_provenance_layer_declare_flow_delayed() -> Result<(), Box<dyn std:
 
     match rx1.await.unwrap() {
         ProvenanceResult::Declared(_) => (),
-        _ => panic!(),
+        _ => panic!("Flow was expected to be declared successfully."),
     }
     match timeout(Duration::from_millis(1), rx2).await {
         Err(_) => (), // Elapsed because flow declaration is supposed to be delayed
-        _ => panic!(),
+        _ => panic!("Flow was expected to be delayed."),
     }
 
     Ok(())
