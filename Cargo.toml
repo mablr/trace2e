@@ -17,3 +17,6 @@ tonic-build = "0.11.0"
 
 [features]
 verbose = []
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }

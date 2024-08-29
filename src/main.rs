@@ -9,6 +9,7 @@ use trace2e::{
     provenance::provenance_layer,
 };
 
+#[cfg(not(tarpaulin_include))]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
