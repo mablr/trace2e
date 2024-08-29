@@ -27,14 +27,14 @@ mod tests {
     use super::Identifier;
 
     #[test]
-    fn identifier_display_file() {
+    fn unit_identifier_display_file() {
         let path = "/path/to/file".to_string();
         let file = Identifier::File(path.clone());
         assert_eq!(format!("{}", file), path);
     }
 
     #[test]
-    fn identifier_display_stream() {
+    fn unit_identifier_display_stream() {
         let stream_v4 = Identifier::Stream(
             SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
             SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
@@ -51,7 +51,7 @@ mod tests {
     }
 
     #[test]
-    fn identifier_display_process() {
+    fn unit_identifier_display_process() {
         let pid = 1;
         let process = Identifier::Process(pid, 10000);
         let process_recycled_pid = Identifier::Process(pid, 10001);
