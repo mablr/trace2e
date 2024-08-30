@@ -143,7 +143,7 @@ async fn integration_sync_complex() -> Result<(), Box<dyn std::error::Error>> {
         flow: Flow::None.into(),
     });
     let result_seek_request = client.io_request(seek_request).await.unwrap_err();
-    assert_eq!(result_seek_request.message(), "Unsupported Flow type");
+    assert_eq!(result_seek_request.message(), "Unsupported Flow type.");
 
     // seek done
     let seek_done = tonic::Request::new(IoResult {

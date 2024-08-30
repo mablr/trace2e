@@ -37,7 +37,12 @@ impl P2m for P2mService {
             .map(|stat| stat.starttime)
         {
             Ok(starttime) => starttime,
-            Err(e) => return Err(Status::from_error(Box::new(e))),
+            Err(_) => {
+                return Err(Status::not_found(format!(
+                    "Process {} not found.",
+                    r.process_id
+                )))
+            }
         };
         let process_identifier =
             Identifier::Process(r.process_id.try_into().unwrap(), process_starttime);
@@ -99,7 +104,12 @@ impl P2m for P2mService {
             .map(|stat| stat.starttime)
         {
             Ok(starttime) => starttime,
-            Err(e) => return Err(Status::from_error(Box::new(e))),
+            Err(_) => {
+                return Err(Status::not_found(format!(
+                    "Process {} not found.",
+                    r.process_id
+                )))
+            }
         };
         let process_identifier = Identifier::Process(r.process_id, process_starttime);
 
@@ -177,7 +187,12 @@ impl P2m for P2mService {
             .map(|stat| stat.starttime)
         {
             Ok(starttime) => starttime,
-            Err(e) => return Err(Status::from_error(Box::new(e))),
+            Err(_) => {
+                return Err(Status::not_found(format!(
+                    "Process {} not found.",
+                    r.process_id
+                )))
+            }
         };
         let process_identifier = Identifier::Process(r.process_id, process_starttime);
 
@@ -226,21 +241,18 @@ impl P2m for P2mService {
                         ))
                         .await
                 }
-                _ => return Err(Status::invalid_argument(format!("Unsupported Flow type"))),
+                _ => return Err(Status::invalid_argument(format!("Unsupported Flow type."))),
             };
 
             let grant_id = match rx.await.unwrap() {
                 ProvenanceResult::Declared(grant_id) => grant_id,
-                _ => {
+                ProvenanceResult::Error(e) => {
                     #[cfg(feature = "verbose")]
-                    eprintln!(
-                        "Provenance declaration failure, Flow ({} - {})",
-                        process_identifier.clone(),
-                        resource_identifier.clone()
-                    );
+                    eprintln!("{}", e);
 
-                    return Err(Status::internal("Provenance declaration failure"));
+                    return Err(Status::from_error(Box::new(e)));
                 }
+                _ => unreachable!(),
             };
 
             #[cfg(feature = "verbose")]
@@ -263,11 +275,14 @@ impl P2m for P2mService {
             Ok(Response::new(Grant { id: grant_id }))
         } else {
             #[cfg(feature = "verbose")]
-            eprintln!("CT {} is not tracked", r.file_descriptor);
+            eprintln!(
+                "Process {} has not enrolled FD {}.",
+                r.process_id, r.file_descriptor
+            );
 
             Err(Status::not_found(format!(
-                "CT {} is not tracked",
-                r.file_descriptor
+                "Process {} has not enrolled FD {}.",
+                r.process_id, r.file_descriptor
             )))
         }
     }
@@ -305,23 +320,18 @@ impl P2m for P2mService {
 
                     Err(Status::from_error(Box::new(e)))
                 }
-                _ => {
-                    #[cfg(feature = "verbose")]
-                    eprintln!("Provenance error, recording failure Flow {}", r.grant_id);
-
-                    Err(Status::internal(format!(
-                        "Provenance error, recording failure Flow {}",
-                        r.grant_id
-                    )))
-                }
+                _ => unreachable!()
             }
         } else {
             #[cfg(feature = "verbose")]
-            eprintln!("CT {} is not tracked", r.file_descriptor);
+            eprintln!(
+                "Process {} has not enrolled FD {}.",
+                r.process_id, r.file_descriptor
+            );
 
             Err(Status::not_found(format!(
-                "CT {} is not tracked",
-                r.file_descriptor
+                "Process {} has not enrolled FD {}.",
+                r.process_id, r.file_descriptor
             )))
         }
     }
@@ -329,13 +339,220 @@ impl P2m for P2mService {
 
 #[cfg(test)]
 mod tests {
+    use std::process::Command;
+
     use crate::provenance::provenance_layer;
 
     use super::*;
-    use std::process::Command;
 
     #[tokio::test]
-    async fn unit_p2m_scenario_1p_1f_write() -> Result<(), Box<dyn std::error::Error>> {
+    async fn unit_p2m_enroll_failure() -> Result<(), Box<dyn std::error::Error>> {
+        let (sender, receiver) = mpsc::channel(32);
+        tokio::spawn(provenance_layer(receiver));
+        let client = P2mService::new(sender);
+        let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+
+        let file_creation1 = tonic::Request::new(LocalCt {
+            process_id: 0,
+            file_descriptor: 3,
+            path: "bar.txt".to_string(),
+        });
+        let file_status1 = client.local_enroll(file_creation1).await.unwrap_err();
+        assert_eq!(file_status1.message(), "Process 0 not found.");
+
+        let stream_creation1 = tonic::Request::new(RemoteCt {
+            process_id: 0,
+            file_descriptor: 4,
+            local_socket: "[ffc7::1]:54321".to_string(),
+            peer_socket: "ffc7::2:8081".to_string(),
+        });
+        let stream_status1 = client.remote_enroll(stream_creation1).await.unwrap_err();
+        assert_eq!(stream_status1.message(), "Process 0 not found.");
+
+        let stream_creation2 = tonic::Request::new(RemoteCt {
+            process_id: process.id(),
+            file_descriptor: 5,
+            local_socket: "10.INVALID1:54321".to_string(),
+            peer_socket: "10.0.0.2:8081".to_string(),
+        });
+        let stream_status2 = client.remote_enroll(stream_creation2).await.unwrap_err();
+        assert_eq!(
+            stream_status2.message(),
+            "Local socket string can not be parsed."
+        );
+
+        let stream_creation3 = tonic::Request::new(RemoteCt {
+            process_id: process.id(),
+            file_descriptor: 6,
+            local_socket: "[ffc7::1]:54321".to_string(),
+            peer_socket: "ffc7INVALID:81".to_string(),
+        });
+        let stream_status3 = client.remote_enroll(stream_creation3).await.unwrap_err();
+        assert_eq!(
+            stream_status3.message(),
+            "Peer socket string can not be parsed."
+        );
+
+        process.kill()?;
+        process.wait()?;
+
+        let file_creation2 = tonic::Request::new(LocalCt {
+            process_id: process.id(),
+            file_descriptor: 3,
+            path: "bar.txt".to_string(),
+        });
+        let file_status2 = client.local_enroll(file_creation2).await.unwrap_err();
+        assert_eq!(
+            file_status2.message(),
+            format!("Process {} not found.", process.id())
+        );
+
+        let stream_creation4 = tonic::Request::new(RemoteCt {
+            process_id: process.id(),
+            file_descriptor: 4,
+            local_socket: "[ffc7::1]:54321".to_string(),
+            peer_socket: "ffc7::2:8081".to_string(),
+        });
+        let stream_status4 = client.remote_enroll(stream_creation4).await.unwrap_err();
+        assert_eq!(
+            stream_status4.message(),
+            format!("Process {} not found.", process.id())
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unit_p2m_io_request_dead_process() -> Result<(), Box<dyn std::error::Error>> {
+        let (sender, receiver) = mpsc::channel(32);
+        tokio::spawn(provenance_layer(receiver));
+        let client = P2mService::new(sender);
+        let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+
+        // CT declaration
+        let file_creation = tonic::Request::new(LocalCt {
+            process_id: process.id(),
+            file_descriptor: 3,
+            path: "bar.txt".to_string(),
+        });
+        let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+        assert_eq!(result_file_creation, Ack {});
+
+        process.kill()?;
+        process.wait()?;
+
+        // Write event
+        let write_request = tonic::Request::new(IoInfo {
+            process_id: process.id(),
+            file_descriptor: 3,
+            flow: Flow::Output.into(),
+        });
+        let write_status = client.io_request(write_request).await.unwrap_err();
+        assert_eq!(
+            write_status.message(),
+            format!("Process {} not found.", process.id())
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unit_p2m_io_request_unsupported_flow_type() -> Result<(), Box<dyn std::error::Error>> {
+        let (sender, receiver) = mpsc::channel(32);
+        tokio::spawn(provenance_layer(receiver));
+        let client = P2mService::new(sender);
+        let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+
+        // CT declaration
+        let file_creation = tonic::Request::new(LocalCt {
+            process_id: process.id(),
+            file_descriptor: 3,
+            path: "bar.txt".to_string(),
+        });
+        let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+        assert_eq!(result_file_creation, Ack {});
+
+        // Write event
+        let unsupported_request = tonic::Request::new(IoInfo {
+            process_id: process.id(),
+            file_descriptor: 3,
+            flow: Flow::None.into(),
+        });
+        let status = client.io_request(unsupported_request).await.unwrap_err();
+        assert_eq!(status.message(), "Unsupported Flow type.");
+        process.kill()?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unit_p2m_io_request_not_enrolled() -> Result<(), Box<dyn std::error::Error>> {
+        let (sender, receiver) = mpsc::channel(32);
+        tokio::spawn(provenance_layer(receiver));
+        let client = P2mService::new(sender);
+        let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+
+        // CT declaration
+        let file_creation = tonic::Request::new(LocalCt {
+            process_id: process.id(),
+            file_descriptor: 3,
+            path: "bar.txt".to_string(),
+        });
+        let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+        assert_eq!(result_file_creation, Ack {});
+
+        // Write event
+        let write_request = tonic::Request::new(IoInfo {
+            process_id: process.id(),
+            file_descriptor: 4,
+            flow: Flow::Output.into(),
+        });
+        let write_status = client.io_request(write_request).await.unwrap_err();
+        assert_eq!(
+            write_status.message(),
+            format!("Process {} has not enrolled FD 4.", process.id())
+        );
+
+        process.kill()?;
+        Ok(())
+    }
+
+
+
+    #[tokio::test]
+    async fn unit_p2m_io_report_not_enrolled() -> Result<(), Box<dyn std::error::Error>> {
+        let (sender, receiver) = mpsc::channel(32);
+        tokio::spawn(provenance_layer(receiver));
+        let client = P2mService::new(sender);
+        let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+
+        // CT declaration
+        let file_creation = tonic::Request::new(LocalCt {
+            process_id: process.id(),
+            file_descriptor: 3,
+            path: "bar.txt".to_string(),
+        });
+        let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+        assert_eq!(result_file_creation, Ack {});
+
+        // Write event
+        let write_report = tonic::Request::new(IoResult {
+            process_id: process.id(),
+            file_descriptor: 4,
+            grant_id: 0, // no impact for this test
+            result: true,
+        });
+        let write_status = client.io_report(write_report).await.unwrap_err();
+        assert_eq!(
+            write_status.message(),
+            format!("Process {} has not enrolled FD 4.", process.id())
+        );
+
+        process.kill()?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unit_p2m_scenario_file_write() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
         tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);
@@ -374,7 +591,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unit_p2m_scenario_1p_1f_read() -> Result<(), Box<dyn std::error::Error>> {
+    async fn unit_p2m_scenario_file_read() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
         tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);
@@ -413,7 +630,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unit_p2m_scenario_1p_1s_write() -> Result<(), Box<dyn std::error::Error>> {
+    async fn unit_p2m_scenario_stream_write() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
         tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);
@@ -453,7 +670,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unit_p2m_scenario_1p_1s_read() -> Result<(), Box<dyn std::error::Error>> {
+    async fn unit_p2m_scenario_stream_read() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
         tokio::spawn(provenance_layer(receiver));
         let client = P2mService::new(sender);
