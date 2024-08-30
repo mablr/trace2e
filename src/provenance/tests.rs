@@ -318,7 +318,7 @@ async fn unit_provenance_layer_declare_flow_delayed() -> Result<(), Box<dyn std:
 }
 
 #[tokio::test]
-async fn unit_provenance_layer_declare_flow_timeout_safe_release() -> Result<(), Box<dyn std::error::Error>> {
+async fn unit_provenance_layer_forced_release() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
     tokio::spawn(provenance_layer(receiver));
 
