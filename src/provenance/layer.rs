@@ -5,9 +5,9 @@ use tokio::{
     time::timeout,
 };
 
-use crate::identifiers::Identifier;
+use crate::{identifiers::Identifier, labels::Labels};
 
-use super::{Labels, ProvenanceError};
+use super::ProvenanceError;
 
 fn flow_is_valid(id1: Identifier, id2: Identifier) -> bool {
     match id1 {
