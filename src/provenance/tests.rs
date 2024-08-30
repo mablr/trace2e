@@ -1,5 +1,6 @@
-use std::time::Duration;
+use std::{process::Command, time::Duration};
 
+use procfs::process::Process;
 use tokio::{
     sync::{mpsc, oneshot},
     time::timeout,
@@ -313,5 +314,91 @@ async fn unit_provenance_layer_declare_flow_delayed() -> Result<(), Box<dyn std:
         _ => panic!("Flow was expected to be delayed."),
     }
 
+    Ok(())
+}
+
+#[tokio::test]
+async fn unit_provenance_layer_declare_flow_timeout_safe_release() -> Result<(), Box<dyn std::error::Error>> {
+    let (sender, receiver) = mpsc::channel(32);
+    tokio::spawn(provenance_layer(receiver));
+
+    let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    let process_starttime = match Process::new(process.id().try_into().unwrap())
+        .and_then(|p| p.stat())
+        .map(|stat| stat.starttime)
+    {
+        Ok(starttime) => starttime,
+        Err(_) => panic!("Unable to get the test process starttime."),
+    };
+
+    let id1 = Identifier::Process(process.id(), process_starttime);
+    let id2 = Identifier::File("/path/to/file1.txt".to_string());
+    let id3 = Identifier::Process(1, 1);
+
+    let (tx, rx) = oneshot::channel();
+    sender
+        .send(ProvenanceAction::RegisterContainer(id1.clone(), tx))
+        .await?;
+    match rx.await.unwrap() {
+        ProvenanceResult::Registered => (),
+        _ => panic!("Container was expected to be registered successfully."),
+    };
+
+    let (tx, rx) = oneshot::channel();
+    sender
+        .send(ProvenanceAction::RegisterContainer(id2.clone(), tx))
+        .await?;
+    match rx.await.unwrap() {
+        ProvenanceResult::Registered => (),
+        _ => panic!("Container was expected to be registered successfully."),
+    };
+
+    let (tx, rx) = oneshot::channel();
+    sender
+        .send(ProvenanceAction::RegisterContainer(id3.clone(), tx))
+        .await?;
+    match rx.await.unwrap() {
+        ProvenanceResult::Registered => (),
+        _ => panic!("Container was expected to be registered successfully."),
+    };
+
+    let (tx1, rx1) = oneshot::channel();
+    sender
+        .send(ProvenanceAction::DeclareFlow(
+            id1.clone(),
+            id2.clone(),
+            false,
+            tx1,
+        ))
+        .await?;
+    let (tx2, rx2) = oneshot::channel();
+    sender
+        .send(ProvenanceAction::DeclareFlow(
+            id3.clone(),
+            id2.clone(),
+            true,
+            tx2,
+        ))
+        .await?;
+
+    match rx1.await.unwrap() {
+        ProvenanceResult::Declared(_) => (),
+        _ => panic!("Flow was expected to be declared successfully."),
+    }
+
+    // This will make the previous reservation reach timeout.
+    match rx2.await.unwrap() {
+        ProvenanceResult::Declared(_) => (),
+        _ => panic!("Flow was expected to be declared successfully."),
+    }
+
+    match process.try_wait() {
+        Ok(Some(result)) => assert_eq!(format!("{:?}", result), "ExitStatus(unix_wait_status(9))"),
+        Ok(None) => {
+            process.kill().unwrap();
+            panic!("Process was supposed to be killed by the provenance layer after timeout");
+        }
+        Err(_) => panic!("Unable to get ExitStatus of process."),
+    }
     Ok(())
 }

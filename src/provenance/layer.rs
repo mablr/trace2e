@@ -9,13 +9,13 @@ use crate::{identifiers::Identifier, labels::Labels};
 
 use super::ProvenanceError;
 
-fn flow_is_valid(id1: Identifier, id2: Identifier) -> bool {
+fn validate_flow(id1: Identifier, id2: Identifier) -> Option<u32> {
     match id1 {
-        Identifier::Process(..) => match id2 {
-            Identifier::Process(..) => false,
-            _ => true,
+        Identifier::Process(pid, _) => match id2 {
+            Identifier::Process(..) => None,
+            _ => Some(pid),
         },
-        _ => false,
+        _ => None,
     }
 }
 
@@ -55,7 +55,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                 responder.send(ProvenanceResult::Registered).unwrap();
             }
             ProvenanceAction::DeclareFlow(id1, id2, output, responder) => {
-                if flow_is_valid(id1.clone(), id2.clone()) {
+                if let Some(pid) = validate_flow(id1.clone(), id2.clone()) {
                     if let (Some(id1_container), Some(id2_container)) =
                         (containers.get(&id1).cloned(), containers.get(&id2).cloned())
                     {
@@ -119,11 +119,13 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                 #[cfg(feature = "verbose")]
                                 println!("⚠️  Reservation timeout Flow {}", grant_id);
 
-                                #[cfg(not(test))]
-                                todo!(); // todo kill the blocking process
-
-                                #[cfg(test)]
-                                panic!("⚠️  Reservation timeout");
+                                // Try to kill the process that holds the reservation for too long,
+                                // to release the reservation safely
+                                let _ = std::process::Command::new("kill")
+                                    .arg("-9")
+                                    .arg(pid.to_string())
+                                    .status();
+                                // Todo: handle the result ?
                             } else {
                                 #[cfg(feature = "verbose")]
                                 println!(
