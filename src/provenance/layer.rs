@@ -5,7 +5,7 @@ use tokio::{
     time::timeout,
 };
 
-use crate::{identifiers::Identifier, labels::Labels};
+use crate::{identifier::Identifier, labels::Labels};
 
 use super::ProvenanceError;
 
@@ -177,8 +177,9 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                 }
             }
             ProvenanceAction::RecordFlow(grant_id, responder) => {
-                if let Some(handle) = flows_release_handles.lock().await.remove(&grant_id) {
-                    handle.send(()).unwrap();
+                if let Some(release_handle) = flows_release_handles.lock().await.remove(&grant_id) {
+                    release_handle.send(()).unwrap();
+                    // No wait for release feedback, the consistency is guaranted by RwLock<> structure properties.
                     responder.send(ProvenanceResult::Recorded).unwrap();
                 } else {
                     responder

@@ -1,11 +1,20 @@
-use crate::identifiers::Identifier;
+//! Traceability labels management mechanism for data containers. 
 
+use crate::identifier::Identifier;
+
+/// Traceability labels structure.
+///
+/// A [`Labels`] structure is instantiated for each declared container.
 #[derive(Debug, Clone)]
 pub struct Labels {
     provenance: Vec<Identifier>,
 }
 
 impl Labels {
+    /// Creates a new [`Labels`] object given an [`Identifier`] enum.
+    /// 
+    /// If the object is instantiated for a File [`Identifier`] container, the 
+    /// provenance is initialized with the given Identifier.
     pub fn new(identifier: Identifier) -> Self {
         let mut labels = Labels {
             provenance: Vec::new(),
@@ -18,10 +27,15 @@ impl Labels {
         labels
     }
 
+    /// Returns the provenance information.
     pub fn get_prov(&self) -> Vec<Identifier> {
         self.provenance.clone()
     }
 
+    /// Updates the provenance information given a source [`Labels`] object.
+    /// 
+    /// The provenance references of the source object are merged into self 
+    /// object by avoiding duplicates.  
     pub fn update_prov(&mut self, source: &Labels) {
         for identifier in &source.provenance {
             if !self.provenance.contains(&identifier) {

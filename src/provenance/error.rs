@@ -1,4 +1,4 @@
-use crate::identifiers::Identifier;
+use crate::identifier::Identifier;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ProvenanceError {

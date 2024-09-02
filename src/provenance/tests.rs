@@ -6,7 +6,7 @@ use tokio::{
     time::timeout,
 };
 
-use crate::identifiers::Identifier;
+use crate::identifier::Identifier;
 
 use super::*;
 

@@ -1,4 +1,6 @@
-use crate::identifiers::Identifier;
+//! Processes to Middleware gRPC Service.
+
+use crate::identifier::Identifier;
 use crate::provenance::{ProvenanceAction, ProvenanceResult};
 use p2m::{p2m_server::P2m, Ack, Flow, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
 use procfs::process::Process;
@@ -320,7 +322,7 @@ impl P2m for P2mService {
 
                     Err(Status::from_error(Box::new(e)))
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             }
         } else {
             #[cfg(feature = "verbose")]
@@ -515,8 +517,6 @@ mod tests {
         process.kill()?;
         Ok(())
     }
-
-
 
     #[tokio::test]
     async fn unit_p2m_io_report_not_enrolled() -> Result<(), Box<dyn std::error::Error>> {

@@ -1,6 +1,17 @@
+//! Global identification mechanism for data containers.
+
 use std::fmt;
 use std::net::SocketAddr;
 
+/// Container identification object.
+/// 
+/// Enum that is instantiated when a container is created. It allows any type of
+/// container to be identified in a unique way.
+///
+/// # Containers primary keys
+/// - File: path (String)
+/// - Stream: local_socket (SocketAddr), peer_socket (SocketAddr)
+/// - Process: pid (u32), starttime (u64) 
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub enum Identifier {
     File(String),

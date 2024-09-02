@@ -1,3 +1,5 @@
+//! Provenance layer module.
+
 mod error;
 mod layer;
 #[cfg(test)]
