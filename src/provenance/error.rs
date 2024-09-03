@@ -1,9 +1,15 @@
 use crate::identifier::Identifier;
 
-#[derive(Debug, PartialEq, Eq)]
+/// Provenance layer error type.
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ProvenanceError {
+    /// Flow declaration failed because at least one of the given containers is 
+    /// not registered so far in the middleware.
     MissingRegistration(Identifier, Identifier),
+    /// Flow Declaration failed because the type of the given containers is 
+    /// not valid.
     InvalidFlow(Identifier, Identifier),
+    /// Flow recording failed due to missing declaration/grant.
     RecordingFailure(u64),
 }
 

@@ -8,14 +8,18 @@ use std::net::SocketAddr;
 /// Enum that is instantiated when a container is created. It allows any type of
 /// container to be identified in a unique way.
 ///
-/// # Containers primary keys
-/// - File: path (String)
-/// - Stream: local_socket (SocketAddr), peer_socket (SocketAddr)
-/// - Process: pid (u32), starttime (u64) 
+/// Each [`Identifier`] enum variant corresponds to a supported container type 
+/// with specific included variables to uniquely identify all containers.
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub enum Identifier {
+    /// File variant includes the absolute path of the corresponding file on the 
+    /// system as a String object.
     File(String),
+    /// Stream variant includes the local socket address and peer socket address 
+    /// as a couple of SocketAddr objects.
     Stream(SocketAddr, SocketAddr),
+    /// Process variant includes the pid as u32 and the starttime as u64 to 
+    /// properly handle possible pid recycling for different process instances.
     Process(u32, u64),
 }
 
