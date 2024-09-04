@@ -16,7 +16,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tokio::spawn(provenance_layer(receiver));
 
-    let address = "[::1]:8080".parse().unwrap();
+    let address = "[::]:8080".parse().unwrap();
     let p2m_service = P2mService::new(sender);
 
     let reflection_service = Builder::configure()
