@@ -244,6 +244,9 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                 #[cfg(feature = "verbose")]
                                 println!("⚠️  Reservation timeout Flow {}", grant_id);
 
+                                // Remove flow release handle
+                                flows_release_handles.lock().await.remove(&grant_id);
+
                                 // Try to kill the process that holds the reservation for too long,
                                 // to release the reservation safely
                                 let _ = std::process::Command::new("kill")
