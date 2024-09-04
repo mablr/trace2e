@@ -1,0 +1,28 @@
+networks:
+  trace2e_network:
+    driver: bridge
+
+services:
+  bin_0:
+    build:
+      context: .
+      dockerfile: trace2e.Dockerfile
+    container_name: trace2e_bin_0
+    networks:
+      - trace2e_network
+
+  bin_1:
+    build:
+      context: .
+      dockerfile: trace2e.Dockerfile
+    container_name: trace2e_bin_1
+    networks:
+      - trace2e_network
+
+  interactive_0:
+    build:
+      context: .
+      dockerfile: trace2e-interactive.Dockerfile
+    container_name: trace2e_interactive_0
+    networks:
+      - trace2e_network
