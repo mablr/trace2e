@@ -7,7 +7,9 @@ use procfs::process::Process;
 use std::collections::HashMap;
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::time::Instant;
 use tonic::{Request, Response, Status};
+use tracing::{error, info, instrument};
 
 pub mod p2m {
     tonic::include_proto!("trace2e_api");
@@ -31,7 +33,10 @@ impl P2mService {
 
 #[tonic::async_trait]
 impl P2m for P2mService {
+    #[instrument(skip(self, request))]
     async fn local_enroll(&self, request: Request<LocalCt>) -> Result<Response<Ack>, Status> {
+        let start_time = Instant::now();
+
         let r = request.into_inner();
 
         let process_starttime = match Process::new(r.process_id.try_into().unwrap())
@@ -51,9 +56,8 @@ impl P2m for P2mService {
 
         let resource_identifier = Identifier::File(r.path.clone());
 
-        #[cfg(feature = "verbose")]
-        println!(
-            "PID: {} | FD: {} | Local Enroll | {}",
+        info!(
+            "PID: {} | FD: {} | {}",
             r.process_id.clone(),
             r.file_descriptor.clone(),
             r.path.clone()
@@ -95,10 +99,15 @@ impl P2m for P2mService {
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
 
+        info!("completed in {:?}", start_time.elapsed());
+
         Ok(Response::new(Ack {}))
     }
 
+    #[instrument(skip(self, request))]
     async fn remote_enroll(&self, request: Request<RemoteCt>) -> Result<Response<Ack>, Status> {
+        let start_time = Instant::now();
+
         let r = request.into_inner();
 
         let process_starttime = match Process::new(r.process_id.try_into().unwrap())
@@ -115,9 +124,8 @@ impl P2m for P2mService {
         };
         let process_identifier = Identifier::Process(r.process_id, process_starttime);
 
-        #[cfg(feature = "verbose")]
-        println!(
-            "PID: {} | FD: {} | Remote Enroll |  [{}-{}]",
+        info!(
+            "PID: {} | FD: {} | [{}-{}]",
             r.process_id.clone(),
             r.file_descriptor.clone(),
             r.local_socket.clone(),
@@ -128,8 +136,7 @@ impl P2m for P2mService {
         let local_socket = match r.local_socket.clone().parse::<SocketAddr>() {
             Ok(socket) => socket,
             Err(_) => {
-                #[cfg(feature = "verbose")]
-                eprintln!(
+                error!(
                     "PID: {} | FD {} | Local socket string can not be parsed.",
                     r.process_id.clone(),
                     r.file_descriptor.clone()
@@ -143,8 +150,7 @@ impl P2m for P2mService {
         let peer_socket = match r.peer_socket.clone().parse::<SocketAddr>() {
             Ok(socket) => socket,
             Err(_) => {
-                #[cfg(feature = "verbose")]
-                eprintln!(
+                error!(
                     "PID: {} | FD {} | Peer socket string can not be parsed.",
                     r.process_id.clone(),
                     r.file_descriptor.clone()
@@ -178,10 +184,15 @@ impl P2m for P2mService {
             identifier.clone(),
         );
 
+        info!("completed in {:?}", start_time.elapsed());
+
         Ok(Response::new(Ack {}))
     }
 
+    #[instrument(skip(self, request))]
     async fn io_request(&self, request: Request<IoInfo>) -> Result<Response<Grant>, Status> {
+        let start_time = Instant::now();
+
         let r = request.into_inner();
 
         let process_starttime = match Process::new(r.process_id.try_into().unwrap())
@@ -198,21 +209,15 @@ impl P2m for P2mService {
         };
         let process_identifier = Identifier::Process(r.process_id, process_starttime);
 
-        #[cfg(feature = "verbose")]
-        println!(
-            "PID: {} | FD: {} | Request for {}",
-            r.process_id,
-            r.file_descriptor,
-            {
-                if r.flow == 0 {
-                    "Input/Read  "
-                } else if r.flow == 1 {
-                    "Output/Write"
-                } else {
-                    "None"
-                }
-            },
-        );
+        info!("PID: {} | FD: {} | {}", r.process_id, r.file_descriptor, {
+            if r.flow == 0 {
+                "Input/Read  "
+            } else if r.flow == 1 {
+                "Output/Write"
+            } else {
+                "None"
+            }
+        },);
 
         if let Some(resource_identifier) = self
             .identifiers_map
@@ -249,17 +254,15 @@ impl P2m for P2mService {
             let grant_id = match rx.await.unwrap() {
                 ProvenanceResult::Declared(grant_id) => grant_id,
                 ProvenanceResult::Error(e) => {
-                    #[cfg(feature = "verbose")]
-                    eprintln!("{}", e);
+                    error!("{}", e);
 
                     return Err(Status::from_error(Box::new(e)));
                 }
                 _ => unreachable!(),
             };
 
-            #[cfg(feature = "verbose")]
-            println!(
-                "PID: {} | FD: {} | {} Authorized | {}",
+            info!(
+                "PID: {} | FD: {} | {} granted in {:?} | {}",
                 r.process_id,
                 r.file_descriptor,
                 {
@@ -271,13 +274,13 @@ impl P2m for P2mService {
                         "None"
                     }
                 },
+                start_time.elapsed(),
                 resource_identifier.clone(),
             );
 
             Ok(Response::new(Grant { id: grant_id }))
         } else {
-            #[cfg(feature = "verbose")]
-            eprintln!(
+            error!(
                 "Process {} has not enrolled FD {}.",
                 r.process_id, r.file_descriptor
             );
@@ -289,10 +292,13 @@ impl P2m for P2mService {
         }
     }
 
+    #[instrument(skip(self, request))]
     async fn io_report(&self, request: Request<IoResult>) -> Result<Response<Ack>, Status> {
+        let start_time = Instant::now();
+
         let r = request.into_inner();
 
-        if let Some(_resource_identifier) = self
+        if let Some(resource_identifier) = self
             .identifiers_map
             .read()
             .await
@@ -306,27 +312,25 @@ impl P2m for P2mService {
                 .await;
             match rx.await.unwrap() {
                 ProvenanceResult::Recorded => {
-                    #[cfg(feature = "verbose")]
-                    println!(
-                        "PID: {} | FD: {} | IO Done | {}",
+                    info!(
+                        "PID: {} | FD: {} | done in {:?} | {}",
                         r.process_id,
                         r.file_descriptor,
-                        _resource_identifier.clone()
+                        start_time.elapsed(),
+                        resource_identifier.clone()
                     );
 
                     Ok(Response::new(Ack {}))
                 }
                 ProvenanceResult::Error(e) => {
-                    #[cfg(feature = "verbose")]
-                    eprintln!("{}", e);
+                    error!("{}", e);
 
                     Err(Status::from_error(Box::new(e)))
                 }
                 _ => unreachable!(),
             }
         } else {
-            #[cfg(feature = "verbose")]
-            eprintln!(
+            error!(
                 "Process {} has not enrolled FD {}.",
                 r.process_id, r.file_descriptor
             );
