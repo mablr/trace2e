@@ -13,12 +13,10 @@ use crate::{identifier::Identifier, labels::Labels};
 use super::ProvenanceError;
 
 fn validate_flow(id1: Identifier, id2: Identifier) -> Option<u32> {
-    match id1 {
-        Identifier::Process(pid, _) => match id2 {
-            Identifier::Process(..) => None,
-            _ => Some(pid),
-        },
-        _ => None,
+    if id2.is_process().is_none() {
+        id1.is_process()
+    } else {
+        None
     }
 }
 
@@ -190,27 +188,27 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                             let (source_labels, mut destination_labels) = {
                                 if output {
                                     #[cfg(feature = "verbose")]
-                                    println!("⏸️  read wait for {}", id1.clone());
+                                    println!("⏸️  read wait for {:?}", id1.clone());
                                     let rguard = id1_container.read().await;
                                     #[cfg(feature = "verbose")]
-                                    println!("⏯️  read got for {}", id1.clone());
+                                    println!("⏯️  read got for {:?}", id1.clone());
                                     #[cfg(feature = "verbose")]
-                                    println!("⏸️  write wait {}", id2.clone());
+                                    println!("⏸️  write wait {:?}", id2.clone());
                                     let wguard = id2_container.write().await;
                                     #[cfg(feature = "verbose")]
-                                    println!("⏯️  write got for {}", id2.clone());
+                                    println!("⏯️  write got for {:?}", id2.clone());
                                     (rguard, wguard)
                                 } else {
                                     #[cfg(feature = "verbose")]
-                                    println!("⏸️  write wait for {}", id1.clone());
+                                    println!("⏸️  write wait for {:?}", id1.clone());
                                     let wguard = id1_container.write().await;
                                     #[cfg(feature = "verbose")]
-                                    println!("⏯️  write got for {}", id1.clone());
+                                    println!("⏯️  write got for {:?}", id1.clone());
                                     #[cfg(feature = "verbose")]
-                                    println!("⏸️  read wait for {}", id2.clone());
+                                    println!("⏸️  read wait for {:?}", id2.clone());
                                     let rguard = id2_container.read().await;
                                     #[cfg(feature = "verbose")]
-                                    println!("⏯️  read got for {}", id2.clone());
+                                    println!("⏯️  read got for {:?}", id2.clone());
                                     (rguard, wguard)
                                 }
                             };
@@ -233,7 +231,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
 
                             #[cfg(feature = "verbose")]
                             println!(
-                                "✅  Flow {} granted ({} {} {})",
+                                "✅  Flow {} granted ({:?} {} {:?})",
                                 grant_id,
                                 id1.clone(),
                                 if output { "->" } else { "<-" },
@@ -257,7 +255,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                             } else {
                                 #[cfg(feature = "verbose")]
                                 println!(
-                                    "⏺️  Flow {} recording ({} {} {})",
+                                    "⏺️  Flow {} recording ({:?} {} {:?})",
                                     grant_id,
                                     id1.clone(),
                                     if output { "->" } else { "<-" },
@@ -269,7 +267,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                 #[cfg(feature = "verbose")]
                                 if output {
                                     println!(
-                                        "🆕 Provenance: {{{}: {:?},  {}: {:?}}}",
+                                        "🆕 Provenance: {{{:?}: {:?},  {:?}: {:?}}}",
                                         id1.clone(),
                                         source_labels.get_prov(),
                                         id2.clone(),
@@ -277,7 +275,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                     );
                                 } else {
                                     println!(
-                                        "🆕 Provenance: {{{}: {:?},  {}: {:?}}}",
+                                        "🆕 Provenance: {{{:?}: {:?},  {:?}: {:?}}}",
                                         id2.clone(),
                                         source_labels.get_prov(),
                                         id1.clone(),

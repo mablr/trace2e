@@ -19,12 +19,12 @@ impl std::fmt::Display for ProvenanceError {
             ProvenanceError::MissingRegistration(id1, id2) => {
                 write!(
                     f,
-                    "Provenance error: ({} || {}) are not registered.",
+                    "Provenance error: ({:?} || {:?}) are not registered.",
                     id1, id2
                 )
             }
             ProvenanceError::InvalidFlow(id1, id2) => {
-                write!(f, "Provenance error: {}<->{} Flow is invalid.", id1, id2)
+                write!(f, "Provenance error: {:?}<->{:?} Flow is invalid.", id1, id2)
             }
             ProvenanceError::RecordingFailure(grant_id) => {
                 write!(f, "Provenance error: unable to record Flow {}.", grant_id)

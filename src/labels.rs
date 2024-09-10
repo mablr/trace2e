@@ -20,7 +20,7 @@ impl Labels {
             provenance: Vec::new(),
         };
 
-        if let Identifier::File(_) = identifier {
+        if identifier.is_file().is_some() {
             labels.provenance.push(identifier);
         }
 
@@ -53,9 +53,9 @@ mod tests {
 
     #[test]
     fn unit_labels_new() {
-        let id1 = Identifier::Process(1, 1);
-        let id2 = Identifier::File("/path/to/file1.txt".to_string());
-        let id3 = Identifier::Stream(
+        let id1 = Identifier::new_process(1, 1);
+        let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
+        let id3 = Identifier::new_stream(
             SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
             SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
         );
@@ -71,9 +71,9 @@ mod tests {
 
     #[test]
     fn unit_labels_update() {
-        let id1 = Identifier::Process(1, 1);
-        let id2 = Identifier::File("/path/to/file1.txt".to_string());
-        let id3 = Identifier::File("/path/to/file2.txt".to_string());
+        let id1 = Identifier::new_process(1, 1);
+        let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
+        let id3 = Identifier::new_file("/path/to/file2.txt".to_string());
 
         let mut id1_labels = Labels::new(id1.clone());
         let id2_labels = Labels::new(id2.clone());

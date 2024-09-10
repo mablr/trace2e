@@ -52,9 +52,9 @@ impl P2m for P2mService {
             }
         };
         let process_identifier =
-            Identifier::Process(r.process_id.try_into().unwrap(), process_starttime);
+            Identifier::new_process(r.process_id.try_into().unwrap(), process_starttime);
 
-        let resource_identifier = Identifier::File(r.path.clone());
+        let resource_identifier = Identifier::new_file(r.path.clone());
 
         info!(
             "PID: {} | FD: {} | {}",
@@ -122,7 +122,7 @@ impl P2m for P2mService {
                 )))
             }
         };
-        let process_identifier = Identifier::Process(r.process_id, process_starttime);
+        let process_identifier = Identifier::new_process(r.process_id, process_starttime);
 
         info!(
             "PID: {} | FD: {} | [{}-{}]",
@@ -162,7 +162,7 @@ impl P2m for P2mService {
             }
         };
 
-        let identifier = Identifier::Stream(local_socket, peer_socket);
+        let identifier = Identifier::new_stream(local_socket, peer_socket);
 
         let (tx, rx) = oneshot::channel();
         let _ = self
@@ -207,7 +207,7 @@ impl P2m for P2mService {
                 )))
             }
         };
-        let process_identifier = Identifier::Process(r.process_id, process_starttime);
+        let process_identifier = Identifier::new_process(r.process_id, process_starttime);
 
         info!("PID: {} | FD: {} | {}", r.process_id, r.file_descriptor, {
             if r.flow == 0 {
@@ -262,7 +262,7 @@ impl P2m for P2mService {
             };
 
             info!(
-                "PID: {} | FD: {} | {} granted in {:?} | {}",
+                "PID: {} | FD: {} | {} granted in {:?} | {:?}",
                 r.process_id,
                 r.file_descriptor,
                 {
@@ -313,7 +313,7 @@ impl P2m for P2mService {
             match rx.await.unwrap() {
                 ProvenanceResult::Recorded => {
                     info!(
-                        "PID: {} | FD: {} | done in {:?} | {}",
+                        "PID: {} | FD: {} | done in {:?} | {:?}",
                         r.process_id,
                         r.file_descriptor,
                         start_time.elapsed(),

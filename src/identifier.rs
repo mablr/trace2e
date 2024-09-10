@@ -1,17 +1,68 @@
 //! Global identification mechanism for data containers.
 
-use std::fmt;
 use std::net::SocketAddr;
 
-/// Container identification object.
+use std::sync::OnceLock;
+
+pub static MIDDLEWARE_ID: OnceLock<String> = OnceLock::new();
+
+
+/// Global ressource identification object.
 /// 
-/// Enum that is instantiated when a container is created. It allows any type of
-/// container to be identified in a unique way.
-///
-/// Each [`Identifier`] enum variant corresponds to a supported container type 
-/// with specific included variables to uniquely identify all containers.
+/// Structure associating [`MIDDLEWARE_ID`] with a local ressource 
+/// identification object to allow decentralized identification.
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
-pub enum Identifier {
+pub struct Identifier {
+    node: String,
+    ressource: Ressource,
+}
+
+impl Identifier {
+    pub fn new_file(path: String) -> Self {
+        Self {
+            node: MIDDLEWARE_ID.get_or_init(|| "localhost".to_string()).clone(),
+            ressource: Ressource::File(path)
+        }
+    }
+
+    pub fn new_stream(local_socket: SocketAddr, peer_socket: SocketAddr) -> Self {
+        Self {
+            node: MIDDLEWARE_ID.get_or_init(|| "localhost".to_string()).clone(),
+            ressource: Ressource::Stream(local_socket, peer_socket)
+        }
+    }
+
+    pub fn new_process(pid: u32, starttime: u64) -> Self {
+        Self {
+            node: MIDDLEWARE_ID.get_or_init(|| "localhost".to_string()).clone(),
+            ressource: Ressource::Process(pid, starttime)
+        }
+    }
+
+    pub fn is_file(&self) -> Option<&String> {
+        match &self.ressource {
+            Ressource::File(path) => Some(&path),
+            _ => None
+        }
+    }
+
+    pub fn is_process(&self) -> Option<u32> {
+        match self.ressource {
+            Ressource::Process(pid, _) => Some(pid),
+            _ => None
+        }
+    }
+}
+
+/// Local ressource identification object.
+/// 
+/// Enum that is instantiated when a ressource is enrolled. It allows any type of
+/// ressource to be identified in a unique way.
+///
+/// Each [`Ressource`] enum variant corresponds to a supported ressource type 
+/// with specific included variables to uniquely identify all ressources.
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
+pub enum Ressource {
     /// File variant includes the absolute path of the corresponding file on the 
     /// system as a String object.
     File(String),
@@ -21,56 +72,4 @@ pub enum Identifier {
     /// Process variant includes the pid as u32 and the starttime as u64 to 
     /// properly handle possible pid recycling for different process instances.
     Process(u32, u64),
-}
-
-impl fmt::Display for Identifier {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Identifier::File(path) => write!(f, "{}", path),
-            Identifier::Stream(local_socket, peer_socket) => {
-                write!(f, "{}<->{}", local_socket, peer_socket)
-            }
-            Identifier::Process(pid, _) => write!(f, "{}", pid),
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
-
-    use super::Identifier;
-
-    #[test]
-    fn unit_identifier_display_file() {
-        let path = "/path/to/file".to_string();
-        let file = Identifier::File(path.clone());
-        assert_eq!(format!("{}", file), path);
-    }
-
-    #[test]
-    fn unit_identifier_display_stream() {
-        let stream_v4 = Identifier::Stream(
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
-            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
-        );
-        let stream_v6 = Identifier::Stream(
-            SocketAddr::new(
-                IpAddr::V6(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 1)),
-                12312,
-            ),
-            SocketAddr::new(IpAddr::V6(Ipv6Addr::new(0xfc00, 0, 0, 0, 0, 0, 0, 2)), 8081),
-        );
-        assert_eq!(format!("{}", stream_v4), "127.0.0.1:12312<->127.0.0.1:8081");
-        assert_eq!(format!("{}", stream_v6), "[fc00::1]:12312<->[fc00::2]:8081");
-    }
-
-    #[test]
-    fn unit_identifier_display_process() {
-        let pid = 1;
-        let process = Identifier::Process(pid, 10000);
-        let process_recycled_pid = Identifier::Process(pid, 10001);
-        assert_eq!(format!("{}", process), format!("{}", pid));
-        assert_eq!(format!("{}", process_recycled_pid), format!("{}", pid));
-    }
 }

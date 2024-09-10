@@ -2,6 +2,7 @@ use tokio::sync::mpsc;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
 use trace2e::{
+    identifier,
     p2m_service::{
         p2m::{p2m_server::P2mServer, FILE_DESCRIPTOR_SET},
         P2mService,
@@ -23,6 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(filter_layer)
         .with(fmt_layer)
         .init();
+
+    let _ = identifier::MIDDLEWARE_ID.get_or_init(|| "test".to_string());
 
     let (sender, receiver) = mpsc::channel(32);
 

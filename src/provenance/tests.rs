@@ -16,8 +16,8 @@ async fn unit_provenance_layer_declare_flow() -> Result<(), Box<dyn std::error::
 
     tokio::spawn(provenance_layer(receiver));
 
-    let id1 = Identifier::Process(1, 1);
-    let id2 = Identifier::File("/path/to/file1.txt".to_string());
+    let id1 = Identifier::new_process(1, 1);
+    let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
     sender
@@ -55,9 +55,9 @@ async fn unit_provenance_layer_declare_missing_container() -> Result<(), Box<dyn
 
     tokio::spawn(provenance_layer(receiver));
 
-    let id1 = Identifier::Process(1, 1);
-    let id2 = Identifier::Process(2, 1);
-    let id3 = Identifier::File("/path/to/file1.txt".to_string());
+    let id1 = Identifier::new_process(1, 1);
+    let id2 = Identifier::new_process(2, 1);
+    let id3 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
     sender
@@ -82,7 +82,7 @@ async fn unit_provenance_layer_declare_missing_container() -> Result<(), Box<dyn
             assert_eq!(
                 format!("{}", e),
                 format!(
-                    "Provenance error: ({} || {}) are not registered.",
+                    "Provenance error: ({:?} || {:?}) are not registered.",
                     id1.clone(),
                     id3.clone()
                 )
@@ -105,7 +105,7 @@ async fn unit_provenance_layer_declare_missing_container() -> Result<(), Box<dyn
             assert_eq!(
                 format!("{}", e),
                 format!(
-                    "Provenance error: ({} || {}) are not registered.",
+                    "Provenance error: ({:?} || {:?}) are not registered.",
                     id2.clone(),
                     id3.clone()
                 )
@@ -123,8 +123,8 @@ async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std:
 
     tokio::spawn(provenance_layer(receiver));
 
-    let id1 = Identifier::Process(1, 1);
-    let id2 = Identifier::File("/path/to/file1.txt".to_string());
+    let id1 = Identifier::new_process(1, 1);
+    let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
     sender
@@ -158,7 +158,7 @@ async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std:
             assert_eq!(
                 format!("{}", e),
                 format!(
-                    "Provenance error: {}<->{} Flow is invalid.",
+                    "Provenance error: {:?}<->{:?} Flow is invalid.",
                     id1.clone(),
                     id1.clone()
                 )
@@ -181,7 +181,7 @@ async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std:
             assert_eq!(
                 format!("{}", e),
                 format!(
-                    "Provenance error: {}<->{} Flow is invalid.",
+                    "Provenance error: {:?}<->{:?} Flow is invalid.",
                     id2.clone(),
                     id2.clone()
                 )
@@ -199,8 +199,8 @@ async fn unit_provenance_layer_record() -> Result<(), Box<dyn std::error::Error>
 
     tokio::spawn(provenance_layer(receiver));
 
-    let id1 = Identifier::Process(1, 1);
-    let id2 = Identifier::File("/path/to/file1.txt".to_string());
+    let id1 = Identifier::new_process(1, 1);
+    let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
     sender
@@ -266,8 +266,8 @@ async fn unit_provenance_layer_declare_flow_delayed() -> Result<(), Box<dyn std:
 
     tokio::spawn(provenance_layer(receiver));
 
-    let id1 = Identifier::Process(1, 1);
-    let id2 = Identifier::File("/path/to/file1.txt".to_string());
+    let id1 = Identifier::new_process(1, 1);
+    let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
     sender
@@ -331,9 +331,9 @@ async fn unit_provenance_layer_forced_release() -> Result<(), Box<dyn std::error
         Err(_) => panic!("Unable to get the test process starttime."),
     };
 
-    let id1 = Identifier::Process(process.id(), process_starttime);
-    let id2 = Identifier::File("/path/to/file1.txt".to_string());
-    let id3 = Identifier::Process(1, 1);
+    let id1 = Identifier::new_process(process.id(), process_starttime);
+    let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
+    let id3 = Identifier::new_process(1, 1);
 
     let (tx, rx) = oneshot::channel();
     sender
