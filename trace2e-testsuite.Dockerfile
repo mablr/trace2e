@@ -14,8 +14,5 @@ COPY src/ src/
 COPY tests/ tests/
 COPY build.rs Cargo.toml tests.sh ./
 
-# Build the project
-RUN cargo build --features verbose
-
 # Set the entrypoint
-ENTRYPOINT ["/usr/bin/bash"]
+ENTRYPOINT ["./tests.sh"]

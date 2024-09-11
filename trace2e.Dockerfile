@@ -11,8 +11,7 @@ WORKDIR /trace2e
 # Copy the source code into the container
 COPY proto/ proto/
 COPY src/ src/
-COPY tests/ tests/
-COPY build.rs Cargo.toml tests.sh ./
+COPY build.rs Cargo.toml ./
 
 # Build the project
 RUN cargo build --release --features verbose

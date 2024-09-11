@@ -3,26 +3,29 @@ networks:
     driver: bridge
 
 services:
-  bin_0:
+  trace2e_0:
     build:
       context: .
       dockerfile: trace2e.Dockerfile
-    container_name: trace2e_bin_0
+    hostname: trace2e_0
+    container_name: trace2e_0
     networks:
       - trace2e_network
 
-  bin_1:
+  trace2e_1:
     build:
       context: .
       dockerfile: trace2e.Dockerfile
-    container_name: trace2e_bin_1
+    hostname: trace2e_1
+    container_name: trace2e_1
     networks:
       - trace2e_network
 
-  interactive_0:
+  trace2e_tests_0:
     build:
       context: .
-      dockerfile: trace2e-interactive.Dockerfile
-    container_name: trace2e_interactive_0
+      dockerfile: trace2e-testsuite.Dockerfile
+    hostname: trace2e_tests_0
+    container_name: trace2e_tests_0
     networks:
       - trace2e_network
