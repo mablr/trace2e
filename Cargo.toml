@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 procfs = "0.16.0"
 prost = "0.13.2"
+rustix = { version = "0.38.36", features = ["system"]}
 tokio = { version = "1.40.0", features = ["macros", "rt-multi-thread"] }
 tonic = "0.12.2"
 tonic-reflection = "0.12.2"

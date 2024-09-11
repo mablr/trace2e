@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(fmt_layer)
         .init();
 
-    let _ = identifier::MIDDLEWARE_ID.get_or_init(|| "test".to_string());
+    let _ = identifier::MIDDLEWARE_ID.get_or_init(|| rustix::system::uname().nodename().to_str().unwrap().to_string().to_lowercase());
 
     let (sender, receiver) = mpsc::channel(32);
 
