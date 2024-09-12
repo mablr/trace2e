@@ -1,4 +1,4 @@
-//! Traceability labels management mechanism for data containers. 
+//! Traceability labels management mechanism for data containers.
 
 use crate::identifier::Identifier;
 
@@ -12,8 +12,8 @@ pub struct Labels {
 
 impl Labels {
     /// Creates a new [`Labels`] object given an [`Identifier`] enum.
-    /// 
-    /// If the object is instantiated for a File [`Identifier`] container, the 
+    ///
+    /// If the object is instantiated for a File [`Identifier`] container, the
     /// provenance is initialized with the given Identifier.
     pub fn new(identifier: Identifier) -> Self {
         let mut labels = Labels {
@@ -33,8 +33,8 @@ impl Labels {
     }
 
     /// Updates the provenance information given a source [`Labels`] object.
-    /// 
-    /// The provenance references of the source object are merged into self 
+    ///
+    /// The provenance references of the source object are merged into self
     /// object by avoiding duplicates.  
     pub fn update_prov(&mut self, source: &Labels) {
         for identifier in &source.provenance {

@@ -3,10 +3,10 @@ use crate::identifier::Identifier;
 /// Provenance layer error type.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum ProvenanceError {
-    /// Flow declaration failed because at least one of the given containers is 
+    /// Flow declaration failed because at least one of the given containers is
     /// not registered so far in the middleware.
     MissingRegistration(Identifier, Identifier),
-    /// Flow Declaration failed because the type of the given containers is 
+    /// Flow Declaration failed because the type of the given containers is
     /// not valid.
     InvalidFlow(Identifier, Identifier),
     /// Flow recording failed due to missing declaration/grant.
@@ -24,7 +24,11 @@ impl std::fmt::Display for ProvenanceError {
                 )
             }
             ProvenanceError::InvalidFlow(id1, id2) => {
-                write!(f, "Provenance error: {:?}<->{:?} Flow is invalid.", id1, id2)
+                write!(
+                    f,
+                    "Provenance error: {:?}<->{:?} Flow is invalid.",
+                    id1, id2
+                )
             }
             ProvenanceError::RecordingFailure(grant_id) => {
                 write!(f, "Provenance error: unable to record Flow {}.", grant_id)
