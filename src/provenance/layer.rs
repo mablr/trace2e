@@ -21,6 +21,40 @@ fn validate_flow(id1: Identifier, id2: Identifier) -> Option<u32> {
     }
 }
 
+/// This function acquires the locks with the appropriate R/W mode and returns
+/// the guards to guarantee the flow recording consistency.
+async fn reserve_flow<'a>(
+    output: bool,
+    id1_container: &'a Arc<RwLock<Labels>>,
+    id2_container: &'a Arc<RwLock<Labels>>,
+) -> (RwLockReadGuard<'a, Labels>, RwLockWriteGuard<'a, Labels>) {
+    if output {
+        #[cfg(feature = "verbose")]
+        println!("⏸️  read wait for {:?}", id1.clone());
+        let rguard = id1_container.read().await;
+        #[cfg(feature = "verbose")]
+        println!("⏯️  read got for {:?}", id1.clone());
+        #[cfg(feature = "verbose")]
+        println!("⏸️  write wait {:?}", id2.clone());
+        let wguard = id2_container.write().await;
+        #[cfg(feature = "verbose")]
+        println!("⏯️  write got for {:?}", id2.clone());
+        (rguard, wguard)
+    } else {
+        #[cfg(feature = "verbose")]
+        println!("⏸️  write wait for {:?}", id1.clone());
+        let wguard = id1_container.write().await;
+        #[cfg(feature = "verbose")]
+        println!("⏯️  write got for {:?}", id1.clone());
+        #[cfg(feature = "verbose")]
+        println!("⏸️  read wait for {:?}", id2.clone());
+        let rguard = id2_container.read().await;
+        #[cfg(feature = "verbose")]
+        println!("⏯️  read got for {:?}", id2.clone());
+        (rguard, wguard)
+    }
+}
+
 /// Provenance layer response message type.
 #[derive(Debug, PartialEq, Eq)]
 pub enum ProvenanceResult {
@@ -187,34 +221,8 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                         let grant_counter = Arc::clone(&grant_counter);
                         let flows_release_handles = Arc::clone(&flows_release_handles);
                         tokio::spawn(async move {
-                            let (source_labels, mut destination_labels) = {
-                                if output {
-                                    #[cfg(feature = "verbose")]
-                                    println!("⏸️  read wait for {:?}", id1.clone());
-                                    let rguard = id1_container.read().await;
-                                    #[cfg(feature = "verbose")]
-                                    println!("⏯️  read got for {:?}", id1.clone());
-                                    #[cfg(feature = "verbose")]
-                                    println!("⏸️  write wait {:?}", id2.clone());
-                                    let wguard = id2_container.write().await;
-                                    #[cfg(feature = "verbose")]
-                                    println!("⏯️  write got for {:?}", id2.clone());
-                                    (rguard, wguard)
-                                } else {
-                                    #[cfg(feature = "verbose")]
-                                    println!("⏸️  write wait for {:?}", id1.clone());
-                                    let wguard = id1_container.write().await;
-                                    #[cfg(feature = "verbose")]
-                                    println!("⏯️  write got for {:?}", id1.clone());
-                                    #[cfg(feature = "verbose")]
-                                    println!("⏸️  read wait for {:?}", id2.clone());
-                                    let rguard = id2_container.read().await;
-                                    #[cfg(feature = "verbose")]
-                                    println!("⏯️  read got for {:?}", id2.clone());
-                                    (rguard, wguard)
-                                }
-                            };
-
+                            let (source_labels, mut destination_labels) =
+                                reserve_flow(output, &id1_container, &id2_container).await;
                             let grant_id = {
                                 let mut grant_counter = grant_counter.lock().await;
                                 *grant_counter += 1;
