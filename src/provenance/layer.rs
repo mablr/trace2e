@@ -228,6 +228,33 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                 .await
                                 .insert(grant_id, release_callback);
 
+                            // Output Flow to stream: push provenance to peer
+                            if let Some((local_socket, peer_socket)) = id2.is_stream().filter(|_| output) {
+                                #[cfg(feature = "verbose")]
+                                println!(
+                                    "🔼  Flow {} Sync to {} ({:?} -> {:?})",
+                                    grant_id,
+                                    peer_socket.ip(),
+                                    id1.clone(),
+                                    id2.clone()
+                                );
+                                let mut client = M2mClient::connect(format!(
+                                    "http://{}:8080",
+                                    peer_socket.ip()
+                                ))
+                                .await
+                                .unwrap();
+                                let _ = client.sync_provenance(Request::new(StreamProv {
+                                    local_socket: local_socket.to_string(),
+                                    peer_socket: peer_socket.to_string(),
+                                    provenance: source_labels
+                                        .get_prov()
+                                        .into_iter()
+                                        .map(Id::from)
+                                        .collect(),
+                                })).await;
+                            }
+
                             responder
                                 .send(ProvenanceResult::Declared(grant_id))
                                 .unwrap();
@@ -256,32 +283,8 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                     .status();
                                 // Todo: handle the result ?
                             } else {
-                                
-                                if let Some((local_socket, peer_socket)) = id2.is_stream().filter(|_| output) {
-                                    #[cfg(feature = "verbose")]
-                                    println!(
-                                        "⏺️  Flow {} forwarding to {} ({:?} -> {:?})",
-                                        grant_id,
-                                        peer_socket.ip(),
-                                        id1.clone(),
-                                        id2.clone()
-                                    );
-                                    let mut client = M2mClient::connect(format!(
-                                        "http://{}:8080",
-                                        peer_socket.ip()
-                                    ))
-                                    .await
-                                    .unwrap();
-                                    let _ = client.sync_provenance(Request::new(StreamProv {
-                                        local_socket: local_socket.to_string(),
-                                        peer_socket: peer_socket.to_string(),
-                                        provenance: source_labels
-                                            .get_prov()
-                                            .into_iter()
-                                            .map(Id::from)
-                                            .collect(),
-                                    })).await;
-                                } else {
+                                // Record flow locally if it is not an output to a stream
+                                if !(output && id2.is_stream().is_some()) {
                                     #[cfg(feature = "verbose")]
                                     println!(
                                         "⏺️  Flow {} recording ({:?} {} {:?})",
@@ -291,23 +294,12 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                         id2.clone()
                                     );
                                     destination_labels.update_prov(&source_labels);
-                                }
-
-                                #[cfg(feature = "verbose")]
-                                if output {
+                                    #[cfg(feature = "verbose")]
                                     println!(
                                         "🆕 Provenance: {{{:?}: {:?},  {:?}: {:?}}}",
-                                        id1.clone(),
+                                        if output { id1.clone() } else { id2.clone() },
                                         source_labels.get_prov(),
-                                        id2.clone(),
-                                        destination_labels.get_prov(),
-                                    );
-                                } else {
-                                    println!(
-                                        "🆕 Provenance: {{{:?}: {:?},  {:?}: {:?}}}",
-                                        id2.clone(),
-                                        source_labels.get_prov(),
-                                        id1.clone(),
+                                        if output { id2.clone() } else { id1.clone() },
                                         destination_labels.get_prov(),
                                     );
                                 }
@@ -346,8 +338,15 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
             }
             ProvenanceAction::RemoteSync(id, provenance, responder) => {
                 if let Some(id_container) = id.is_stream().and(containers.get(&id)).cloned() {
-                    id_container.write().await.set_prov(provenance);
-                    responder.send(ProvenanceResult::Recorded).unwrap();
+                    tokio::spawn(async move {
+                        id_container.write().await.set_prov(provenance);
+                        #[cfg(feature = "verbose")]
+                        println!(
+                            "🔽  Remote provenance sync on {:?}",
+                            id.clone(),
+                        );
+                        responder.send(ProvenanceResult::Recorded).unwrap();
+                    });
                 } else {
                     responder
                         .send(ProvenanceResult::Error(ProvenanceError::SyncFailure(id)))
