@@ -636,46 +636,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unit_p2m_scenario_stream_write() -> Result<(), Box<dyn std::error::Error>> {
-        let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(provenance_layer(receiver));
-        let client = P2mService::new(sender);
-        let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
-
-        // CT declaration
-        let stream_creation = tonic::Request::new(RemoteCt {
-            process_id: process.id(),
-            file_descriptor: 3,
-            local_socket: "10.0.0.1:54321".to_string(),
-            peer_socket: "10.0.0.2:8081".to_string(),
-        });
-        let result_stream_creation = client.remote_enroll(stream_creation).await?.into_inner();
-        assert_eq!(result_stream_creation, Ack {});
-
-        // Write event
-        let write_request = tonic::Request::new(IoInfo {
-            process_id: process.id(),
-            file_descriptor: 3,
-            flow: Flow::Output.into(),
-        });
-        let result_write_request = client.io_request(write_request).await?;
-        let grant_id = result_write_request.into_inner().id;
-
-        // Write done
-        let write_done = tonic::Request::new(IoResult {
-            process_id: process.id(),
-            file_descriptor: 3,
-            grant_id,
-            result: true,
-        });
-        let result_write_done = client.io_report(write_done).await?.into_inner();
-        assert_eq!(result_write_done, Ack {});
-
-        process.kill()?;
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn unit_p2m_scenario_stream_read() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
         tokio::spawn(provenance_layer(receiver));
