@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package m2m_api;
+
+service M2M {
+    rpc SyncProvenance(StreamProv) returns (Ack);
+}
+
+message StreamProv {
+    string local_socket = 1;
+    string peer_socket = 2;
+    repeated Id provenance = 3;
+} 
+
+message Id {
+    string node = 1;
+    string resource = 2;
+}
+
+message Ack {
+}

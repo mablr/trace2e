@@ -4,16 +4,18 @@ use std::net::SocketAddr;
 
 use std::sync::OnceLock;
 
+use crate::m2m_service::m2m::Id;
+
 pub static MIDDLEWARE_ID: OnceLock<String> = OnceLock::new();
 
-/// Global ressource identification object.
+/// Global resource identification object.
 ///
-/// Structure associating [`MIDDLEWARE_ID`] with a local ressource
+/// Structure associating [`MIDDLEWARE_ID`] with a local resource
 /// identification object to allow decentralized identification.
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
 pub struct Identifier {
     node: String,
-    ressource: Ressource,
+    resource: Resource,
 }
 
 impl Identifier {
@@ -22,7 +24,7 @@ impl Identifier {
             node: MIDDLEWARE_ID
                 .get_or_init(|| "localhost".to_string())
                 .clone(),
-            ressource: Ressource::File(path),
+            resource: Resource::File(path),
         }
     }
 
@@ -31,7 +33,7 @@ impl Identifier {
             node: MIDDLEWARE_ID
                 .get_or_init(|| "localhost".to_string())
                 .clone(),
-            ressource: Ressource::Stream(local_socket, peer_socket),
+            resource: Resource::Stream(local_socket, peer_socket),
         }
     }
 
@@ -40,41 +42,64 @@ impl Identifier {
             node: MIDDLEWARE_ID
                 .get_or_init(|| "localhost".to_string())
                 .clone(),
-            ressource: Ressource::Process(pid, starttime),
+            resource: Resource::Process(pid, starttime),
         }
     }
 
     pub fn is_file(&self) -> Option<&String> {
-        match &self.ressource {
-            Ressource::File(path) => Some(&path),
+        match &self.resource {
+            Resource::File(path) => Some(&path),
             _ => None,
         }
     }
 
     pub fn is_process(&self) -> Option<u32> {
-        match self.ressource {
-            Ressource::Process(pid, _) => Some(pid),
+        match self.resource {
+            Resource::Process(pid, _) => Some(pid),
             _ => None,
         }
     }
 
     pub fn is_stream(&self) -> Option<(SocketAddr, SocketAddr)> {
-        match self.ressource {
-            Ressource::Stream(local_socket, peer_socket) => Some((local_socket, peer_socket)),
+        match self.resource {
+            Resource::Stream(local_socket, peer_socket) => Some((local_socket, peer_socket)),
             _ => None,
         }
     }
 }
 
-/// Local ressource identification object.
+impl From<Id> for Identifier {
+    fn from(id: Id) -> Self {
+        Identifier {
+            node: id.node,
+            // Assuming the resource field is always for a file.
+            resource: Resource::File(id.resource),
+        }
+    }
+}
+
+impl From<Identifier> for Id {
+    fn from(identifier_internal: Identifier) -> Self {
+        let resource = match identifier_internal.resource {
+            Resource::File(path) => path,
+            _ => panic!("Only File variant is supported for Id conversion"),
+        };
+        Id {
+            node: identifier_internal.node,
+            resource,
+        }
+    }
+}
+
+/// Local resource identification object.
 ///
-/// Enum that is instantiated when a ressource is enrolled. It allows any type of
-/// ressource to be identified in a unique way.
+/// Enum that is instantiated when a resource is enrolled. It allows any type of
+/// resource to be identified in a unique way.
 ///
-/// Each [`Ressource`] enum variant corresponds to a supported ressource type
-/// with specific included variables to uniquely identify all ressources.
+/// Each [`Resource`] enum variant corresponds to a supported resource type
+/// with specific included variables to uniquely identify all resources.
 #[derive(Debug, Clone, Eq, Hash, PartialEq)]
-pub enum Ressource {
+pub enum Resource {
     /// File variant includes the absolute path of the corresponding file on the
     /// system as a String object.
     File(String),

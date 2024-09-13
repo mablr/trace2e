@@ -11,6 +11,8 @@ pub enum ProvenanceError {
     InvalidFlow(Identifier, Identifier),
     /// Flow recording failed due to missing declaration/grant.
     RecordingFailure(u64),
+    /// Remote Update of the provenance failed.
+    SyncFailure(Identifier),
 }
 
 impl std::fmt::Display for ProvenanceError {
@@ -32,6 +34,9 @@ impl std::fmt::Display for ProvenanceError {
             }
             ProvenanceError::RecordingFailure(grant_id) => {
                 write!(f, "Provenance error: unable to record Flow {}.", grant_id)
+            }
+            ProvenanceError::SyncFailure(id) => {
+                write!(f, "Provenance error: {:?} sync failure.", id)
             }
         }
     }

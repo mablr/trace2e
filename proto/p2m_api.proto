@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package trace2e_api;
+package p2m_api;
 
 service P2M {
     rpc LocalEnroll(LocalCt) returns (Ack);

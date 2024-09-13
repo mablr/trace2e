@@ -15,5 +15,6 @@
 
 pub mod identifier;
 pub mod labels;
+pub mod m2m_service;
 pub mod p2m_service;
 pub mod provenance;

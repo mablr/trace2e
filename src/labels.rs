@@ -32,6 +32,11 @@ impl Labels {
         self.provenance.clone()
     }
 
+    /// Sets the provenance information given remote provenance.
+    pub fn set_prov(&mut self, provenance: Vec<Identifier>) {
+        self.provenance = provenance;
+    }
+
     /// Updates the provenance information given a source [`Labels`] object.
     ///
     /// The provenance references of the source object are merged into self
@@ -67,6 +72,22 @@ mod tests {
         assert_eq!(id1_labels.get_prov(), vec![]);
         assert_eq!(id2_labels.get_prov(), vec![id2.clone()]);
         assert_eq!(id3_labels.get_prov(), vec![]);
+    }
+
+    #[test]
+    fn unit_labels_set() {
+        let id1 = Identifier::new_process(1, 1);
+        let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
+        let id3 = Identifier::new_stream(
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
+        );
+
+        let mut labels = Labels::new(id1.clone());
+        assert_eq!(labels.get_prov(), vec![]);
+
+        labels.set_prov(vec![id2.clone(), id3.clone()]);
+        assert_eq!(labels.get_prov(), vec![id2.clone(), id3.clone()]);
     }
 
     #[test]

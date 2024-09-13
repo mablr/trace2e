@@ -1,7 +1,9 @@
 //! Processes to Middleware gRPC Service.
 
-use crate::identifier::Identifier;
-use crate::provenance::{ProvenanceAction, ProvenanceResult};
+use crate::{
+    identifier::Identifier,
+    provenance::{ProvenanceAction, ProvenanceResult},
+};
 use p2m::{p2m_server::P2m, Ack, Flow, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
 use procfs::process::Process;
 use std::collections::HashMap;
@@ -12,8 +14,8 @@ use tonic::{Request, Response, Status};
 use tracing::{error, info, instrument};
 
 pub mod p2m {
-    tonic::include_proto!("trace2e_api");
-    pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("../target/trace2e_api_descriptor.bin");
+    tonic::include_proto!("p2m_api");
+    pub const P2M_DESCRIPTOR_SET: &[u8] = include_bytes!("../target/p2m_descriptor.bin");
 }
 
 #[derive(Debug)]
