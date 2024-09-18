@@ -11,7 +11,7 @@ use tonic::Request;
 use crate::{
     identifier::Identifier,
     labels::Labels,
-    m2m_service::m2m::{m2m_client::M2mClient, Id, StreamProv},
+    m2m_service::m2m::{m2m_client::M2mClient, Id, Stream, StreamProv},
 };
 
 use super::ProvenanceError;
@@ -28,7 +28,7 @@ fn validate_flow(id1: Identifier, id2: Identifier) -> Option<u32> {
 
 /// This function acquires the locks with the appropriate R/W mode and returns
 /// the guards to guarantee the flow recording consistency.
-async fn reserve_flow<'a>(
+async fn reserve_local_flow<'a>(
     output: bool,
     id1_container: &'a Arc<RwLock<Labels>>,
     id2_container: &'a Arc<RwLock<Labels>>,
@@ -45,12 +45,23 @@ async fn reserve_flow<'a>(
 }
 
 /// Provenance layer response message type.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum ProvenanceResult {
     Registered,
     Declared(u64),
     Recorded,
     Error(ProvenanceError),
+    WaitingSync(oneshot::Sender<(Vec<Identifier>, oneshot::Sender<ProvenanceResult>)>),
+}
+
+impl ProvenanceResult {
+    /// Returns `true` if the provenance result is [`WaitingSync`].
+    ///
+    /// [`WaitingSync`]: ProvenanceResult::WaitingSync
+    #[must_use]
+    pub fn is_waiting_sync(&self) -> bool {
+        matches!(self, Self::WaitingSync(..))
+    }
 }
 
 /// Provenance layer request message type.
@@ -63,9 +74,8 @@ pub enum ProvenanceAction {
         oneshot::Sender<ProvenanceResult>,
     ),
     RecordFlow(u64, oneshot::Sender<ProvenanceResult>),
-    RemoteSync(
+    SyncStream(
         Identifier,
-        Vec<Identifier>,
         oneshot::Sender<ProvenanceResult>,
     ),
 }
@@ -214,77 +224,115 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                         let grant_counter = Arc::clone(&grant_counter);
                         let flows_release_handles = Arc::clone(&flows_release_handles);
                         tokio::spawn(async move {
-                            let (source_labels, mut destination_labels) =
-                                reserve_flow(output, &id1_container, &id2_container).await;
                             let grant_id = {
                                 let mut grant_counter = grant_counter.lock().await;
                                 *grant_counter += 1;
                                 *grant_counter
                             };
-
-                            let (release_callback, release) = oneshot::channel();
-                            flows_release_handles
-                                .lock()
-                                .await
-                                .insert(grant_id, release_callback);
-
-                            // Output Flow to stream: push provenance to peer
                             if let Some((local_socket, peer_socket)) = id2.is_stream().filter(|_| output) {
+                            // Output Flow to stream (Decentralized procedure)
+                                if let Ok(mut client) = M2mClient::connect(format!("http://{}:8080", peer_socket.ip())).await {
+                                    let source_labels = id1_container.read().await;
+
+                                    if let Ok(_) = client.reserve(Request::new(Stream {
+                                        local_socket: local_socket.to_string(),
+                                        peer_socket: peer_socket.to_string(),
+                                    })).await {
+                                        let (release_callback, release) = oneshot::channel();
+                                        flows_release_handles
+                                            .lock()
+                                            .await
+                                            .insert(grant_id, release_callback);
+
+                                        responder
+                                            .send(ProvenanceResult::Declared(grant_id))
+                                            .unwrap();
+
+                                        if timeout(Duration::from_millis(50), release).await.is_err() {
+                                            #[cfg(feature = "verbose")]
+                                            println!("⚠️  Reservation timeout Flow {}", grant_id);
+            
+                                            // Remove flow release handle
+                                            flows_release_handles.lock().await.remove(&grant_id);
+
+                                            // Try to kill the process that holds the reservation for too long,
+                                            // to release the reservation safely
+                                            let _ = std::process::Command::new("kill")
+                                                .arg("-9")
+                                                .arg(pid.to_string())
+                                                .status();
+                                            // Todo: handle the result ?
+
+                                            // Release remote stream
+                                            let _ = client.sync_provenance(Request::new(StreamProv {
+                                                local_socket: local_socket.to_string(),
+                                                peer_socket: peer_socket.to_string(),
+                                                provenance: Vec::new() // empty provenance to skip update and release remote stream
+                                            })).await;
+                                        } else {
+                                            #[cfg(feature = "verbose")]
+                                            println!(
+                                                "🔼  Flow {} Sync to {} ({:?} -> {:?})",
+                                                grant_id,
+                                                peer_socket.ip(),
+                                                id1.clone(),
+                                                id2.clone()
+                                            );
+                                            let _ = client.sync_provenance(Request::new(StreamProv {
+                                                local_socket: local_socket.to_string(),
+                                                peer_socket: peer_socket.to_string(),
+                                                provenance: source_labels
+                                                    .get_prov()
+                                                    .into_iter()
+                                                    .map(Id::from)
+                                                    .collect(),
+                                            })).await; // Todo Sync failure management
+                                        }
+                                    }
+
+                                }
+                            } else {
+                            // File IO Flow, or Input flow from Stream (Local procedure)
+                                let (source_labels, mut destination_labels) =
+                                    reserve_local_flow(output, &id1_container, &id2_container).await;
+
+                                let (release_callback, release) = oneshot::channel();
+                                flows_release_handles
+                                    .lock()
+                                    .await
+                                    .insert(grant_id, release_callback);
+
+
+
+                                responder
+                                    .send(ProvenanceResult::Declared(grant_id))
+                                    .unwrap();
+
                                 #[cfg(feature = "verbose")]
                                 println!(
-                                    "🔼  Flow {} Sync to {} ({:?} -> {:?})",
+                                    "✅ Flow {} granted ({:?} {} {:?})",
                                     grant_id,
-                                    peer_socket.ip(),
                                     id1.clone(),
+                                    if output { "->" } else { "<-" },
                                     id2.clone()
                                 );
-                                let mut client = M2mClient::connect(format!(
-                                    "http://{}:8080",
-                                    peer_socket.ip()
-                                ))
-                                .await
-                                .unwrap();
-                                let _ = client.sync_provenance(Request::new(StreamProv {
-                                    local_socket: local_socket.to_string(),
-                                    peer_socket: peer_socket.to_string(),
-                                    provenance: source_labels
-                                        .get_prov()
-                                        .into_iter()
-                                        .map(Id::from)
-                                        .collect(),
-                                })).await;
-                            }
 
-                            responder
-                                .send(ProvenanceResult::Declared(grant_id))
-                                .unwrap();
-
-                            #[cfg(feature = "verbose")]
-                            println!(
-                                "✅  Flow {} granted ({:?} {} {:?})",
-                                grant_id,
-                                id1.clone(),
-                                if output { "->" } else { "<-" },
-                                id2.clone()
-                            );
-
-                            if timeout(Duration::from_millis(50), release).await.is_err() {
-                                #[cfg(feature = "verbose")]
-                                println!("⚠️  Reservation timeout Flow {}", grant_id);
-
-                                // Remove flow release handle
-                                flows_release_handles.lock().await.remove(&grant_id);
-
-                                // Try to kill the process that holds the reservation for too long,
-                                // to release the reservation safely
-                                let _ = std::process::Command::new("kill")
-                                    .arg("-9")
-                                    .arg(pid.to_string())
-                                    .status();
-                                // Todo: handle the result ?
-                            } else {
-                                // Record flow locally if it is not an output to a stream
-                                if !(output && id2.is_stream().is_some()) {
+                                if timeout(Duration::from_millis(50), release).await.is_err() {
+                                    #[cfg(feature = "verbose")]
+                                    println!("⚠️  Reservation timeout Flow {}", grant_id);
+    
+                                    // Remove flow release handle
+                                    flows_release_handles.lock().await.remove(&grant_id);
+    
+                                    // Try to kill the process that holds the reservation for too long,
+                                    // to release the reservation safely
+                                    let _ = std::process::Command::new("kill")
+                                        .arg("-9")
+                                        .arg(pid.to_string())
+                                        .status();
+                                    // Todo: handle the result ?
+                                } else {
+                                    // Record flow locally if it is not an output to a stream
                                     #[cfg(feature = "verbose")]
                                     println!(
                                         "⏺️  Flow {} recording ({:?} {} {:?})",
@@ -336,16 +384,25 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                         .unwrap();
                 }
             }
-            ProvenanceAction::RemoteSync(id, provenance, responder) => {
+            ProvenanceAction::SyncStream(id, responder) => {
                 if let Some(id_container) = id.is_stream().and(containers.get(&id)).cloned() {
                     tokio::spawn(async move {
-                        id_container.write().await.set_prov(provenance);
+                        let mut stream_labels = id_container.write().await;
+                        let (provenance_sender, provenance_receiver) = oneshot::channel();
+                        responder.send(ProvenanceResult::WaitingSync(provenance_sender)).unwrap();
+
+                        match provenance_receiver.await {
+                            Ok((provenance, callback)) => {
+                                stream_labels.set_prov(provenance);
+                                let _ = callback.send(ProvenanceResult::Recorded);
+                            }
+                            Err(_) => todo!(),
+                        }
                         #[cfg(feature = "verbose")]
                         println!(
-                            "🔽  Remote provenance sync on {:?}",
+                            "🔽 Remote provenance sync on {:?}",
                             id.clone(),
                         );
-                        responder.send(ProvenanceResult::Recorded).unwrap();
                     });
                 } else {
                     responder
