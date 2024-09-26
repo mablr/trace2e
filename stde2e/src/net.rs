@@ -1,0 +1,89 @@
+use std::net::SocketAddr;
+use std::net::TcpListener as StdTcpListener;
+use std::net::TcpStream as StdTcpStream;
+use std::os::fd::AsRawFd;
+use std::process::id;
+
+use tokio::runtime::Builder;
+
+use crate::middleware::{p2m_client::P2mClient, RemoteCt};
+
+fn middleware_request(fd: i32, local_socket: String, peer_socket: String) -> Result<(), Box<dyn std::error::Error>> {
+    let rt = Builder::new_multi_thread().enable_all().build().unwrap();
+    let mut client = rt.block_on(P2mClient::connect("http://[::1]:8080"))?;
+
+    let request = tonic::Request::new(RemoteCt {
+        process_id: id(),
+        file_descriptor: fd,
+        local_socket,
+        peer_socket
+    });
+    let _ = rt.block_on(client.remote_enroll(request));
+    Ok(())
+}
+
+pub struct TcpListener(StdTcpListener);
+
+impl TcpListener {
+    pub fn bind<A: std::net::ToSocketAddrs>(addr: A) -> std::io::Result<TcpListener> {
+        match StdTcpListener::bind(addr) {
+            Ok(tcp_listener) => Ok(TcpListener(tcp_listener)),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
+        self.0.local_addr()
+    }
+
+    pub fn try_clone(&self) -> std::io::Result<TcpListener> {
+        match self.0.try_clone() {
+            Ok(tcp_listener) => Ok(TcpListener(tcp_listener)),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn accept(&self) -> std::io::Result<(StdTcpStream, SocketAddr)> {
+        let (tcp_stream, local_socket) = self.0.accept()?;
+        let _ = middleware_request(tcp_stream.as_raw_fd(), local_socket.to_string(), tcp_stream.peer_addr()?.to_string());
+        Ok((tcp_stream, local_socket))
+    }
+
+    pub fn incoming(&self) -> std::net::Incoming<'_> {
+        self.0.incoming()
+    }
+
+    pub fn set_ttl(&self, ttl: u32) -> std::io::Result<()> {
+        self.0.set_ttl(ttl)
+    }
+
+    pub fn ttl(&self) -> std::io::Result<u32> {
+        self.0.ttl()
+    }
+
+    pub fn take_error(&self) -> std::io::Result<Option<std::io::Error>> {
+        self.0.take_error()
+    }
+
+    pub fn set_nonblocking(&self, nonblocking: bool) -> std::io::Result<()> {
+        self.0.set_nonblocking(nonblocking)
+    }
+}
+
+pub struct TcpStream;
+
+impl TcpStream {
+    pub fn connect<A: std::net::ToSocketAddrs>(addr: A) -> std::io::Result<StdTcpStream> {
+        let tcp_stream = StdTcpStream::connect(addr)?;
+        let _ = middleware_request(tcp_stream.as_raw_fd(), tcp_stream.local_addr()?.to_string(), tcp_stream.peer_addr()?.to_string());
+        Ok(tcp_stream)
+    }
+    pub fn connect_timeout<A: >(
+        addr: &SocketAddr,
+        timeout: std::time::Duration
+    ) -> std::io::Result<StdTcpStream> {
+        let tcp_stream =  StdTcpStream::connect_timeout(addr, timeout)?;
+        let _ = middleware_request(tcp_stream.as_raw_fd(), tcp_stream.local_addr()?.to_string(), tcp_stream.peer_addr()?.to_string());
+        Ok(tcp_stream)
+    }
+}

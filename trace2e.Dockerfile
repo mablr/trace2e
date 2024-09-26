@@ -10,8 +10,9 @@ WORKDIR /trace2e
 
 # Copy the source code into the container
 COPY proto/ proto/
-COPY src/ src/
-COPY build.rs Cargo.toml ./
+COPY middleware/ middleware/
+COPY stde2e/ stde2e/
+COPY Cargo.toml ./
 
 # Build the project
 RUN cargo build --release --features verbose
@@ -20,7 +21,7 @@ RUN cargo build --release --features verbose
 FROM debian:bookworm-slim
 
 # Copy the compiled binary from the build stage
-COPY --from=builder /trace2e/target/release/trace2e /usr/local/bin/trace2e
+COPY --from=builder /trace2e/target/release/middleware /usr/local/bin/middleware
 
 # Set the entrypoint
-ENTRYPOINT ["/usr/local/bin/trace2e"]
+ENTRYPOINT ["/usr/local/bin/middleware"]

@@ -1,7 +1,7 @@
 use tokio::sync::mpsc;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
-use trace2e::{
+use middleware::{
     identifier,
     m2m_service::{
         m2m::{m2m_server::M2mServer, M2M_DESCRIPTOR_SET},

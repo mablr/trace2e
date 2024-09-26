@@ -10,9 +10,9 @@ WORKDIR /trace2e
 
 # Copy the source code into the container
 COPY proto/ proto/
-COPY src/ src/
-COPY tests/ tests/
-COPY build.rs Cargo.toml tests.sh ./
+COPY middleware/ middleware/
+COPY stde2e/ stde2e/
+COPY Cargo.toml ./
 
 # Set the entrypoint
 ENTRYPOINT ["./tests.sh"]

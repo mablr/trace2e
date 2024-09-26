@@ -15,7 +15,7 @@ use tracing::{error, info, instrument};
 
 pub mod p2m {
     tonic::include_proto!("p2m_api");
-    pub const P2M_DESCRIPTOR_SET: &[u8] = include_bytes!("../target/p2m_descriptor.bin");
+    pub const P2M_DESCRIPTOR_SET: &[u8] = include_bytes!("../../target/p2m_descriptor.bin");
 }
 
 #[derive(Debug)]

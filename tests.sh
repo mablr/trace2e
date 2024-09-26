@@ -8,7 +8,7 @@ cargo build
 cargo test unit
 
 # Launch Middleware
-./target/debug/trace2e &
+./target/debug/middleware &
 TRACE2E_PID=$!
 
 # Synchronous integration tests

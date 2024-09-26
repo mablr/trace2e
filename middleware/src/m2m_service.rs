@@ -11,7 +11,7 @@ use tonic::{Request, Response, Status};
 
 pub mod m2m {
     tonic::include_proto!("m2m_api");
-    pub const M2M_DESCRIPTOR_SET: &[u8] = include_bytes!("../target/m2m_descriptor.bin");
+    pub const M2M_DESCRIPTOR_SET: &[u8] = include_bytes!("../../target/m2m_descriptor.bin");
 }
 
 pub struct M2mService {
