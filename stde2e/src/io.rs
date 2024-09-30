@@ -1,31 +1,34 @@
 use std::{io::{Error, ErrorKind}, process};
-use tokio::runtime::Builder;
-use crate::middleware::{p2m_client::P2mClient, Flow, IoInfo, IoResult};
+
+use crate::middleware::{Flow, IoInfo, IoResult, GRPC_CLIENT, TOKIO_RUNTIME};
+
 
 fn middleware_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Error>> {
-    let rt = Builder::new_multi_thread().enable_all().build().unwrap();
-    let mut client = rt.block_on(P2mClient::connect("http://[::1]:8080"))?;
+    let mut client = GRPC_CLIENT.clone();
+
     let request = tonic::Request::new( IoInfo {
         process_id: process::id(),
         file_descriptor: fd,
         flow,
     });
-    match rt.block_on(client.io_request(request)) {
+
+    match TOKIO_RUNTIME.block_on(client.io_request(request)) {
         Ok(response) => Ok(response.into_inner().id),
         Err(_) => Err(Box::new(Error::from(ErrorKind::PermissionDenied))),
     }
 }
 
 fn middleware_report(fd: i32, grant_id: u64, result: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let rt = Builder::new_multi_thread().enable_all().build().unwrap();
-    let mut client = rt.block_on(P2mClient::connect("http://[::1]:8080"))?;
+    let mut client = GRPC_CLIENT.clone();
+
     let request = tonic::Request::new( IoResult {
         process_id: process::id(),
         file_descriptor: fd,
         grant_id,
         result,
     });
-    match rt.block_on(client.io_report(request)) {
+
+    match TOKIO_RUNTIME.block_on(client.io_report(request)) {
         Ok(_) => Ok(()),
         Err(_) => Err(Box::new(Error::from(ErrorKind::Other))),
     }

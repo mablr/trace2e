@@ -4,13 +4,10 @@ use std::net::TcpStream as StdTcpStream;
 use std::os::fd::AsRawFd;
 use std::process::id;
 
-use tokio::runtime::Builder;
-
-use crate::middleware::{p2m_client::P2mClient, RemoteCt};
+use crate::middleware::{RemoteCt, GRPC_CLIENT, TOKIO_RUNTIME};
 
 fn middleware_request(fd: i32, local_socket: String, peer_socket: String) -> Result<(), Box<dyn std::error::Error>> {
-    let rt = Builder::new_multi_thread().enable_all().build().unwrap();
-    let mut client = rt.block_on(P2mClient::connect("http://[::1]:8080"))?;
+    let mut client = GRPC_CLIENT.clone();
 
     let request = tonic::Request::new(RemoteCt {
         process_id: id(),
@@ -18,7 +15,8 @@ fn middleware_request(fd: i32, local_socket: String, peer_socket: String) -> Res
         local_socket,
         peer_socket
     });
-    let _ = rt.block_on(client.remote_enroll(request));
+
+    let _ = TOKIO_RUNTIME.block_on(client.remote_enroll(request));
     Ok(())
 }
 
