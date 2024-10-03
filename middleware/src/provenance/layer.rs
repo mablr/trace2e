@@ -107,7 +107,8 @@ pub enum ProvenanceAction {
 ///
 /// 1. [`ProvenanceAction::RegisterContainer`]:
 ///    - Registers a new container identified by a unique [`Identifier`] object
-///     if it is not already registered.
+///     if it is a File or a Process and not already registered (overwritting
+///     forbidden), else if it is a Stream (overwritting allowed).
 ///    - Sends a `ProvenanceResult::Registered` back through the responder once
 ///     the registration is successful.
 ///
@@ -208,7 +209,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
     while let Some(message) = receiver.recv().await {
         match message {
             ProvenanceAction::RegisterContainer(identifier, responder) => {
-                if !containers.contains_key(&identifier) {
+                if !containers.contains_key(&identifier) || identifier.is_stream().is_some() {
                     containers.insert(
                         identifier.clone(),
                         Arc::new(RwLock::new(Labels::new(identifier.clone()))),
