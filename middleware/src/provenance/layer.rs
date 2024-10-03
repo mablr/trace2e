@@ -74,10 +74,7 @@ pub enum ProvenanceAction {
         oneshot::Sender<ProvenanceResult>,
     ),
     RecordFlow(u64, oneshot::Sender<ProvenanceResult>),
-    SyncStream(
-        Identifier,
-        oneshot::Sender<ProvenanceResult>,
-    ),
+    SyncStream(Identifier, oneshot::Sender<ProvenanceResult>),
 }
 
 /// This asynchronous function is responsible of provenance tracking, it
@@ -230,15 +227,23 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                 *grant_counter += 1;
                                 *grant_counter
                             };
-                            if let Some((local_socket, peer_socket)) = id2.is_stream().filter(|_| output) {
-                            // Output Flow to stream (Decentralized procedure)
-                                if let Ok(mut client) = M2mClient::connect(format!("http://{}:8080", peer_socket.ip())).await {
+                            if let Some((local_socket, peer_socket)) =
+                                id2.is_stream().filter(|_| output)
+                            {
+                                // Output Flow to stream (Decentralized procedure)
+                                if let Ok(mut client) =
+                                    M2mClient::connect(format!("http://{}:8080", peer_socket.ip()))
+                                        .await
+                                {
                                     let source_labels = id1_container.read().await;
 
-                                    if let Ok(_) = client.reserve(Request::new(Stream {
-                                        local_socket: local_socket.to_string(),
-                                        peer_socket: peer_socket.to_string(),
-                                    })).await {
+                                    if let Ok(_) = client
+                                        .reserve(Request::new(Stream {
+                                            local_socket: local_socket.to_string(),
+                                            peer_socket: peer_socket.to_string(),
+                                        }))
+                                        .await
+                                    {
                                         let (release_callback, release) = oneshot::channel();
                                         flows_release_handles
                                             .lock()
@@ -249,10 +254,13 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                             .send(ProvenanceResult::Declared(grant_id))
                                             .unwrap();
 
-                                        if timeout(Duration::from_millis(50), release).await.is_err() {
+                                        if timeout(Duration::from_millis(50), release)
+                                            .await
+                                            .is_err()
+                                        {
                                             #[cfg(feature = "verbose")]
                                             println!("⚠️  Reservation timeout Flow {}", grant_id);
-            
+
                                             // Remove flow release handle
                                             flows_release_handles.lock().await.remove(&grant_id);
 
@@ -265,11 +273,13 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                             // Todo: handle the result ?
 
                                             // Release remote stream
-                                            let _ = client.sync_provenance(Request::new(StreamProv {
-                                                local_socket: local_socket.to_string(),
-                                                peer_socket: peer_socket.to_string(),
-                                                provenance: Vec::new() // empty provenance to skip update and release remote stream
-                                            })).await;
+                                            let _ = client
+                                                .sync_provenance(Request::new(StreamProv {
+                                                    local_socket: local_socket.to_string(),
+                                                    peer_socket: peer_socket.to_string(),
+                                                    provenance: Vec::new(), // empty provenance to skip update and release remote stream
+                                                }))
+                                                .await;
                                         } else {
                                             #[cfg(feature = "verbose")]
                                             println!(
@@ -279,31 +289,31 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                                 id1.clone(),
                                                 id2.clone()
                                             );
-                                            let _ = client.sync_provenance(Request::new(StreamProv {
-                                                local_socket: local_socket.to_string(),
-                                                peer_socket: peer_socket.to_string(),
-                                                provenance: source_labels
-                                                    .get_prov()
-                                                    .into_iter()
-                                                    .map(Id::from)
-                                                    .collect(),
-                                            })).await; // Todo Sync failure management
+                                            let _ = client
+                                                .sync_provenance(Request::new(StreamProv {
+                                                    local_socket: local_socket.to_string(),
+                                                    peer_socket: peer_socket.to_string(),
+                                                    provenance: source_labels
+                                                        .get_prov()
+                                                        .into_iter()
+                                                        .map(Id::from)
+                                                        .collect(),
+                                                }))
+                                                .await; // Todo Sync failure management
                                         }
                                     }
-
                                 }
                             } else {
-                            // File IO Flow, or Input flow from Stream (Local procedure)
+                                // File IO Flow, or Input flow from Stream (Local procedure)
                                 let (source_labels, mut destination_labels) =
-                                    reserve_local_flow(output, &id1_container, &id2_container).await;
+                                    reserve_local_flow(output, &id1_container, &id2_container)
+                                        .await;
 
                                 let (release_callback, release) = oneshot::channel();
                                 flows_release_handles
                                     .lock()
                                     .await
                                     .insert(grant_id, release_callback);
-
-
 
                                 responder
                                     .send(ProvenanceResult::Declared(grant_id))
@@ -321,10 +331,10 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                 if timeout(Duration::from_millis(50), release).await.is_err() {
                                     #[cfg(feature = "verbose")]
                                     println!("⚠️  Reservation timeout Flow {}", grant_id);
-    
+
                                     // Remove flow release handle
                                     flows_release_handles.lock().await.remove(&grant_id);
-    
+
                                     // Try to kill the process that holds the reservation for too long,
                                     // to release the reservation safely
                                     let _ = std::process::Command::new("kill")
@@ -390,7 +400,9 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                     tokio::spawn(async move {
                         let mut stream_labels = id_container.write().await;
                         let (provenance_sender, provenance_receiver) = oneshot::channel();
-                        responder.send(ProvenanceResult::WaitingSync(provenance_sender)).unwrap();
+                        responder
+                            .send(ProvenanceResult::WaitingSync(provenance_sender))
+                            .unwrap();
 
                         match provenance_receiver.await {
                             Ok((provenance, callback)) => {
@@ -400,10 +412,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                             Err(_) => todo!(),
                         }
                         #[cfg(feature = "verbose")]
-                        println!(
-                            "🔽 Remote provenance sync on {:?}",
-                            id.clone(),
-                        );
+                        println!("🔽 Remote provenance sync on {:?}", id.clone(),);
                     });
                 } else {
                     responder

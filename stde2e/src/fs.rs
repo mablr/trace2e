@@ -1,9 +1,9 @@
+use crate::middleware::{LocalCt, GRPC_CLIENT, TOKIO_RUNTIME};
+use std::fs::canonicalize;
 use std::fs::File as StdFile;
 use std::fs::OpenOptions as StdOpenOptions;
-use std::fs::canonicalize;
 use std::os::fd::AsRawFd;
 use std::process::id;
-use crate::middleware::{LocalCt, GRPC_CLIENT, TOKIO_RUNTIME};
 
 fn middleware_request(path: String, fd: i32) -> Result<(), Box<dyn std::error::Error>> {
     let mut client = GRPC_CLIENT.clone();
@@ -37,7 +37,6 @@ impl File {
         let file = StdFile::create_new(path_ref)?;
         let _ = middleware_request(path_ref.display().to_string(), file.as_raw_fd());
         Ok(file)
-        
     }
     pub fn options() -> OpenOptions {
         OpenOptions::new()

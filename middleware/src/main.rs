@@ -1,6 +1,3 @@
-use tokio::sync::mpsc;
-use tonic::transport::Server;
-use tonic_reflection::server::Builder;
 use middleware::{
     identifier,
     m2m_service::{
@@ -13,6 +10,9 @@ use middleware::{
     },
     provenance::provenance_layer,
 };
+use tokio::sync::mpsc;
+use tonic::transport::Server;
+use tonic_reflection::server::Builder;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 

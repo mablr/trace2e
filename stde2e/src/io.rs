@@ -1,12 +1,14 @@
-use std::{io::{Error, ErrorKind}, process};
+use std::{
+    io::{Error, ErrorKind},
+    process,
+};
 
 use crate::middleware::{Flow, IoInfo, IoResult, GRPC_CLIENT, TOKIO_RUNTIME};
-
 
 fn middleware_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Error>> {
     let mut client = GRPC_CLIENT.clone();
 
-    let request = tonic::Request::new( IoInfo {
+    let request = tonic::Request::new(IoInfo {
         process_id: process::id(),
         file_descriptor: fd,
         flow,
@@ -18,10 +20,14 @@ fn middleware_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Err
     }
 }
 
-fn middleware_report(fd: i32, grant_id: u64, result: bool) -> Result<(), Box<dyn std::error::Error>> {
+fn middleware_report(
+    fd: i32,
+    grant_id: u64,
+    result: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let mut client = GRPC_CLIENT.clone();
 
-    let request = tonic::Request::new( IoResult {
+    let request = tonic::Request::new(IoResult {
         process_id: process::id(),
         file_descriptor: fd,
         grant_id,
@@ -88,7 +94,6 @@ pub trait Read: std::io::Read + std::os::fd::AsRawFd {
 
 impl<R: std::io::Read + std::os::fd::AsRawFd> Read for R {}
 
-
 pub trait Write: std::io::Write + std::os::fd::AsRawFd {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         if let Ok(grant_id) = middleware_request(self.as_raw_fd(), Flow::Output.into()) {
@@ -142,4 +147,3 @@ pub trait Write: std::io::Write + std::os::fd::AsRawFd {
 }
 
 impl<W: std::io::Write + std::os::fd::AsRawFd> Write for W {}
-

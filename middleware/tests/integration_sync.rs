@@ -1,6 +1,8 @@
 use std::process::Command;
 
-use middleware::p2m_service::p2m::{p2m_client::P2mClient, Ack, Flow, IoInfo, IoResult, LocalCt, RemoteCt};
+use middleware::p2m_service::p2m::{
+    p2m_client::P2mClient, Ack, Flow, IoInfo, IoResult, LocalCt, RemoteCt,
+};
 
 #[tokio::test]
 async fn integration_sync_write() -> Result<(), Box<dyn std::error::Error>> {
@@ -197,7 +199,7 @@ async fn integration_sync_stream() -> Result<(), Box<dyn std::error::Error>> {
         process_id: process1.id(),
         file_descriptor: 4,
         local_socket: "127.0.0.1:8081".to_string(),
-        peer_socket: "127.0.0.1:8082".to_string()
+        peer_socket: "127.0.0.1:8082".to_string(),
     });
     let peer_file_creation = tonic::Request::new(LocalCt {
         process_id: process2.id(),
@@ -208,12 +210,30 @@ async fn integration_sync_stream() -> Result<(), Box<dyn std::error::Error>> {
         process_id: process2.id(),
         file_descriptor: 6,
         local_socket: "127.0.0.1:8082".to_string(),
-        peer_socket: "127.0.0.1:8081".to_string()
+        peer_socket: "127.0.0.1:8081".to_string(),
     });
-    assert_eq!(client.local_enroll(local_file_creation).await?.into_inner(), Ack {});
-    assert_eq!(client.local_enroll(peer_file_creation).await?.into_inner(), Ack {});
-    assert_eq!(client.remote_enroll(localside_stream_creation).await?.into_inner(), Ack {});
-    assert_eq!(client.remote_enroll(peerside_stream_creation).await?.into_inner(), Ack {});
+    assert_eq!(
+        client.local_enroll(local_file_creation).await?.into_inner(),
+        Ack {}
+    );
+    assert_eq!(
+        client.local_enroll(peer_file_creation).await?.into_inner(),
+        Ack {}
+    );
+    assert_eq!(
+        client
+            .remote_enroll(localside_stream_creation)
+            .await?
+            .into_inner(),
+        Ack {}
+    );
+    assert_eq!(
+        client
+            .remote_enroll(peerside_stream_creation)
+            .await?
+            .into_inner(),
+        Ack {}
+    );
 
     // Process1 reads file
     let read_request1 = tonic::Request::new(IoInfo {

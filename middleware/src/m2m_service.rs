@@ -5,7 +5,7 @@ use crate::{
     identifier::Identifier,
     provenance::{ProvenanceAction, ProvenanceResult},
 };
-use m2m::{m2m_server::M2m, Ack, StreamProv, Stream};
+use m2m::{m2m_server::M2m, Ack, Stream, StreamProv};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tonic::{Request, Response, Status};
 
@@ -15,7 +15,14 @@ pub mod m2m {
 }
 
 pub struct M2mService {
-    synced_streams: Arc<Mutex<HashMap<Identifier, oneshot::Sender<(Vec<Identifier>, oneshot::Sender<ProvenanceResult>)>>>>,
+    synced_streams: Arc<
+        Mutex<
+            HashMap<
+                Identifier,
+                oneshot::Sender<(Vec<Identifier>, oneshot::Sender<ProvenanceResult>)>,
+            >,
+        >,
+    >,
     provenance: mpsc::Sender<ProvenanceAction>,
 }
 
@@ -54,14 +61,14 @@ impl M2m for M2mService {
         let (tx, rx) = oneshot::channel();
         let _ = self
             .provenance
-            .send(ProvenanceAction::SyncStream(
-                stream_id.clone(),
-                tx,
-            ))
+            .send(ProvenanceAction::SyncStream(stream_id.clone(), tx))
             .await;
         match rx.await.unwrap() {
             ProvenanceResult::WaitingSync(provenance_sync_channel) => {
-                self.synced_streams.lock().await.insert(stream_id, provenance_sync_channel);
+                self.synced_streams
+                    .lock()
+                    .await
+                    .insert(stream_id, provenance_sync_channel);
                 Ok(Response::new(Ack {}))
             }
             ProvenanceResult::Error(e) => Err(Status::from_error(Box::new(e))),
@@ -92,7 +99,8 @@ impl M2m for M2mService {
         let stream_id = Identifier::new_stream(peer_socket, local_socket);
 
         if let Some(provenance_sync_channel) = self.synced_streams.lock().await.remove(&stream_id) {
-            let provenance: Vec<Identifier> = r.provenance.into_iter().map(Identifier::from).collect();
+            let provenance: Vec<Identifier> =
+                r.provenance.into_iter().map(Identifier::from).collect();
 
             let (tx, rx) = oneshot::channel();
             let _ = provenance_sync_channel.send((provenance, tx));
@@ -102,10 +110,10 @@ impl M2m for M2mService {
                 _ => unreachable!(),
             }
         } else {
-            Err(Status::failed_precondition(format!("{:?} is not synced.", stream_id)))
+            Err(Status::failed_precondition(format!(
+                "{:?} is not synced.",
+                stream_id
+            )))
         }
-
-
-
     }
 }
