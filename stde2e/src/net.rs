@@ -42,9 +42,9 @@ impl TcpListener {
     }
 
     pub fn accept(&self) -> std::io::Result<(StdTcpStream, SocketAddr)> {
-        let (tcp_stream, local_socket) = self.0.accept()?;
-        let _ = middleware_request(tcp_stream.as_raw_fd(), local_socket.to_string(), tcp_stream.peer_addr()?.to_string());
-        Ok((tcp_stream, local_socket))
+        let (tcp_stream, socket) = self.0.accept()?;
+        let _ = middleware_request(tcp_stream.as_raw_fd(), tcp_stream.local_addr()?.to_string(), tcp_stream.peer_addr()?.to_string());
+        Ok((tcp_stream, socket))
     }
 
     pub fn incoming(&self) -> std::net::Incoming<'_> {
