@@ -6,9 +6,11 @@ pub enum ProvenanceError {
     /// Flow declaration failed because at least one of the given containers is
     /// not registered so far in the middleware.
     MissingRegistration(Identifier, Identifier),
-    /// Flow Declaration failed because the type of the given containers is
+    /// Flow declaration failed because the type of the given containers is
     /// not valid.
     InvalidFlow(Identifier, Identifier),
+    /// Flow declaration failed because it is not compliant.
+    ForbiddenFlow(Identifier, Identifier),
     /// Flow recording failed due to missing declaration/grant.
     RecordingFailure(u64),
     /// Remote Update of the provenance failed.
@@ -29,6 +31,13 @@ impl std::fmt::Display for ProvenanceError {
                 write!(
                     f,
                     "Provenance error: {:?}<->{:?} Flow is invalid.",
+                    id1, id2
+                )
+            }
+            ProvenanceError::ForbiddenFlow(id1, id2) => {
+                write!(
+                    f,
+                    "Provenance error: {:?}<->{:?} Flow is forbidden.",
                     id1, id2
                 )
             }

@@ -10,7 +10,7 @@ use tonic::Request;
 
 use crate::{
     identifier::Identifier,
-    labels::Labels,
+    labels::{Compliance, Labels, Provenance},
     m2m_service::m2m::{m2m_client::M2mClient, Id, Stream, StreamProv},
 };
 
@@ -283,7 +283,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                         } else {
                                             #[cfg(feature = "verbose")]
                                             println!(
-                                                "🔼  Flow {} Sync to {} ({:?} -> {:?})",
+                                                "🔼 Flow {} Sync to {} ({:?} -> {:?})",
                                                 grant_id,
                                                 peer_socket.ip(),
                                                 id1.clone(),
@@ -301,7 +301,11 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                                 }))
                                                 .await; // Todo Sync failure management
                                         }
+                                    } else {
+                                        todo!() // Sync failure between middlewares
                                     }
+                                } else {
+                                    todo!() // impossible to contact remote middleware
                                 }
                             } else {
                                 // File IO Flow, or Input flow from Stream (Local procedure)
@@ -309,58 +313,74 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                     reserve_local_flow(output, &id1_container, &id2_container)
                                         .await;
 
-                                let (release_callback, release) = oneshot::channel();
-                                flows_release_handles
-                                    .lock()
-                                    .await
-                                    .insert(grant_id, release_callback);
+                                if source_labels.is_flow_allowed(destination_labels.to_owned()) {
+                                    let (release_callback, release) = oneshot::channel();
+                                    flows_release_handles
+                                        .lock()
+                                        .await
+                                        .insert(grant_id, release_callback);
 
-                                responder
-                                    .send(ProvenanceResult::Declared(grant_id))
-                                    .unwrap();
+                                    responder
+                                        .send(ProvenanceResult::Declared(grant_id))
+                                        .unwrap();
 
-                                #[cfg(feature = "verbose")]
-                                println!(
-                                    "✅ Flow {} granted ({:?} {} {:?})",
-                                    grant_id,
-                                    id1.clone(),
-                                    if output { "->" } else { "<-" },
-                                    id2.clone()
-                                );
-
-                                if timeout(Duration::from_millis(50), release).await.is_err() {
-                                    #[cfg(feature = "verbose")]
-                                    println!("⚠️  Reservation timeout Flow {}", grant_id);
-
-                                    // Remove flow release handle
-                                    flows_release_handles.lock().await.remove(&grant_id);
-
-                                    // Try to kill the process that holds the reservation for too long,
-                                    // to release the reservation safely
-                                    let _ = std::process::Command::new("kill")
-                                        .arg("-9")
-                                        .arg(pid.to_string())
-                                        .status();
-                                    // Todo: handle the result ?
-                                } else {
-                                    // Record flow locally if it is not an output to a stream
                                     #[cfg(feature = "verbose")]
                                     println!(
-                                        "⏺️  Flow {} recording ({:?} {} {:?})",
+                                        "✅ Flow {} granted ({:?} {} {:?})",
                                         grant_id,
                                         id1.clone(),
                                         if output { "->" } else { "<-" },
                                         id2.clone()
                                     );
-                                    destination_labels.update_prov(&source_labels);
+
+                                    if timeout(Duration::from_millis(50), release).await.is_err() {
+                                        #[cfg(feature = "verbose")]
+                                        println!("⚠️  Reservation timeout Flow {}", grant_id);
+
+                                        // Remove flow release handle
+                                        flows_release_handles.lock().await.remove(&grant_id);
+
+                                        // Try to kill the process that holds the reservation for too long,
+                                        // to release the reservation safely
+                                        let _ = std::process::Command::new("kill")
+                                            .arg("-9")
+                                            .arg(pid.to_string())
+                                            .status();
+                                        // Todo: handle the result ?
+                                    } else {
+                                        // Record flow locally if it is not an output to a stream
+                                        #[cfg(feature = "verbose")]
+                                        println!(
+                                            "⏺️  Flow {} recording ({:?} {} {:?})",
+                                            grant_id,
+                                            id1.clone(),
+                                            if output { "->" } else { "<-" },
+                                            id2.clone()
+                                        );
+                                        destination_labels.update_prov(&source_labels);
+                                        #[cfg(feature = "verbose")]
+                                        println!(
+                                            "🆕 Provenance: {{{:?}: {:?},  {:?}: {:?}}}",
+                                            if output { id1.clone() } else { id2.clone() },
+                                            source_labels.get_prov(),
+                                            if output { id2.clone() } else { id1.clone() },
+                                            destination_labels.get_prov(),
+                                        );
+                                    }
+                                } else {
                                     #[cfg(feature = "verbose")]
                                     println!(
-                                        "🆕 Provenance: {{{:?}: {:?},  {:?}: {:?}}}",
-                                        if output { id1.clone() } else { id2.clone() },
-                                        source_labels.get_prov(),
-                                        if output { id2.clone() } else { id1.clone() },
-                                        destination_labels.get_prov(),
+                                        "⛔ Flow {} refused ({:?} {} {:?})",
+                                        grant_id,
+                                        id1.clone(),
+                                        if output { "->" } else { "<-" },
+                                        id2.clone()
                                     );
+                                    responder
+                                        .send(ProvenanceResult::Error(
+                                            ProvenanceError::ForbiddenFlow(id1, id2),
+                                        ))
+                                        .unwrap();
                                 }
                             }
 
