@@ -1,4 +1,4 @@
-///! Provenance layer module.
+///! Traceability server module.
 ///!
 ///!
 use std::{collections::HashMap, sync::Arc, time::Duration};
@@ -44,7 +44,7 @@ async fn reserve_local_flow<'a>(
     }
 }
 
-/// This asynchronous function is responsible of provenance tracking, it
+/// This asynchronous function is responsible of traceability tracking, it
 /// provides a global consistent provenance state in a fully asynchronous
 /// paradigm.
 ///
@@ -102,7 +102,7 @@ async fn reserve_local_flow<'a>(
 /// by a process, with its peer container which is not a process.
 ///
 /// During a data flow, the source container is read and the destination
-/// container is written. The provenance layer propagates the provenance
+/// container is written. The traceability server propagates the provenance
 /// information by locking the corresponding pair of `Labels` objects.
 ///
 /// By wrapping each `Labels` object in a [`RwLock`][tokio::sync::RwLock],
@@ -148,12 +148,12 @@ async fn reserve_local_flow<'a>(
 /// async fn main() {
 ///     let (sender, receiver) = mpsc::channel(32);
 ///
-///     // Spawn the provenance layer to handle messages
+///     // Spawn the traceability server to handle messages
 ///     tokio::spawn(async move {
 ///         traceability_server(receiver).await;
 ///     });
 ///
-///     // Example sending messages to the provenance layer
+///     // Example sending message to the traceability server
 ///     let (tx, rx) = oneshot::channel();
 ///     sender.send(TraceabilityRequest::RegisterContainer(Identifier::File("/path/to/file"), rx)).await.unwrap();
 ///     rx.await.unwrap();
@@ -162,7 +162,7 @@ async fn reserve_local_flow<'a>(
 ///
 /// # Notes
 /// This function provides verbose logging (enabled with "verbose" feature flag)
-/// for a live view of the provenance layer operations.
+/// for a live view of the traceability server operations.
 ///
 /// [`tokio`]: https://docs.rs/tokio
 pub async fn traceability_server(mut receiver: mpsc::Receiver<TraceabilityRequest>) {
