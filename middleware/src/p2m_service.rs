@@ -2,7 +2,7 @@
 
 use crate::{
     identifier::Identifier,
-    provenance::{ProvenanceAction, ProvenanceResult},
+    traceability::{TraceabilityRequest, TraceabilityResponse},
 };
 use p2m::{p2m_server::P2m, Ack, Flow, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
 use procfs::process::Process;
@@ -21,14 +21,14 @@ pub mod p2m {
 #[derive(Debug)]
 pub struct P2mService {
     identifiers_map: Arc<RwLock<HashMap<(u32, i32), Identifier>>>,
-    provenance: mpsc::Sender<ProvenanceAction>,
+    provenance: mpsc::Sender<TraceabilityRequest>,
 }
 
 impl P2mService {
-    pub fn new(provenance_layer: mpsc::Sender<ProvenanceAction>) -> Self {
+    pub fn new(traceability_server: mpsc::Sender<TraceabilityRequest>) -> Self {
         P2mService {
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
-            provenance: provenance_layer,
+            provenance: traceability_server,
         }
     }
 }
@@ -68,14 +68,17 @@ impl P2m for P2mService {
         let (tx, rx) = oneshot::channel();
         let _ = self
             .provenance
-            .send(ProvenanceAction::RegisterContainer(process_identifier, tx))
+            .send(TraceabilityRequest::RegisterContainer(
+                process_identifier,
+                tx,
+            ))
             .await;
         rx.await.unwrap();
 
         let (tx, rx) = oneshot::channel();
         let _ = self
             .provenance
-            .send(ProvenanceAction::RegisterContainer(
+            .send(TraceabilityRequest::RegisterContainer(
                 resource_identifier.clone(),
                 tx,
             ))
@@ -169,14 +172,20 @@ impl P2m for P2mService {
         let (tx, rx) = oneshot::channel();
         let _ = self
             .provenance
-            .send(ProvenanceAction::RegisterContainer(process_identifier, tx))
+            .send(TraceabilityRequest::RegisterContainer(
+                process_identifier,
+                tx,
+            ))
             .await;
         rx.await.unwrap();
 
         let (tx, rx) = oneshot::channel();
         let _ = self
             .provenance
-            .send(ProvenanceAction::RegisterContainer(identifier.clone(), tx))
+            .send(TraceabilityRequest::RegisterContainer(
+                identifier.clone(),
+                tx,
+            ))
             .await;
         rx.await.unwrap();
 
@@ -232,7 +241,7 @@ impl P2m for P2mService {
             let _ = match r.flow {
                 flow_type if flow_type == Flow::Input.into() => {
                     self.provenance
-                        .send(ProvenanceAction::DeclareFlow(
+                        .send(TraceabilityRequest::DeclareFlow(
                             process_identifier.clone(),
                             resource_identifier.clone(),
                             false,
@@ -242,7 +251,7 @@ impl P2m for P2mService {
                 }
                 flow_type if flow_type == Flow::Output.into() => {
                     self.provenance
-                        .send(ProvenanceAction::DeclareFlow(
+                        .send(TraceabilityRequest::DeclareFlow(
                             process_identifier.clone(),
                             resource_identifier.clone(),
                             true,
@@ -254,8 +263,8 @@ impl P2m for P2mService {
             };
 
             let grant_id = match rx.await.unwrap() {
-                ProvenanceResult::Declared(grant_id) => grant_id,
-                ProvenanceResult::Error(e) => {
+                TraceabilityResponse::Declared(grant_id) => grant_id,
+                TraceabilityResponse::Error(e) => {
                     error!("{}", e);
 
                     return Err(Status::from_error(Box::new(e)));
@@ -310,10 +319,10 @@ impl P2m for P2mService {
             let (tx, rx) = oneshot::channel();
             let _ = self
                 .provenance
-                .send(ProvenanceAction::RecordFlow(r.grant_id, tx))
+                .send(TraceabilityRequest::RecordFlow(r.grant_id, tx))
                 .await;
             match rx.await.unwrap() {
-                ProvenanceResult::Recorded => {
+                TraceabilityResponse::Recorded => {
                     info!(
                         "PID: {} | FD: {} | done in {:?} | {:?}",
                         r.process_id,
@@ -324,7 +333,7 @@ impl P2m for P2mService {
 
                     Ok(Response::new(Ack {}))
                 }
-                ProvenanceResult::Error(e) => {
+                TraceabilityResponse::Error(e) => {
                     error!("{}", e);
 
                     Err(Status::from_error(Box::new(e)))
@@ -349,14 +358,14 @@ impl P2m for P2mService {
 mod tests {
     use std::process::Command;
 
-    use crate::provenance::provenance_layer;
+    use crate::traceability::traceability_server;
 
     use super::*;
 
     #[tokio::test]
     async fn unit_p2m_enroll_failure() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(provenance_layer(receiver));
+        tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -433,7 +442,7 @@ mod tests {
     #[tokio::test]
     async fn unit_p2m_io_request_dead_process() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(provenance_layer(receiver));
+        tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -467,7 +476,7 @@ mod tests {
     #[tokio::test]
     async fn unit_p2m_io_request_unsupported_flow_type() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(provenance_layer(receiver));
+        tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -495,7 +504,7 @@ mod tests {
     #[tokio::test]
     async fn unit_p2m_io_request_not_enrolled() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(provenance_layer(receiver));
+        tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -527,7 +536,7 @@ mod tests {
     #[tokio::test]
     async fn unit_p2m_io_report_not_enrolled() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(provenance_layer(receiver));
+        tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -560,7 +569,7 @@ mod tests {
     #[tokio::test]
     async fn unit_p2m_scenario_file_write() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(provenance_layer(receiver));
+        tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -599,7 +608,7 @@ mod tests {
     #[tokio::test]
     async fn unit_p2m_scenario_file_read() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(provenance_layer(receiver));
+        tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 
@@ -638,7 +647,7 @@ mod tests {
     #[tokio::test]
     async fn unit_p2m_scenario_stream_read() -> Result<(), Box<dyn std::error::Error>> {
         let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(provenance_layer(receiver));
+        tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
 

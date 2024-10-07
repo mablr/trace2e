@@ -8,7 +8,7 @@ use middleware::{
         p2m::{p2m_server::P2mServer, P2M_DESCRIPTOR_SET},
         P2mService,
     },
-    provenance::provenance_layer,
+    traceability::traceability_server,
 };
 use tokio::sync::mpsc;
 use tonic::transport::Server;
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let (sender, receiver) = mpsc::channel(32);
 
-    tokio::spawn(provenance_layer(receiver));
+    tokio::spawn(traceability_server(receiver));
 
     let address = "[::]:8080".parse().unwrap();
     let p2m_service = P2mService::new(sender.clone());

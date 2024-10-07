@@ -3,7 +3,7 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use crate::{
     identifier::Identifier,
-    provenance::{ProvenanceAction, ProvenanceResult},
+    traceability::{TraceabilityRequest, TraceabilityResponse},
 };
 use m2m::{m2m_server::M2m, Ack, Stream, StreamProv};
 use tokio::sync::{mpsc, oneshot, Mutex};
@@ -19,15 +19,15 @@ pub struct M2mService {
         Mutex<
             HashMap<
                 Identifier,
-                oneshot::Sender<(Vec<Identifier>, oneshot::Sender<ProvenanceResult>)>,
+                oneshot::Sender<(Vec<Identifier>, oneshot::Sender<TraceabilityResponse>)>,
             >,
         >,
     >,
-    provenance: mpsc::Sender<ProvenanceAction>,
+    provenance: mpsc::Sender<TraceabilityRequest>,
 }
 
 impl M2mService {
-    pub fn new(provenance_layer: mpsc::Sender<ProvenanceAction>) -> Self {
+    pub fn new(provenance_layer: mpsc::Sender<TraceabilityRequest>) -> Self {
         M2mService {
             synced_streams: Arc::new(Mutex::new(HashMap::new())),
             provenance: provenance_layer,
@@ -61,17 +61,17 @@ impl M2m for M2mService {
         let (tx, rx) = oneshot::channel();
         let _ = self
             .provenance
-            .send(ProvenanceAction::SyncStream(stream_id.clone(), tx))
+            .send(TraceabilityRequest::SyncStream(stream_id.clone(), tx))
             .await;
         match rx.await.unwrap() {
-            ProvenanceResult::WaitingSync(provenance_sync_channel) => {
+            TraceabilityResponse::WaitingSync(provenance_sync_channel) => {
                 self.synced_streams
                     .lock()
                     .await
                     .insert(stream_id, provenance_sync_channel);
                 Ok(Response::new(Ack {}))
             }
-            ProvenanceResult::Error(e) => Err(Status::from_error(Box::new(e))),
+            TraceabilityResponse::Error(e) => Err(Status::from_error(Box::new(e))),
             _ => unreachable!(),
         }
     }
@@ -105,8 +105,8 @@ impl M2m for M2mService {
             let (tx, rx) = oneshot::channel();
             let _ = provenance_sync_channel.send((provenance, tx));
             match rx.await.unwrap() {
-                ProvenanceResult::Recorded => Ok(Response::new(Ack {})),
-                ProvenanceResult::Error(e) => Err(Status::from_error(Box::new(e))),
+                TraceabilityResponse::Recorded => Ok(Response::new(Ack {})),
+                TraceabilityResponse::Error(e) => Err(Status::from_error(Box::new(e))),
                 _ => unreachable!(),
             }
         } else {

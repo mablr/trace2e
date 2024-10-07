@@ -14,7 +14,7 @@ use crate::{
     m2m_service::m2m::{m2m_client::M2mClient, Id, Stream, StreamProv},
 };
 
-use super::ProvenanceError;
+use super::{TraceabilityError, TraceabilityRequest, TraceabilityResponse};
 
 /// This function checks if the flow involves one process and one non-process
 /// containers, if so the process ID is returned.
@@ -44,45 +44,12 @@ async fn reserve_local_flow<'a>(
     }
 }
 
-/// Provenance layer response message type.
-#[derive(Debug)]
-pub enum ProvenanceResult {
-    Registered,
-    Declared(u64),
-    Recorded,
-    Error(ProvenanceError),
-    WaitingSync(oneshot::Sender<(Vec<Identifier>, oneshot::Sender<ProvenanceResult>)>),
-}
-
-impl ProvenanceResult {
-    /// Returns `true` if the provenance result is [`WaitingSync`].
-    ///
-    /// [`WaitingSync`]: ProvenanceResult::WaitingSync
-    #[must_use]
-    pub fn is_waiting_sync(&self) -> bool {
-        matches!(self, Self::WaitingSync(..))
-    }
-}
-
-/// Provenance layer request message type.
-pub enum ProvenanceAction {
-    RegisterContainer(Identifier, oneshot::Sender<ProvenanceResult>),
-    DeclareFlow(
-        Identifier,
-        Identifier,
-        bool,
-        oneshot::Sender<ProvenanceResult>,
-    ),
-    RecordFlow(u64, oneshot::Sender<ProvenanceResult>),
-    SyncStream(Identifier, oneshot::Sender<ProvenanceResult>),
-}
-
 /// This asynchronous function is responsible of provenance tracking, it
 /// provides a global consistent provenance state in a fully asynchronous
 /// paradigm.
 ///
 /// To do so, it listens to a [`tokio`] mpsc channel for incoming
-/// [`ProvenanceAction`] messages and processes them accordingly.
+/// [`TraceabilityRequest`] messages and processes them accordingly.
 ///
 /// It manages the registration of containers, declaration of flows between
 /// registered containers, and recording of flows.
@@ -95,34 +62,34 @@ pub enum ProvenanceAction {
 /// # Parameters
 ///
 /// - `receiver`: A mutable [`mpsc::Receiver`] that listens for incoming
-/// [`ProvenanceAction`] messages.
+/// [`TraceabilityRequest`] messages.
 ///
 /// # Behavior
 ///
 /// The function handles 3 different actions matched with the variants of the
-/// [`ProvenanceAction`] enum:
+/// [`TraceabilityRequest`] enum:
 ///
-/// 1. [`ProvenanceAction::RegisterContainer`]:
+/// 1. [`TraceabilityRequest::RegisterContainer`]:
 ///    - Registers a new container identified by a unique [`Identifier`] object
 ///     if it is a File or a Process and not already registered (overwritting
 ///     forbidden), else if it is a Stream (overwritting allowed).
-///    - Sends a `ProvenanceResult::Registered` back through the responder once
+///    - Sends a `TraceabilityResponse::Registered` back through the responder once
 ///     the registration is successful.
 ///
-/// 2. [`ProvenanceAction::DeclareFlow`]:
+/// 2. [`TraceabilityRequest::DeclareFlow`]:
 ///    - Validates the flow : checks if the involved containers are registered,
 ///     and if the containers types are valid.
 ///    - If the flow is valid, it spawns an asynchronous task to manage the flow
 ///     reservation (see [Flow reservation
 ///     mechanism](#flow-reservation-mechanism) for more details).
 ///
-/// 3. [`ProvenanceAction::RecordFlow`]:
+/// 3. [`TraceabilityRequest::RecordFlow`]:
 ///    - If the grant ID is found, it sends a signal to the task that holds the
 ///     corresponding flow reservation to record the flow in the provenance,
 ///     then to drop then the reservation of the containers and it returns a
-///     [`ProvenanceResult::Recorded`] message.
-///    - Otherwise, it returns a [`ProvenanceResult`] containing to following
-///     error [`ProvenanceError::RecordingFailure`].
+///     [`TraceabilityResponse::Recorded`] message.
+///    - Otherwise, it returns a [`TraceabilityResponse`] containing to following
+///     error [`TraceabilityError::RecordingFailure`].
 ///
 /// # Flow reservation mechanism
 ///
@@ -153,7 +120,7 @@ pub enum ProvenanceAction {
 /// object of the oneshot channel is stored in a hashmap with the newly
 /// generated grant ID as key.
 ///
-/// A message `ProvenanceResult::Declared` with a unique grant ID confirming the
+/// A message `TraceabilityResponse::Declared` with a unique grant ID confirming the
 /// reservation is sent, and the task waits for the flow confirmation message on
 /// the oneshot channel.
 ///
@@ -171,7 +138,7 @@ pub enum ProvenanceAction {
 /// # Example Usage
 ///
 /// This function is designed to be spawned once, typically within a Tokio
-/// runtime. It continuously listens for [`ProvenanceAction`] messages and
+/// runtime. It continuously listens for [`TraceabilityRequest`] messages and
 /// processes them based on their variant.
 ///
 /// ```rust
@@ -183,12 +150,12 @@ pub enum ProvenanceAction {
 ///
 ///     // Spawn the provenance layer to handle messages
 ///     tokio::spawn(async move {
-///         provenance_layer(receiver).await;
+///         traceability_server(receiver).await;
 ///     });
 ///
 ///     // Example sending messages to the provenance layer
 ///     let (tx, rx) = oneshot::channel();
-///     sender.send(ProvenanceAction::RegisterContainer(Identifier::File("/path/to/file"), rx)).await.unwrap();
+///     sender.send(TraceabilityRequest::RegisterContainer(Identifier::File("/path/to/file"), rx)).await.unwrap();
 ///     rx.await.unwrap();
 /// }
 /// ```
@@ -198,23 +165,23 @@ pub enum ProvenanceAction {
 /// for a live view of the provenance layer operations.
 ///
 /// [`tokio`]: https://docs.rs/tokio
-pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
+pub async fn traceability_server(mut receiver: mpsc::Receiver<TraceabilityRequest>) {
     let mut containers = HashMap::new();
     let grant_counter: Arc<Mutex<u64>> = Arc::new(Mutex::new(0));
     let flows_release_handles = Arc::new(Mutex::new(HashMap::new()));
 
     while let Some(message) = receiver.recv().await {
         match message {
-            ProvenanceAction::RegisterContainer(identifier, responder) => {
+            TraceabilityRequest::RegisterContainer(identifier, responder) => {
                 if !containers.contains_key(&identifier) || identifier.is_stream().is_some() {
                     containers.insert(
                         identifier.clone(),
                         Arc::new(RwLock::new(Labels::new(identifier.clone()))),
                     );
                 }
-                responder.send(ProvenanceResult::Registered).unwrap();
+                responder.send(TraceabilityResponse::Registered).unwrap();
             }
-            ProvenanceAction::DeclareFlow(id1, id2, output, responder) => {
+            TraceabilityRequest::DeclareFlow(id1, id2, output, responder) => {
                 if let Some(pid) = validate_flow(id1.clone(), id2.clone()) {
                     if let (Some(id1_container), Some(id2_container)) =
                         (containers.get(&id1).cloned(), containers.get(&id2).cloned())
@@ -251,7 +218,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                             .insert(grant_id, release_callback);
 
                                         responder
-                                            .send(ProvenanceResult::Declared(grant_id))
+                                            .send(TraceabilityResponse::Declared(grant_id))
                                             .unwrap();
 
                                         if timeout(Duration::from_millis(50), release)
@@ -321,7 +288,7 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                         .insert(grant_id, release_callback);
 
                                     responder
-                                        .send(ProvenanceResult::Declared(grant_id))
+                                        .send(TraceabilityResponse::Declared(grant_id))
                                         .unwrap();
 
                                     #[cfg(feature = "verbose")]
@@ -377,8 +344,8 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                                         id2.clone()
                                     );
                                     responder
-                                        .send(ProvenanceResult::Error(
-                                            ProvenanceError::ForbiddenFlow(id1, id2),
+                                        .send(TraceabilityResponse::Error(
+                                            TraceabilityError::ForbiddenFlow(id1, id2),
                                         ))
                                         .unwrap();
                                 }
@@ -389,45 +356,45 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                         });
                     } else {
                         responder
-                            .send(ProvenanceResult::Error(
-                                ProvenanceError::MissingRegistration(id1, id2),
+                            .send(TraceabilityResponse::Error(
+                                TraceabilityError::MissingRegistration(id1, id2),
                             ))
                             .unwrap();
                     }
                 } else {
                     responder
-                        .send(ProvenanceResult::Error(ProvenanceError::InvalidFlow(
+                        .send(TraceabilityResponse::Error(TraceabilityError::InvalidFlow(
                             id1, id2,
                         )))
                         .unwrap();
                 }
             }
-            ProvenanceAction::RecordFlow(grant_id, responder) => {
+            TraceabilityRequest::RecordFlow(grant_id, responder) => {
                 if let Some(release_handle) = flows_release_handles.lock().await.remove(&grant_id) {
                     release_handle.send(()).unwrap();
                     // No wait for release feedback, the consistency is guaranted by RwLock<> structure properties.
-                    responder.send(ProvenanceResult::Recorded).unwrap();
+                    responder.send(TraceabilityResponse::Recorded).unwrap();
                 } else {
                     responder
-                        .send(ProvenanceResult::Error(ProvenanceError::RecordingFailure(
-                            grant_id,
-                        )))
+                        .send(TraceabilityResponse::Error(
+                            TraceabilityError::RecordingFailure(grant_id),
+                        ))
                         .unwrap();
                 }
             }
-            ProvenanceAction::SyncStream(id, responder) => {
+            TraceabilityRequest::SyncStream(id, responder) => {
                 if let Some(id_container) = id.is_stream().and(containers.get(&id)).cloned() {
                     tokio::spawn(async move {
                         let mut stream_labels = id_container.write().await;
                         let (provenance_sender, provenance_receiver) = oneshot::channel();
                         responder
-                            .send(ProvenanceResult::WaitingSync(provenance_sender))
+                            .send(TraceabilityResponse::WaitingSync(provenance_sender))
                             .unwrap();
 
                         match provenance_receiver.await {
                             Ok((provenance, callback)) => {
                                 stream_labels.set_prov(provenance);
-                                let _ = callback.send(ProvenanceResult::Recorded);
+                                let _ = callback.send(TraceabilityResponse::Recorded);
                             }
                             Err(_) => todo!(),
                         }
@@ -436,7 +403,9 @@ pub async fn provenance_layer(mut receiver: mpsc::Receiver<ProvenanceAction>) {
                     });
                 } else {
                     responder
-                        .send(ProvenanceResult::Error(ProvenanceError::SyncFailure(id)))
+                        .send(TraceabilityResponse::Error(TraceabilityError::SyncFailure(
+                            id,
+                        )))
                         .unwrap();
                 }
             }

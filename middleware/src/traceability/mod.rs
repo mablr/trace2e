@@ -4,9 +4,11 @@
 //! state at the system level with a fully asynchronous paradigm using message
 //! passing.
 mod error;
-mod layer;
+mod message;
+mod server;
 #[cfg(test)]
 mod tests;
 
-pub use error::ProvenanceError;
-pub use layer::{provenance_layer, ProvenanceAction, ProvenanceResult};
+pub use error::TraceabilityError;
+pub use message::{TraceabilityRequest, TraceabilityResponse};
+pub use server::traceability_server;

@@ -11,49 +11,49 @@ use crate::identifier::Identifier;
 use super::*;
 
 #[tokio::test]
-async fn unit_provenance_layer_declare_flow() -> Result<(), Box<dyn std::error::Error>> {
+async fn unit_traceability_server_declare_flow() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
 
-    tokio::spawn(provenance_layer(receiver));
+    tokio::spawn(traceability_server(receiver));
 
     let id1 = Identifier::new_process(1, 1);
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id1.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id2.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id2.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::DeclareFlow(id1, id2, true, tx))
+        .send(TraceabilityRequest::DeclareFlow(id1, id2, true, tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Declared(_) => (),
+        TraceabilityResponse::Declared(_) => (),
         _ => panic!("Flow was expected to be declared successfully."),
     };
     Ok(())
 }
 
 #[tokio::test]
-async fn unit_provenance_layer_declare_missing_container() -> Result<(), Box<dyn std::error::Error>>
-{
+async fn unit_traceability_server_declare_missing_container(
+) -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
 
-    tokio::spawn(provenance_layer(receiver));
+    tokio::spawn(traceability_server(receiver));
 
     let id1 = Identifier::new_process(1, 1);
     let id2 = Identifier::new_process(2, 1);
@@ -61,16 +61,16 @@ async fn unit_provenance_layer_declare_missing_container() -> Result<(), Box<dyn
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id1.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::DeclareFlow(
+        .send(TraceabilityRequest::DeclareFlow(
             id1.clone(),
             id3.clone(),
             false,
@@ -78,7 +78,7 @@ async fn unit_provenance_layer_declare_missing_container() -> Result<(), Box<dyn
         ))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Error(e) => {
+        TraceabilityResponse::Error(e) => {
             assert_eq!(
                 format!("{}", e),
                 format!(
@@ -93,7 +93,7 @@ async fn unit_provenance_layer_declare_missing_container() -> Result<(), Box<dyn
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::DeclareFlow(
+        .send(TraceabilityRequest::DeclareFlow(
             id2.clone(),
             id3.clone(),
             false,
@@ -101,7 +101,7 @@ async fn unit_provenance_layer_declare_missing_container() -> Result<(), Box<dyn
         ))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Error(e) => {
+        TraceabilityResponse::Error(e) => {
             assert_eq!(
                 format!("{}", e),
                 format!(
@@ -118,35 +118,35 @@ async fn unit_provenance_layer_declare_missing_container() -> Result<(), Box<dyn
 }
 
 #[tokio::test]
-async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std::error::Error>> {
+async fn unit_traceability_server_declare_invalid_flow() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
 
-    tokio::spawn(provenance_layer(receiver));
+    tokio::spawn(traceability_server(receiver));
 
     let id1 = Identifier::new_process(1, 1);
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id1.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id2.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id2.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::DeclareFlow(
+        .send(TraceabilityRequest::DeclareFlow(
             id1.clone(),
             id1.clone(),
             true,
@@ -154,7 +154,7 @@ async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std:
         ))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Error(e) => {
+        TraceabilityResponse::Error(e) => {
             assert_eq!(
                 format!("{}", e),
                 format!(
@@ -169,7 +169,7 @@ async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std:
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::DeclareFlow(
+        .send(TraceabilityRequest::DeclareFlow(
             id2.clone(),
             id2.clone(),
             true,
@@ -177,7 +177,7 @@ async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std:
         ))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Error(e) => {
+        TraceabilityResponse::Error(e) => {
             assert_eq!(
                 format!("{}", e),
                 format!(
@@ -194,62 +194,62 @@ async fn unit_provenance_layer_declare_invalid_flow() -> Result<(), Box<dyn std:
 }
 
 #[tokio::test]
-async fn unit_provenance_layer_record() -> Result<(), Box<dyn std::error::Error>> {
+async fn unit_traceability_server_record() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
 
-    tokio::spawn(provenance_layer(receiver));
+    tokio::spawn(traceability_server(receiver));
 
     let id1 = Identifier::new_process(1, 1);
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id1.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id2.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id2.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::DeclareFlow(id1, id2, true, tx))
+        .send(TraceabilityRequest::DeclareFlow(id1, id2, true, tx))
         .await?;
     let grant_id = match rx.await.unwrap() {
-        ProvenanceResult::Declared(grant_id) => grant_id,
+        TraceabilityResponse::Declared(grant_id) => grant_id,
         _ => panic!("Flow was expected to be declared successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RecordFlow(grant_id, tx))
+        .send(TraceabilityRequest::RecordFlow(grant_id, tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Recorded => (),
+        TraceabilityResponse::Recorded => (),
         _ => panic!("Flow was expected to be recorded successfully."),
     };
     Ok(())
 }
 
 #[tokio::test]
-async fn unit_provenance_layer_record_failure() -> Result<(), Box<dyn std::error::Error>> {
+async fn unit_traceability_server_record_failure() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
 
-    tokio::spawn(provenance_layer(receiver));
+    tokio::spawn(traceability_server(receiver));
 
     let (tx, rx) = oneshot::channel();
-    sender.send(ProvenanceAction::RecordFlow(0, tx)).await?;
+    sender.send(TraceabilityRequest::RecordFlow(0, tx)).await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Error(e) => {
+        TraceabilityResponse::Error(e) => {
             assert_eq!(
                 format!("{}", e),
                 "Provenance error: unable to record Flow 0."
@@ -261,34 +261,34 @@ async fn unit_provenance_layer_record_failure() -> Result<(), Box<dyn std::error
 }
 
 #[tokio::test]
-async fn unit_provenance_layer_declare_flow_delayed() -> Result<(), Box<dyn std::error::Error>> {
+async fn unit_traceability_server_declare_flow_delayed() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
 
-    tokio::spawn(provenance_layer(receiver));
+    tokio::spawn(traceability_server(receiver));
 
     let id1 = Identifier::new_process(1, 1);
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id1.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id2.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id2.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
     let (tx1, rx1) = oneshot::channel();
     sender
-        .send(ProvenanceAction::DeclareFlow(
+        .send(TraceabilityRequest::DeclareFlow(
             id1.clone(),
             id2.clone(),
             false,
@@ -297,7 +297,7 @@ async fn unit_provenance_layer_declare_flow_delayed() -> Result<(), Box<dyn std:
         .await?;
     let (tx2, rx2) = oneshot::channel();
     sender
-        .send(ProvenanceAction::DeclareFlow(
+        .send(TraceabilityRequest::DeclareFlow(
             id1.clone(),
             id2.clone(),
             true,
@@ -306,7 +306,7 @@ async fn unit_provenance_layer_declare_flow_delayed() -> Result<(), Box<dyn std:
         .await?;
 
     match rx1.await.unwrap() {
-        ProvenanceResult::Declared(_) => (),
+        TraceabilityResponse::Declared(_) => (),
         _ => panic!("Flow was expected to be declared successfully."),
     }
     match timeout(Duration::from_millis(1), rx2).await {
@@ -318,9 +318,9 @@ async fn unit_provenance_layer_declare_flow_delayed() -> Result<(), Box<dyn std:
 }
 
 #[tokio::test]
-async fn unit_provenance_layer_forced_release() -> Result<(), Box<dyn std::error::Error>> {
+async fn unit_traceability_server_forced_release() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
-    tokio::spawn(provenance_layer(receiver));
+    tokio::spawn(traceability_server(receiver));
 
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
     let process_starttime = match Process::new(process.id().try_into().unwrap())
@@ -337,34 +337,34 @@ async fn unit_provenance_layer_forced_release() -> Result<(), Box<dyn std::error
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id1.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id2.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id2.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx, rx) = oneshot::channel();
     sender
-        .send(ProvenanceAction::RegisterContainer(id3.clone(), tx))
+        .send(TraceabilityRequest::RegisterContainer(id3.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        ProvenanceResult::Registered => (),
+        TraceabilityResponse::Registered => (),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
     let (tx1, rx1) = oneshot::channel();
     sender
-        .send(ProvenanceAction::DeclareFlow(
+        .send(TraceabilityRequest::DeclareFlow(
             id1.clone(),
             id2.clone(),
             false,
@@ -373,7 +373,7 @@ async fn unit_provenance_layer_forced_release() -> Result<(), Box<dyn std::error
         .await?;
     let (tx2, rx2) = oneshot::channel();
     sender
-        .send(ProvenanceAction::DeclareFlow(
+        .send(TraceabilityRequest::DeclareFlow(
             id3.clone(),
             id2.clone(),
             true,
@@ -382,13 +382,13 @@ async fn unit_provenance_layer_forced_release() -> Result<(), Box<dyn std::error
         .await?;
 
     match rx1.await.unwrap() {
-        ProvenanceResult::Declared(_) => (),
+        TraceabilityResponse::Declared(_) => (),
         _ => panic!("Flow was expected to be declared successfully."),
     }
 
     // This will make the previous reservation reach timeout.
     match rx2.await.unwrap() {
-        ProvenanceResult::Declared(_) => (),
+        TraceabilityResponse::Declared(_) => (),
         _ => panic!("Flow was expected to be declared successfully."),
     }
 
