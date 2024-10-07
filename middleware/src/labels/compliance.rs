@@ -7,11 +7,11 @@ pub enum ConfidentialityLabel {
 }
 
 pub trait Compliance {
-    fn is_flow_allowed(&self, destination: Self) -> bool;
+    fn is_compliant(&self, destination: Self) -> bool;
 }
 
 impl Compliance for Labels {
-    fn is_flow_allowed(&self, destination: Self) -> bool {
+    fn is_compliant(&self, destination: Self) -> bool {
         match self.confidentiality {
             ConfidentialityLabel::Low => true,
             ConfidentialityLabel::High => destination.confidentiality == ConfidentialityLabel::High,

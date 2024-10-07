@@ -280,7 +280,7 @@ pub async fn traceability_server(mut receiver: mpsc::Receiver<TraceabilityReques
                                     reserve_local_flow(output, &id1_container, &id2_container)
                                         .await;
 
-                                if source_labels.is_flow_allowed(destination_labels.to_owned()) {
+                                if source_labels.is_compliant(destination_labels.to_owned()) {
                                     let (release_callback, release) = oneshot::channel();
                                     flows_release_handles
                                         .lock()

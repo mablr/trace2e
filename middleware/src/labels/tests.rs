@@ -65,9 +65,9 @@ fn unit_labels_confidentiality() {
     let id1_labels = Labels::new(id1.clone());
     let mut id2_labels = Labels::new(id2.clone());
 
-    assert_eq!(id2_labels.is_flow_allowed(id1_labels.clone()), true);
+    assert_eq!(id2_labels.is_compliant(id1_labels.clone()), true);
 
     id2_labels.confidentiality = ConfidentialityLabel::High;
 
-    assert_eq!(id2_labels.is_flow_allowed(id1_labels), false);
+    assert_eq!(id2_labels.is_compliant(id1_labels), false);
 }
