@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use std::sync::OnceLock;
 
-use crate::m2m_service::m2m::Id;
+use crate::m2m_service::m2m;
 
 pub static MIDDLEWARE_ID: OnceLock<String> = OnceLock::new();
 
@@ -68,25 +68,41 @@ impl Identifier {
     }
 }
 
-impl From<Id> for Identifier {
-    fn from(id: Id) -> Self {
+impl From<m2m::Id> for Identifier {
+    fn from(id: m2m::Id) -> Self {
         Identifier {
             node: id.node,
             // Assuming the resource field is always for a file.
-            resource: Resource::File(id.resource),
+            resource: match id.resource.unwrap() {
+                m2m::id::Resource::File(file) => Resource::File(file.path),
+                // TODO: storing sockets as String may be safer ?
+                m2m::id::Resource::Stream(stream) => Resource::Stream(
+                    stream.local_socket.parse().unwrap(),
+                    stream.peer_socket.parse().unwrap(),
+                ),
+                m2m::id::Resource::Process(process) => {
+                    Resource::Process(process.pid, process.starttime)
+                }
+            },
         }
     }
 }
 
-impl From<Identifier> for Id {
+impl From<Identifier> for m2m::Id {
     fn from(identifier_internal: Identifier) -> Self {
         let resource = match identifier_internal.resource {
-            Resource::File(path) => path,
-            _ => panic!("Only File variant is supported for Id conversion"),
+            Resource::File(path) => m2m::id::Resource::File(m2m::File { path }),
+            Resource::Stream(local_socket, peer_socket) => m2m::id::Resource::Stream(m2m::Stream {
+                local_socket: local_socket.to_string(),
+                peer_socket: peer_socket.to_string(),
+            }),
+            Resource::Process(pid, starttime) => {
+                m2m::id::Resource::Process(m2m::Process { pid, starttime })
+            }
         };
-        Id {
+        m2m::Id {
             node: identifier_internal.node,
-            resource,
+            resource: Some(resource),
         }
     }
 }
