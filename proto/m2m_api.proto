@@ -16,10 +16,14 @@ message StreamProv {
 
 message Id {
     string node = 1;
-    oneof resource {
-        File file = 2;
-        Stream stream = 3;
-        Process process = 4;
+    Resource resource = 2;
+}
+
+message Resource {
+    oneof variant {
+        File file = 1;
+        Stream stream = 2;
+        Process process = 3;
     }
 }
 

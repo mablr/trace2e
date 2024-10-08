@@ -73,14 +73,13 @@ impl From<m2m::Id> for Identifier {
         Identifier {
             node: id.node,
             // Assuming the resource field is always for a file.
-            resource: match id.resource.unwrap() {
-                m2m::id::Resource::File(file) => Resource::File(file.path),
-                // TODO: storing sockets as String may be safer ?
-                m2m::id::Resource::Stream(stream) => Resource::Stream(
+            resource: match id.resource.unwrap().variant.unwrap() {
+                m2m::resource::Variant::File(file) => Resource::File(file.path),
+                m2m::resource::Variant::Stream(stream) => Resource::Stream(
                     stream.local_socket.parse().unwrap(),
                     stream.peer_socket.parse().unwrap(),
                 ),
-                m2m::id::Resource::Process(process) => {
+                m2m::resource::Variant::Process(process) => {
                     Resource::Process(process.pid, process.starttime)
                 }
             },
@@ -90,19 +89,22 @@ impl From<m2m::Id> for Identifier {
 
 impl From<Identifier> for m2m::Id {
     fn from(identifier_internal: Identifier) -> Self {
-        let resource = match identifier_internal.resource {
-            Resource::File(path) => m2m::id::Resource::File(m2m::File { path }),
-            Resource::Stream(local_socket, peer_socket) => m2m::id::Resource::Stream(m2m::Stream {
-                local_socket: local_socket.to_string(),
-                peer_socket: peer_socket.to_string(),
-            }),
-            Resource::Process(pid, starttime) => {
-                m2m::id::Resource::Process(m2m::Process { pid, starttime })
-            }
-        };
         m2m::Id {
             node: identifier_internal.node,
-            resource: Some(resource),
+            resource: Some(m2m::Resource {
+                variant: Some(match identifier_internal.resource {
+                    Resource::File(path) => m2m::resource::Variant::File(m2m::File { path }),
+                    Resource::Stream(local_socket, peer_socket) => {
+                        m2m::resource::Variant::Stream(m2m::Stream {
+                            local_socket: local_socket.to_string(),
+                            peer_socket: peer_socket.to_string(),
+                        })
+                    }
+                    Resource::Process(pid, starttime) => {
+                        m2m::resource::Variant::Process(m2m::Process { pid, starttime })
+                    }
+                }),
+            }),
         }
     }
 }
