@@ -5,7 +5,7 @@ use std::fs::OpenOptions as StdOpenOptions;
 use std::os::fd::AsRawFd;
 use std::process::id;
 
-fn middleware_request(path: String, fd: i32) -> Result<(), Box<dyn std::error::Error>> {
+fn middleware_report(path: String, fd: i32) {
     let mut client = GRPC_CLIENT.clone();
 
     let request = tonic::Request::new(LocalCt {
@@ -13,8 +13,8 @@ fn middleware_request(path: String, fd: i32) -> Result<(), Box<dyn std::error::E
         file_descriptor: fd,
         path: canonicalize(path).unwrap().display().to_string(),
     });
+
     let _ = TOKIO_RUNTIME.block_on(client.local_enroll(request));
-    Ok(())
 }
 
 pub struct File;
@@ -23,19 +23,19 @@ impl File {
     pub fn open<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<StdFile> {
         let path_ref = path.as_ref();
         let file = StdFile::open(path_ref)?;
-        let _ = middleware_request(path_ref.display().to_string(), file.as_raw_fd());
+        middleware_report(path_ref.display().to_string(), file.as_raw_fd());
         Ok(file)
     }
     pub fn create<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<StdFile> {
         let path_ref = path.as_ref();
         let file = StdFile::create(path_ref)?;
-        let _ = middleware_request(path_ref.display().to_string(), file.as_raw_fd());
+        middleware_report(path_ref.display().to_string(), file.as_raw_fd());
         Ok(file)
     }
     pub fn create_new<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<StdFile> {
         let path_ref = path.as_ref();
         let file = StdFile::create_new(path_ref)?;
-        let _ = middleware_request(path_ref.display().to_string(), file.as_raw_fd());
+        middleware_report(path_ref.display().to_string(), file.as_raw_fd());
         Ok(file)
     }
     pub fn options() -> OpenOptions {
@@ -98,7 +98,7 @@ impl OpenOptions {
     pub fn open<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<std::fs::File> {
         let path_ref = path.as_ref();
         let file = self.options.open(path_ref)?;
-        let _ = middleware_request(path_ref.display().to_string(), file.as_raw_fd());
+        middleware_report(path_ref.display().to_string(), file.as_raw_fd());
         Ok(file)
     }
 }

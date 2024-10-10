@@ -6,11 +6,7 @@ use std::process::id;
 
 use crate::middleware::{RemoteCt, GRPC_CLIENT, TOKIO_RUNTIME};
 
-fn middleware_request(
-    fd: i32,
-    local_socket: String,
-    peer_socket: String,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn middleware_report(fd: i32, local_socket: String, peer_socket: String) {
     let mut client = GRPC_CLIENT.clone();
 
     let request = tonic::Request::new(RemoteCt {
@@ -21,7 +17,6 @@ fn middleware_request(
     });
 
     let _ = TOKIO_RUNTIME.block_on(client.remote_enroll(request));
-    Ok(())
 }
 
 pub struct TcpListener(StdTcpListener);
@@ -47,7 +42,7 @@ impl TcpListener {
 
     pub fn accept(&self) -> std::io::Result<(StdTcpStream, SocketAddr)> {
         let (tcp_stream, socket) = self.0.accept()?;
-        let _ = middleware_request(
+        middleware_report(
             tcp_stream.as_raw_fd(),
             tcp_stream.local_addr()?.to_string(),
             tcp_stream.peer_addr()?.to_string(),
@@ -81,7 +76,7 @@ pub struct TcpStream;
 impl TcpStream {
     pub fn connect<A: std::net::ToSocketAddrs>(addr: A) -> std::io::Result<StdTcpStream> {
         let tcp_stream = StdTcpStream::connect(addr)?;
-        let _ = middleware_request(
+        middleware_report(
             tcp_stream.as_raw_fd(),
             tcp_stream.local_addr()?.to_string(),
             tcp_stream.peer_addr()?.to_string(),
@@ -93,7 +88,7 @@ impl TcpStream {
         timeout: std::time::Duration,
     ) -> std::io::Result<StdTcpStream> {
         let tcp_stream = StdTcpStream::connect_timeout(addr, timeout)?;
-        let _ = middleware_request(
+        middleware_report(
             tcp_stream.as_raw_fd(),
             tcp_stream.local_addr()?.to_string(),
             tcp_stream.peer_addr()?.to_string(),
