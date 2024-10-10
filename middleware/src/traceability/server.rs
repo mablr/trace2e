@@ -176,7 +176,7 @@ pub async fn traceability_server(mut receiver: mpsc::Receiver<TraceabilityReques
                 if !containers.contains_key(&identifier) || identifier.is_stream().is_some() {
                     containers.insert(
                         identifier.clone(),
-                        Arc::new(RwLock::new(Labels::new(identifier.clone()))),
+                        Arc::new(RwLock::new(Labels::new(identifier.clone(), crate::labels::ConfidentialityLabel::Low))),
                     );
                 }
                 responder.send(TraceabilityResponse::Registered).unwrap();

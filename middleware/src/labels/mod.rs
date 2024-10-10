@@ -19,14 +19,15 @@ pub struct Labels {
 }
 
 impl Labels {
-    /// Creates a new [`Labels`] object given an [`Identifier`] enum.
+    /// Creates a new [`Labels`] object given an [`Identifier`] enum, and a 
+    /// confidentiality level reprensented by [`ConfidentialityLabel`] enum.
     ///
     /// If the object is instantiated for a File [`Identifier`] container, the
     /// provenance is initialized with the given Identifier.
-    pub fn new(identifier: Identifier) -> Self {
+    pub fn new(identifier: Identifier, confidentiality: ConfidentialityLabel) -> Self {
         let mut labels = Labels {
             provenance: Vec::new(),
-            confidentiality: ConfidentialityLabel::Low,
+            confidentiality,
         };
 
         if identifier.is_file().is_some() {
