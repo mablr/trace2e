@@ -168,12 +168,13 @@ async fn reserve_local_flow<'a>(
 pub async fn traceability_server(mut receiver: mpsc::Receiver<TraceabilityRequest>) {
     let mut containers: HashMap<Identifier, Arc<RwLock<Labels>>> = HashMap::new();
     let grant_counter: Arc<Mutex<u64>> = Arc::new(Mutex::new(0));
-    let flows_release_handles: Arc<Mutex<HashMap<u64, oneshot::Sender<()>>>> = Arc::new(Mutex::new(HashMap::new()));
+    let flows_release_handles: Arc<Mutex<HashMap<u64, oneshot::Sender<()>>>> =
+        Arc::new(Mutex::new(HashMap::new()));
 
     while let Some(message) = receiver.recv().await {
         match message {
             TraceabilityRequest::RegisterContainer(identifier, responder) => {
-                if let Some(container) = containers.get(&identifier).cloned(){
+                if let Some(container) = containers.get(&identifier).cloned() {
                     if identifier.is_stream().is_some() {
                         // Purge previous provenance references
                         container.write().await.set_prov(vec![]);
@@ -181,7 +182,10 @@ pub async fn traceability_server(mut receiver: mpsc::Receiver<TraceabilityReques
                 } else {
                     containers.insert(
                         identifier.clone(),
-                        Arc::new(RwLock::new(Labels::new(identifier.clone(), crate::labels::ConfidentialityLabel::Low))),
+                        Arc::new(RwLock::new(Labels::new(
+                            identifier.clone(),
+                            crate::labels::ConfidentialityLabel::Low,
+                        ))),
                     );
                 }
                 responder.send(TraceabilityResponse::Registered).unwrap();
