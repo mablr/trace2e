@@ -62,12 +62,12 @@ fn unit_labels_confidentiality() {
     let id1 = Identifier::new_process(1, 1);
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
-    let id1_labels = Labels::new(id1.clone(), ConfidentialityLabel::Low);
-    let mut id2_labels = Labels::new(id2.clone(), ConfidentialityLabel::Low);
+    let mut id1_labels = Labels::new(id1.clone(), ConfidentialityLabel::Low);
+    let id2_labels = Labels::new(id2.clone(), ConfidentialityLabel::Low);
 
     assert_eq!(id2_labels.is_compliant(id1_labels.clone()), true);
 
-    id2_labels.confidentiality = ConfidentialityLabel::High;
+    id1_labels.confidentiality = ConfidentialityLabel::High;
 
     assert_eq!(id2_labels.is_compliant(id1_labels), false);
 }
