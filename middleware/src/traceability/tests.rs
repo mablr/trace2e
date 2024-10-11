@@ -82,7 +82,7 @@ async fn unit_traceability_server_declare_missing_container(
             assert_eq!(
                 format!("{}", e),
                 format!(
-                    "Provenance error: ({:?} || {:?}) are not registered.",
+                    "Traceability error: ({:?} || {:?}) are not registered.",
                     id1.clone(),
                     id3.clone()
                 )
@@ -105,7 +105,7 @@ async fn unit_traceability_server_declare_missing_container(
             assert_eq!(
                 format!("{}", e),
                 format!(
-                    "Provenance error: ({:?} || {:?}) are not registered.",
+                    "Traceability error: ({:?} || {:?}) are not registered.",
                     id2.clone(),
                     id3.clone()
                 )
@@ -158,7 +158,7 @@ async fn unit_traceability_server_declare_invalid_flow() -> Result<(), Box<dyn s
             assert_eq!(
                 format!("{}", e),
                 format!(
-                    "Provenance error: {:?}<->{:?} Flow is invalid.",
+                    "Traceability error: {:?}<->{:?} Flow is invalid.",
                     id1.clone(),
                     id1.clone()
                 )
@@ -181,7 +181,7 @@ async fn unit_traceability_server_declare_invalid_flow() -> Result<(), Box<dyn s
             assert_eq!(
                 format!("{}", e),
                 format!(
-                    "Provenance error: {:?}<->{:?} Flow is invalid.",
+                    "Traceability error: {:?}<->{:?} Flow is invalid.",
                     id2.clone(),
                     id2.clone()
                 )
@@ -252,7 +252,7 @@ async fn unit_traceability_server_record_failure() -> Result<(), Box<dyn std::er
         TraceabilityResponse::Error(e) => {
             assert_eq!(
                 format!("{}", e),
-                "Provenance error: unable to record Flow 0."
+                "Traceability error: unable to record Flow 0."
             );
         }
         _ => panic!("A Flow RecordingFailure was expected."),
