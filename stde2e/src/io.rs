@@ -13,15 +13,13 @@ fn middleware_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Err
 
     match TOKIO_RUNTIME.block_on(client.io_request(request)) {
         Ok(response) => Ok(response.into_inner().id),
-        Err(_) => Err(Box::new(std::io::Error::from(std::io::ErrorKind::PermissionDenied))),
+        Err(_) => Err(Box::new(std::io::Error::from(
+            std::io::ErrorKind::PermissionDenied,
+        ))),
     }
 }
 
-fn middleware_report(
-    fd: i32,
-    grant_id: u64,
-    result: bool,
-) -> std::io::Result<()> {
+fn middleware_report(fd: i32, grant_id: u64, result: bool) -> std::io::Result<()> {
     let mut client = GRPC_CLIENT.clone();
 
     let request = tonic::Request::new(IoResult {
