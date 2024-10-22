@@ -1,20 +1,31 @@
-use crate::middleware::{LocalCt, GRPC_CLIENT, TOKIO_RUNTIME};
 use std::fs::canonicalize;
 use std::fs::File as StdFile;
 use std::fs::OpenOptions as StdOpenOptions;
 use std::os::fd::AsRawFd;
 use std::process::id;
+use tokio::{runtime::Handle, task};
+
+use crate::middleware::{p2m_client, LocalCt, GRPC_CLIENT, TOKIO_RUNTIME};
 
 fn middleware_report(path: String, fd: i32) {
-    let mut client = GRPC_CLIENT.clone();
-
     let request = tonic::Request::new(LocalCt {
         process_id: id(),
         file_descriptor: fd,
         path: canonicalize(path).unwrap().display().to_string(),
     });
 
-    let _ = TOKIO_RUNTIME.block_on(client.local_enroll(request));
+    if let Ok(handle) = Handle::try_current() {
+        let _ = task::block_in_place(move || {
+            // Workaround to avoid Lazy poisoning
+            let mut client = handle
+                .block_on(p2m_client::P2mClient::connect("http://[::1]:8080"))
+                .unwrap();
+            handle.block_on(client.local_enroll(request))
+        });
+    } else {
+        let mut client = GRPC_CLIENT.clone();
+        let _ = TOKIO_RUNTIME.block_on(client.local_enroll(request));
+    }
 }
 
 pub struct File;

@@ -1,22 +1,27 @@
-use std::io::Read;
-
 use stde2e::{
-    io::Write,
+    io::{Read, Write},
     net::{TcpListener, TcpStream},
 };
+use tokio::runtime::Handle;
 
-#[test]
-fn stde2e_stream_server() {
-    let l = TcpListener::bind("127.0.0.1:8081").unwrap();
-    let (mut s, _) = l.accept().unwrap();
-    s.write("test".as_bytes()).unwrap();
-}
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn stde2e_net_stream_instantiation() -> std::io::Result<()> {
+    let listener = TcpListener::bind("127.0.0.1:8081")?;
+    Handle::current().spawn(async move {
+        let (mut server, _) = listener.accept().unwrap();
+        server.write("test".as_bytes()).unwrap();
+    });
 
-#[test]
-fn stde2e_stream_client() {
-    std::thread::sleep(std::time::Duration::from_millis(10)); // let spawn the tcp listener
-    let mut s = TcpStream::connect("127.0.0.1:8081").unwrap();
+    // Give the server a brief moment to start
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+    let mut client = TcpStream::connect("127.0.0.1:8081")?;
+
+    // Give the server a brief moment to write
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
     let mut buf = String::new();
-    assert_eq!(s.read_to_string(&mut buf).unwrap(), 4);
-    assert_eq!(buf, "test")
+    assert_eq!(client.read_to_string(&mut buf).unwrap(), 4);
+    assert_eq!(buf, "test");
+    Ok(())
 }

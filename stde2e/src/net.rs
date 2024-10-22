@@ -3,12 +3,11 @@ use std::net::TcpListener as StdTcpListener;
 use std::net::TcpStream as StdTcpStream;
 use std::os::fd::AsRawFd;
 use std::process::id;
+use tokio::{runtime::Handle, task};
 
-use crate::middleware::{RemoteCt, GRPC_CLIENT, TOKIO_RUNTIME};
+use crate::middleware::{p2m_client, RemoteCt, GRPC_CLIENT, TOKIO_RUNTIME};
 
 fn middleware_report(fd: i32, local_socket: String, peer_socket: String) {
-    let mut client = GRPC_CLIENT.clone();
-
     let request = tonic::Request::new(RemoteCt {
         process_id: id(),
         file_descriptor: fd,
@@ -16,7 +15,18 @@ fn middleware_report(fd: i32, local_socket: String, peer_socket: String) {
         peer_socket,
     });
 
-    let _ = TOKIO_RUNTIME.block_on(client.remote_enroll(request));
+    if let Ok(handle) = Handle::try_current() {
+        let _ = task::block_in_place(move || {
+            // Workaround to avoid Lazy poisoning
+            let mut client = handle
+                .block_on(p2m_client::P2mClient::connect("http://[::1]:8080"))
+                .unwrap();
+            handle.block_on(client.remote_enroll(request))
+        });
+    } else {
+        let mut client = GRPC_CLIENT.clone();
+        let _ = TOKIO_RUNTIME.block_on(client.remote_enroll(request));
+    }
 }
 
 pub struct TcpListener(StdTcpListener);

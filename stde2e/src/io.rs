@@ -1,17 +1,28 @@
 use std::process;
 
-use crate::middleware::{Flow, IoInfo, IoResult, GRPC_CLIENT, TOKIO_RUNTIME};
+use tokio::{runtime::Handle, task};
+
+use crate::middleware::{p2m_client, Flow, IoInfo, IoResult, GRPC_CLIENT, TOKIO_RUNTIME};
 
 fn middleware_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Error>> {
-    let mut client = GRPC_CLIENT.clone();
-
     let request = tonic::Request::new(IoInfo {
         process_id: process::id(),
         file_descriptor: fd,
         flow,
     });
 
-    match TOKIO_RUNTIME.block_on(client.io_request(request)) {
+    match if let Ok(handle) = Handle::try_current() {
+        task::block_in_place(move || {
+            // Workaround to avoid Lazy poisoning
+            let mut client = handle
+                .block_on(p2m_client::P2mClient::connect("http://[::1]:8080"))
+                .unwrap();
+            handle.block_on(client.io_request(request))
+        })
+    } else {
+        let mut client = GRPC_CLIENT.clone();
+        TOKIO_RUNTIME.block_on(client.io_request(request))
+    } {
         Ok(response) => Ok(response.into_inner().id),
         Err(_) => Err(Box::new(std::io::Error::from(
             std::io::ErrorKind::PermissionDenied,
@@ -20,8 +31,6 @@ fn middleware_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Err
 }
 
 fn middleware_report(fd: i32, grant_id: u64, result: bool) -> std::io::Result<()> {
-    let mut client = GRPC_CLIENT.clone();
-
     let request = tonic::Request::new(IoResult {
         process_id: process::id(),
         file_descriptor: fd,
@@ -29,7 +38,18 @@ fn middleware_report(fd: i32, grant_id: u64, result: bool) -> std::io::Result<()
         result,
     });
 
-    match TOKIO_RUNTIME.block_on(client.io_report(request)) {
+    match if let Ok(handle) = Handle::try_current() {
+        task::block_in_place(move || {
+            // Workaround to avoid Lazy poisoning
+            let mut client = handle
+                .block_on(p2m_client::P2mClient::connect("http://[::1]:8080"))
+                .unwrap();
+            handle.block_on(client.io_report(request))
+        })
+    } else {
+        let mut client = GRPC_CLIENT.clone();
+        TOKIO_RUNTIME.block_on(client.io_report(request))
+    } {
         Ok(_) => Ok(()),
         Err(_) => Err(std::io::Error::from(std::io::ErrorKind::Other)),
     }
