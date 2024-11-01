@@ -1,32 +1,8 @@
-use std::fs::canonicalize;
 use std::fs::File as StdFile;
 use std::fs::OpenOptions as StdOpenOptions;
 use std::os::fd::AsRawFd;
-use std::process::id;
-use tokio::{runtime::Handle, task};
 
-use crate::middleware::{p2m_client, LocalCt, GRPC_CLIENT, TOKIO_RUNTIME};
-
-fn middleware_report(path: String, fd: i32) {
-    let request = tonic::Request::new(LocalCt {
-        process_id: id(),
-        file_descriptor: fd,
-        path: canonicalize(path).unwrap().display().to_string(),
-    });
-
-    if let Ok(handle) = Handle::try_current() {
-        let _ = task::block_in_place(move || {
-            // Workaround to avoid Lazy poisoning
-            let mut client = handle
-                .block_on(p2m_client::P2mClient::connect("http://[::1]:8080"))
-                .unwrap();
-            handle.block_on(client.local_enroll(request))
-        });
-    } else {
-        let mut client = GRPC_CLIENT.clone();
-        let _ = TOKIO_RUNTIME.block_on(client.local_enroll(request));
-    }
-}
+use trace2e_client::local_enroll;
 
 pub struct File;
 
@@ -34,19 +10,19 @@ impl File {
     pub fn open<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<StdFile> {
         let path_ref = path.as_ref();
         let file = StdFile::open(path_ref)?;
-        middleware_report(path_ref.display().to_string(), file.as_raw_fd());
+        local_enroll(path_ref.display().to_string(), file.as_raw_fd());
         Ok(file)
     }
     pub fn create<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<StdFile> {
         let path_ref = path.as_ref();
         let file = StdFile::create(path_ref)?;
-        middleware_report(path_ref.display().to_string(), file.as_raw_fd());
+        local_enroll(path_ref.display().to_string(), file.as_raw_fd());
         Ok(file)
     }
     pub fn create_new<P: AsRef<std::path::Path>>(path: P) -> std::io::Result<StdFile> {
         let path_ref = path.as_ref();
         let file = StdFile::create_new(path_ref)?;
-        middleware_report(path_ref.display().to_string(), file.as_raw_fd());
+        local_enroll(path_ref.display().to_string(), file.as_raw_fd());
         Ok(file)
     }
     pub fn options() -> OpenOptions {
@@ -109,7 +85,7 @@ impl OpenOptions {
     pub fn open<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<std::fs::File> {
         let path_ref = path.as_ref();
         let file = self.options.open(path_ref)?;
-        middleware_report(path_ref.display().to_string(), file.as_raw_fd());
+        local_enroll(path_ref.display().to_string(), file.as_raw_fd());
         Ok(file)
     }
 }

@@ -1,65 +1,62 @@
-use std::process;
+use trace2e_client::{io_report, io_request, Flow};
 
-use tokio::{runtime::Handle, task};
+pub struct BufReader<R>(std::io::BufReader<R>);
 
-use crate::middleware::{p2m_client, Flow, IoInfo, IoResult, GRPC_CLIENT, TOKIO_RUNTIME};
-
-fn middleware_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Error>> {
-    let request = tonic::Request::new(IoInfo {
-        process_id: process::id(),
-        file_descriptor: fd,
-        flow,
-    });
-
-    match if let Ok(handle) = Handle::try_current() {
-        task::block_in_place(move || {
-            // Workaround to avoid Lazy poisoning
-            let mut client = handle
-                .block_on(p2m_client::P2mClient::connect("http://[::1]:8080"))
-                .unwrap();
-            handle.block_on(client.io_request(request))
-        })
-    } else {
-        let mut client = GRPC_CLIENT.clone();
-        TOKIO_RUNTIME.block_on(client.io_request(request))
-    } {
-        Ok(response) => Ok(response.into_inner().id),
-        Err(_) => Err(Box::new(std::io::Error::from(
-            std::io::ErrorKind::PermissionDenied,
-        ))),
-    }
-}
-
-fn middleware_report(fd: i32, grant_id: u64, result: bool) -> std::io::Result<()> {
-    let request = tonic::Request::new(IoResult {
-        process_id: process::id(),
-        file_descriptor: fd,
-        grant_id,
-        result,
-    });
-
-    match if let Ok(handle) = Handle::try_current() {
-        task::block_in_place(move || {
-            // Workaround to avoid Lazy poisoning
-            let mut client = handle
-                .block_on(p2m_client::P2mClient::connect("http://[::1]:8080"))
-                .unwrap();
-            handle.block_on(client.io_report(request))
-        })
-    } else {
-        let mut client = GRPC_CLIENT.clone();
-        TOKIO_RUNTIME.block_on(client.io_report(request))
-    } {
-        Ok(_) => Ok(()),
-        Err(_) => Err(std::io::Error::from(std::io::ErrorKind::Other)),
-    }
-}
-
-pub trait Read: std::io::Read + std::os::fd::AsRawFd {
+pub trait Read: std::io::Read {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        if let Ok(grant_id) = middleware_request(self.as_raw_fd(), Flow::Input.into()) {
+        std::io::Read::read(self, buf)
+    }
+
+    fn read_vectored(&mut self, bufs: &mut [std::io::IoSliceMut<'_>]) -> std::io::Result<usize> {
+        std::io::Read::read_vectored(self, bufs)
+    }
+
+    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> std::io::Result<usize> {
+        std::io::Read::read_to_end(self, buf)
+    }
+
+    fn read_to_string(&mut self, buf: &mut String) -> std::io::Result<usize> {
+        std::io::Read::read_to_string(self, buf)
+    }
+
+    fn read_exact(&mut self, buf: &mut [u8]) -> std::io::Result<()> {
+        std::io::Read::read_exact(self, buf)
+    }
+
+    fn by_ref(&mut self) -> &mut Self
+    where
+        Self: Sized,
+    {
+        std::io::Read::by_ref(self)
+    }
+
+    fn bytes(self) -> std::io::Bytes<Self>
+    where
+        Self: Sized,
+    {
+        std::io::Read::bytes(self)
+    }
+
+    fn chain<R: std::io::Read>(self, next: R) -> std::io::Chain<Self, R>
+    where
+        Self: Sized,
+    {
+        std::io::Read::chain(self, next)
+    }
+
+    fn take(self, limit: u64) -> std::io::Take<Self>
+    where
+        Self: Sized,
+    {
+        std::io::Read::take(self, limit)
+    }
+}
+
+impl<R: std::io::Read + std::os::fd::AsRawFd> Read for R {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Input.into()) {
             let result = std::io::Read::read(self, buf);
-            middleware_report(self.as_raw_fd(), grant_id, result.is_ok())?;
+            io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
             result
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
@@ -67,9 +64,9 @@ pub trait Read: std::io::Read + std::os::fd::AsRawFd {
     }
 
     fn read_vectored(&mut self, bufs: &mut [std::io::IoSliceMut<'_>]) -> std::io::Result<usize> {
-        if let Ok(grant_id) = middleware_request(self.as_raw_fd(), Flow::Input.into()) {
+        if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Input.into()) {
             let result = std::io::Read::read_vectored(self, bufs);
-            middleware_report(self.as_raw_fd(), grant_id, result.is_ok())?;
+            io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
             result
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
@@ -77,9 +74,9 @@ pub trait Read: std::io::Read + std::os::fd::AsRawFd {
     }
 
     fn read_to_end(&mut self, buf: &mut Vec<u8>) -> std::io::Result<usize> {
-        if let Ok(grant_id) = middleware_request(self.as_raw_fd(), Flow::Input.into()) {
+        if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Input.into()) {
             let result = std::io::Read::read_to_end(self, buf);
-            middleware_report(self.as_raw_fd(), grant_id, result.is_ok())?;
+            io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
             result
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
@@ -87,9 +84,9 @@ pub trait Read: std::io::Read + std::os::fd::AsRawFd {
     }
 
     fn read_to_string(&mut self, buf: &mut String) -> std::io::Result<usize> {
-        if let Ok(grant_id) = middleware_request(self.as_raw_fd(), Flow::Input.into()) {
+        if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Input.into()) {
             let result = std::io::Read::read_to_string(self, buf);
-            middleware_report(self.as_raw_fd(), grant_id, result.is_ok())?;
+            io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
             result
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
@@ -97,9 +94,9 @@ pub trait Read: std::io::Read + std::os::fd::AsRawFd {
     }
 
     fn read_exact(&mut self, buf: &mut [u8]) -> std::io::Result<()> {
-        if let Ok(grant_id) = middleware_request(self.as_raw_fd(), Flow::Input.into()) {
+        if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Input.into()) {
             let result = std::io::Read::read_exact(self, buf);
-            middleware_report(self.as_raw_fd(), grant_id, result.is_ok())?;
+            io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
             result
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
@@ -107,13 +104,35 @@ pub trait Read: std::io::Read + std::os::fd::AsRawFd {
     }
 }
 
-impl<R: std::io::Read + std::os::fd::AsRawFd> Read for R {}
+pub trait Write: std::io::Write {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize>;
+    fn flush(&mut self) -> std::io::Result<()>;
 
-pub trait Write: std::io::Write + std::os::fd::AsRawFd {
+    fn write_vectored(&mut self, bufs: &[std::io::IoSlice<'_>]) -> std::io::Result<usize> {
+        std::io::Write::write_vectored(self, bufs)
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
+        std::io::Write::write_all(self, buf)
+    }
+
+    fn write_fmt(&mut self, fmt: std::fmt::Arguments<'_>) -> std::io::Result<()> {
+        std::io::Write::write_fmt(self, fmt)
+    }
+
+    fn by_ref(&mut self) -> &mut Self
+    where
+        Self: Sized,
+    {
+        std::io::Write::by_ref(self)
+    }
+}
+
+impl<W: std::io::Write + std::os::fd::AsRawFd> Write for W {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        if let Ok(grant_id) = middleware_request(self.as_raw_fd(), Flow::Output.into()) {
+        if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Output.into()) {
             let result = std::io::Write::write(self, buf);
-            middleware_report(self.as_raw_fd(), grant_id, result.is_ok())?;
+            io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
             result
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
@@ -121,9 +140,9 @@ pub trait Write: std::io::Write + std::os::fd::AsRawFd {
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        if let Ok(grant_id) = middleware_request(self.as_raw_fd(), Flow::Output.into()) {
+        if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Output.into()) {
             let result = std::io::Write::flush(self);
-            middleware_report(self.as_raw_fd(), grant_id, result.is_ok())?;
+            io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
             result
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
@@ -131,9 +150,9 @@ pub trait Write: std::io::Write + std::os::fd::AsRawFd {
     }
 
     fn write_vectored(&mut self, bufs: &[std::io::IoSlice<'_>]) -> std::io::Result<usize> {
-        if let Ok(grant_id) = middleware_request(self.as_raw_fd(), Flow::Output.into()) {
+        if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Output.into()) {
             let result = std::io::Write::write_vectored(self, bufs);
-            middleware_report(self.as_raw_fd(), grant_id, result.is_ok())?;
+            io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
             result
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
@@ -141,9 +160,9 @@ pub trait Write: std::io::Write + std::os::fd::AsRawFd {
     }
 
     fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
-        if let Ok(grant_id) = middleware_request(self.as_raw_fd(), Flow::Output.into()) {
+        if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Output.into()) {
             let result = std::io::Write::write_all(self, buf);
-            middleware_report(self.as_raw_fd(), grant_id, result.is_ok())?;
+            io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
             result
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
@@ -151,9 +170,9 @@ pub trait Write: std::io::Write + std::os::fd::AsRawFd {
     }
 
     fn write_fmt(&mut self, fmt: std::fmt::Arguments<'_>) -> std::io::Result<()> {
-        if let Ok(grant_id) = middleware_request(self.as_raw_fd(), Flow::Output.into()) {
+        if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Output.into()) {
             let result = std::io::Write::write_fmt(self, fmt);
-            middleware_report(self.as_raw_fd(), grant_id, result.is_ok())?;
+            io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
             result
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
@@ -161,4 +180,63 @@ pub trait Write: std::io::Write + std::os::fd::AsRawFd {
     }
 }
 
-impl<W: std::io::Write + std::os::fd::AsRawFd> Write for W {}
+pub trait BufRead: std::io::BufRead {
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]>;
+    fn consume(&mut self, amt: usize);
+
+    fn read_until(&mut self, byte: u8, buf: &mut Vec<u8>) -> std::io::Result<usize> {
+        std::io::BufRead::read_until(self, byte, buf)
+    }
+
+    fn read_line(&mut self, buf: &mut String) -> std::io::Result<usize> {
+        std::io::BufRead::read_line(self, buf)
+    }
+
+    fn split(self, byte: u8) -> std::io::Split<Self>
+    where
+        Self: Sized
+    {
+        std::io::BufRead::split(self, byte)
+    }
+
+    fn lines(self) -> std::io::Lines<Self>
+    where
+        Self: Sized
+    {
+        std::io::BufRead::lines(self)
+    }
+}
+
+impl<T: std::io::BufRead + std::os::fd::AsRawFd> BufRead for std::io::Take<T> {
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+        let reader_raw_fd = self.get_ref().as_raw_fd();
+        if let Ok(grant_id) = io_request(reader_raw_fd, Flow::Input.into()) {
+            let result = std::io::BufRead::fill_buf(self);
+            io_report(reader_raw_fd, grant_id, result.is_ok())?;
+            result
+        } else {
+            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+        }
+    }
+
+    fn consume(&mut self, amt: usize) {
+        std::io::BufRead::consume(self, amt)
+    }
+}
+
+impl<R: ?Sized + std::io::Read + std::os::fd::AsRawFd> BufRead for std::io::BufReader<R> {
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+        let reader_raw_fd = self.get_ref().as_raw_fd();
+        if let Ok(grant_id) = io_request(reader_raw_fd, Flow::Input.into()) {
+            let result = std::io::BufRead::fill_buf(self);
+            io_report(reader_raw_fd, grant_id, result.is_ok())?;
+            result
+        } else {
+            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+        }
+    }
+
+    fn consume(&mut self, amt: usize) {
+        std::io::BufRead::consume(self, amt)
+    }
+}

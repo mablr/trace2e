@@ -2,32 +2,8 @@ use std::net::SocketAddr;
 use std::net::TcpListener as StdTcpListener;
 use std::net::TcpStream as StdTcpStream;
 use std::os::fd::AsRawFd;
-use std::process::id;
-use tokio::{runtime::Handle, task};
 
-use crate::middleware::{p2m_client, RemoteCt, GRPC_CLIENT, TOKIO_RUNTIME};
-
-fn middleware_report(fd: i32, local_socket: String, peer_socket: String) {
-    let request = tonic::Request::new(RemoteCt {
-        process_id: id(),
-        file_descriptor: fd,
-        local_socket,
-        peer_socket,
-    });
-
-    if let Ok(handle) = Handle::try_current() {
-        let _ = task::block_in_place(move || {
-            // Workaround to avoid Lazy poisoning
-            let mut client = handle
-                .block_on(p2m_client::P2mClient::connect("http://[::1]:8080"))
-                .unwrap();
-            handle.block_on(client.remote_enroll(request))
-        });
-    } else {
-        let mut client = GRPC_CLIENT.clone();
-        let _ = TOKIO_RUNTIME.block_on(client.remote_enroll(request));
-    }
-}
+use trace2e_client::remote_enroll;
 
 pub struct TcpListener(StdTcpListener);
 
@@ -52,7 +28,7 @@ impl TcpListener {
 
     pub fn accept(&self) -> std::io::Result<(StdTcpStream, SocketAddr)> {
         let (tcp_stream, socket) = self.0.accept()?;
-        middleware_report(
+        (
             tcp_stream.as_raw_fd(),
             tcp_stream.local_addr()?.to_string(),
             tcp_stream.peer_addr()?.to_string(),
@@ -86,7 +62,7 @@ pub struct TcpStream;
 impl TcpStream {
     pub fn connect<A: std::net::ToSocketAddrs>(addr: A) -> std::io::Result<StdTcpStream> {
         let tcp_stream = StdTcpStream::connect(addr)?;
-        middleware_report(
+        remote_enroll(
             tcp_stream.as_raw_fd(),
             tcp_stream.local_addr()?.to_string(),
             tcp_stream.peer_addr()?.to_string(),
@@ -98,7 +74,7 @@ impl TcpStream {
         timeout: std::time::Duration,
     ) -> std::io::Result<StdTcpStream> {
         let tcp_stream = StdTcpStream::connect_timeout(addr, timeout)?;
-        middleware_report(
+        remote_enroll(
             tcp_stream.as_raw_fd(),
             tcp_stream.local_addr()?.to_string(),
             tcp_stream.peer_addr()?.to_string(),

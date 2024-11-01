@@ -1,3 +1,7 @@
 [workspace]
-members = ["middleware", "stde2e"]
 resolver = "2"
+members = [
+    "trace2e_client",
+    "trace2e_middleware",
+    "stde2e"
+]

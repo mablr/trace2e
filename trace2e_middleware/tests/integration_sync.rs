@@ -1,6 +1,6 @@
 use std::process::Command;
 
-use middleware::p2m_service::p2m::{
+use trace2e_middleware::p2m_service::p2m::{
     p2m_client::P2mClient, Ack, Flow, IoInfo, IoResult, LocalCt, RemoteCt,
 };
 

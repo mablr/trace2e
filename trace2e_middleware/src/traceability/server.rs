@@ -458,7 +458,13 @@ async fn handle_sync_stream(
                 Err(_) => todo!(),
             }
             #[cfg(feature = "verbose")]
-            println!("🔽 Remote provenance sync on {:?}", identifier.clone(),);
+            println!("🔽 Remote provenance sync on {:?}", identifier.clone());
+            #[cfg(feature = "verbose")]
+            println!(
+                "🆕 Provenance: {{{:?}: {:?}}}",
+                identifier.clone(),
+                stream_labels.get_prov()
+            );
         });
     } else {
         responder
