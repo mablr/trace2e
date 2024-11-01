@@ -1,0 +1,264 @@
+diff --git a/tokio/Cargo.toml b/tokio/Cargo.toml
+index 23873e5b..cf67a6ac 100644
+--- a/tokio/Cargo.toml
++++ b/tokio/Cargo.toml
+@@ -87,6 +87,8 @@ time = []
+ 
+ [dependencies]
+ tokio-macros = { version = "~2.4.0", path = "../tokio-macros", optional = true }
++# WIP
++trace2e_client = { path = "../../trace2e/trace2e_client" }
+ 
+ pin-project-lite = "0.2.11"
+ 
+diff --git a/tokio/src/fs/file.rs b/tokio/src/fs/file.rs
+index 63dd8af3..fa430572 100644
+--- a/tokio/src/fs/file.rs
++++ b/tokio/src/fs/file.rs
+@@ -150,8 +150,12 @@ impl File {
+     /// [`AsyncReadExt`]: trait@crate::io::AsyncReadExt
+     pub async fn open(path: impl AsRef<Path>) -> io::Result<File> {
+         let path = path.as_ref().to_owned();
++        let path_clone = path.clone();
+         let std = asyncify(|| StdFile::open(path)).await?;
+-
++        trace2e_client::local_enroll(
++            path_clone,
++            std::os::fd::AsRawFd::as_raw_fd(&std)
++        );
+         Ok(File::from_std(std))
+     }
+ 
+@@ -188,7 +192,12 @@ impl File {
+     /// [`AsyncWriteExt`]: trait@crate::io::AsyncWriteExt
+     pub async fn create(path: impl AsRef<Path>) -> io::Result<File> {
+         let path = path.as_ref().to_owned();
++        let path_clone = path.clone();
+         let std_file = asyncify(move || StdFile::create(path)).await?;
++        trace2e_client::local_enroll(
++            path_clone,
++            std::os::fd::AsRawFd::as_raw_fd(&std_file)
++        );
+         Ok(File::from_std(std_file))
+     }
+ 
+@@ -586,27 +595,42 @@ impl AsyncRead for File {
+         dst: &mut ReadBuf<'_>,
+     ) -> Poll<io::Result<()>> {
+         ready!(crate::trace::trace_leaf(cx));
++
++        let raw_fd = {
++            use std::os::fd::AsRawFd;
++            self.as_raw_fd()
++        };
+         let me = self.get_mut();
+         let inner = me.inner.get_mut();
+-
+         loop {
+             match inner.state {
+                 State::Idle(ref mut buf_cell) => {
+                     let mut buf = buf_cell.take().unwrap();
+ 
+                     if !buf.is_empty() {
+-                        buf.copy_to(dst);
+-                        *buf_cell = Some(buf);
+-                        return Poll::Ready(Ok(()));
++                        //// Middleware call here
++                        if let Ok(grant_id) = trace2e_client::io_request(raw_fd, trace2e_client::Flow::Input.into()) {
++                            buf.copy_to(dst);
++                            *buf_cell = Some(buf);
++                            let _ = trace2e_client::io_report(raw_fd, grant_id, true);
++                            return Poll::Ready(Ok(()));
++                        } else {
++                            return Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
++                        }
+                     }
+ 
+                     buf.ensure_capacity_for(dst, me.max_buf_size);
+                     let std = me.std.clone();
+ 
+-                    inner.state = State::Busy(spawn_blocking(move || {
+-                        let res = buf.read_from(&mut &*std);
+-                        (Operation::Read(res), buf)
+-                    }));
++                    if let Ok(grant_id) = trace2e_client::io_request(raw_fd, trace2e_client::Flow::Input.into()) {
++                        inner.state = State::Busy(spawn_blocking(move || {
++                            let res = buf.read_from(&mut &*std);
++                            let _ = trace2e_client::io_report(raw_fd, grant_id, res.is_ok());
++                            (Operation::Read(res), buf)
++                        }));
++                    } else {
++                        return Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
++                    }
+                 }
+                 State::Busy(ref mut rx) => {
+                     let (op, mut buf) = ready!(Pin::new(rx).poll(cx))?;
+@@ -719,6 +743,11 @@ impl AsyncWrite for File {
+         src: &[u8],
+     ) -> Poll<io::Result<usize>> {
+         ready!(crate::trace::trace_leaf(cx));
++
++        let raw_fd = {
++            use std::os::fd::AsRawFd;
++            self.as_raw_fd()
++        };
+         let me = self.get_mut();
+         let inner = me.inner.get_mut();
+ 
+@@ -740,22 +769,23 @@ impl AsyncWrite for File {
+                     let n = buf.copy_from(src, me.max_buf_size);
+                     let std = me.std.clone();
+ 
+-                    let blocking_task_join_handle = spawn_mandatory_blocking(move || {
+-                        let res = if let Some(seek) = seek {
+-                            (&*std).seek(seek).and_then(|_| buf.write_to(&mut &*std))
+-                        } else {
+-                            buf.write_to(&mut &*std)
+-                        };
+-
+-                        (Operation::Write(res), buf)
+-                    })
+-                    .ok_or_else(|| {
+-                        io::Error::new(io::ErrorKind::Other, "background task failed")
+-                    })?;
+-
+-                    inner.state = State::Busy(blocking_task_join_handle);
+-
+-                    return Poll::Ready(Ok(n));
++                    if let Ok(grant_id) = trace2e_client::io_request(raw_fd, trace2e_client::Flow::Output.into()) {
++                        inner.state = State::Busy(spawn_mandatory_blocking(move || {
++                            let res = if let Some(seek) = seek {
++                                (&*std).seek(seek).and_then(|_| buf.write_to(&mut &*std))
++                            } else {
++                                buf.write_to(&mut &*std)
++                            };
++                            let _ = trace2e_client::io_report(raw_fd, grant_id, res.is_ok());
++                            (Operation::Write(res), buf)
++                        })
++                        .ok_or_else(|| {
++                            io::Error::new(io::ErrorKind::Other, "background task failed")
++                        })?);
++                        return Poll::Ready(Ok(n));
++                    } else {
++                        return Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
++                    }
+                 }
+                 State::Busy(ref mut rx) => {
+                     let (op, buf) = ready!(Pin::new(rx).poll(cx))?;
+diff --git a/tokio/src/fs/open_options.rs b/tokio/src/fs/open_options.rs
+index e70e6aa0..72cce263 100644
+--- a/tokio/src/fs/open_options.rs
++++ b/tokio/src/fs/open_options.rs
+@@ -388,8 +388,12 @@ impl OpenOptions {
+     pub async fn open(&self, path: impl AsRef<Path>) -> io::Result<File> {
+         let path = path.as_ref().to_owned();
+         let opts = self.0.clone();
+-
++        let path_clone = path.clone();
+         let std = asyncify(move || opts.open(path)).await?;
++        trace2e_client::local_enroll(
++            path_clone,
++            std::os::fd::AsRawFd::as_raw_fd(&std)
++        );
+         Ok(File::from_std(std))
+     }
+ 
+diff --git a/tokio/src/net/tcp/listener.rs b/tokio/src/net/tcp/listener.rs
+index 618da62b..d6a60227 100644
+--- a/tokio/src/net/tcp/listener.rs
++++ b/tokio/src/net/tcp/listener.rs
+@@ -165,6 +165,11 @@ impl TcpListener {
+             .await?;
+ 
+         let stream = TcpStream::new(mio)?;
++        trace2e_client::remote_enroll(
++            std::os::fd::AsRawFd::as_raw_fd(&stream),
++            stream.local_addr()?.to_string(),
++            addr.to_string()
++        );
+         Ok((stream, addr))
+     }
+ 
+diff --git a/tokio/src/net/tcp/stream.rs b/tokio/src/net/tcp/stream.rs
+index 82f4c05f..5278f7ce 100644
+--- a/tokio/src/net/tcp/stream.rs
++++ b/tokio/src/net/tcp/stream.rs
+@@ -134,7 +134,17 @@ impl TcpStream {
+         /// Establishes a connection to the specified `addr`.
+         async fn connect_addr(addr: SocketAddr) -> io::Result<TcpStream> {
+             let sys = mio::net::TcpStream::connect(addr)?;
+-            TcpStream::connect_mio(sys).await
++            match TcpStream::connect_mio(sys).await {
++                Ok(stream)=> {
++                    trace2e_client::remote_enroll(
++                        std::os::fd::AsRawFd::as_raw_fd(&stream),
++                        stream.local_addr()?.to_string(),
++                        stream.peer_addr()?.to_string()
++                    );
++                    Ok(stream)
++                }
++                Err(e) => Err(e),
++            }
+         }
+ 
+         pub(crate) async fn connect_mio(sys: mio::net::TcpStream) -> io::Result<TcpStream> {
+@@ -1328,7 +1338,18 @@ impl AsyncRead for TcpStream {
+         cx: &mut Context<'_>,
+         buf: &mut ReadBuf<'_>,
+     ) -> Poll<io::Result<()>> {
+-        self.poll_read_priv(cx, buf)
++        let raw_fd = {
++            use std::os::fd::AsRawFd;
++            self.as_raw_fd()
++        };
++        if let Ok(grant_id) = trace2e_client::io_request(raw_fd, trace2e_client::Flow::Input.into()) {
++            let poll = self.poll_read_priv(cx, buf);
++            // TODO : report the result correctly
++            let _ = trace2e_client::io_report(raw_fd, grant_id, true);
++            poll
++        } else {
++            Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)))
++        }
+     }
+ }
+ 
+@@ -1338,7 +1359,18 @@ impl AsyncWrite for TcpStream {
+         cx: &mut Context<'_>,
+         buf: &[u8],
+     ) -> Poll<io::Result<usize>> {
+-        self.poll_write_priv(cx, buf)
++        let raw_fd = {
++            use std::os::fd::AsRawFd;
++            self.as_raw_fd()
++        };
++        if let Ok(grant_id) = trace2e_client::io_request(raw_fd, trace2e_client::Flow::Output.into()) {
++            let poll = self.poll_write_priv(cx, buf);
++            // TODO : report the result correctly
++            let _ = trace2e_client::io_report(raw_fd, grant_id, true);
++            poll
++        } else {
++            Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)))
++        }
+     }
+ 
+     fn poll_write_vectored(
+@@ -1346,7 +1378,18 @@ impl AsyncWrite for TcpStream {
+         cx: &mut Context<'_>,
+         bufs: &[io::IoSlice<'_>],
+     ) -> Poll<io::Result<usize>> {
+-        self.poll_write_vectored_priv(cx, bufs)
++        let raw_fd = {
++            use std::os::fd::AsRawFd;
++            self.as_raw_fd()
++        };
++        if let Ok(grant_id) = trace2e_client::io_request(raw_fd, trace2e_client::Flow::Output.into()) {
++            let poll = self.poll_write_vectored_priv(cx, bufs);
++            // TODO : report the result correctly
++            let _ = trace2e_client::io_report(raw_fd, grant_id, true);
++            poll
++        } else {
++            Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)))
++        }
+     }
+ 
+     fn is_write_vectored(&self) -> bool {
