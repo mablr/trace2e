@@ -1,3 +1,6 @@
+use tokio::sync::mpsc;
+use tonic::transport::Server;
+use tonic_reflection::server::Builder;
 use trace2e_middleware::{
     identifier,
     m2m_service::{
@@ -10,9 +13,6 @@ use trace2e_middleware::{
     },
     traceability::traceability_server,
 };
-use tokio::sync::mpsc;
-use tonic::transport::Server;
-use tonic_reflection::server::Builder;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
 

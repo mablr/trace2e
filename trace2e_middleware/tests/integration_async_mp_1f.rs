@@ -1,6 +1,8 @@
 use std::process::Command;
 
-use trace2e_middleware::p2m_service::p2m::{p2m_client::P2mClient, Ack, Flow, IoInfo, IoResult, LocalCt};
+use trace2e_middleware::p2m_service::p2m::{
+    p2m_client::P2mClient, Ack, Flow, IoInfo, IoResult, LocalCt,
+};
 
 #[tokio::test]
 async fn integration_async_mp_1f_write1() -> Result<(), Box<dyn std::error::Error>> {

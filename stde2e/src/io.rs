@@ -194,14 +194,14 @@ pub trait BufRead: std::io::BufRead {
 
     fn split(self, byte: u8) -> std::io::Split<Self>
     where
-        Self: Sized
+        Self: Sized,
     {
         std::io::BufRead::split(self, byte)
     }
 
     fn lines(self) -> std::io::Lines<Self>
     where
-        Self: Sized
+        Self: Sized,
     {
         std::io::BufRead::lines(self)
     }

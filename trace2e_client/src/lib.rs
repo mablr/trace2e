@@ -1,6 +1,5 @@
 use once_cell::sync::Lazy;
-use std::fs::canonicalize;
-use std::{path::Path, process::id};
+use std::{fs::canonicalize, path::Path, process::id};
 use tokio::{runtime::Handle, task};
 use tonic::transport::Channel;
 mod proto {
