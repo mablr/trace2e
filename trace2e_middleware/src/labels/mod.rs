@@ -22,15 +22,15 @@ impl Labels {
     /// Creates a new [`Labels`] object given an [`Identifier`] enum, and a
     /// confidentiality level reprensented by [`ConfidentialityLabel`] enum.
     ///
-    /// If the object is instantiated for a File [`Identifier`] container, the
-    /// provenance is initialized with the given Identifier.
+    /// If the object is instantiated for a File or a Process [`Identifier`],
+    /// the provenance is initialized with the given Identifier.
     pub fn new(identifier: Identifier, confidentiality: ConfidentialityLabel) -> Self {
         let mut labels = Labels {
             provenance: Vec::new(),
             confidentiality,
         };
 
-        if identifier.is_file().is_some() {
+        if identifier.is_file().is_some() || identifier.is_process().is_some() {
             labels.provenance.push(identifier);
         }
 
