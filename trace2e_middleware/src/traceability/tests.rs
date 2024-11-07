@@ -16,7 +16,7 @@ async fn unit_traceability_server_declare_flow() -> Result<(), Box<dyn std::erro
 
     tokio::spawn(traceability_server(receiver));
 
-    let id1 = Identifier::new_process(1, 1);
+    let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
@@ -55,8 +55,8 @@ async fn unit_traceability_server_declare_missing_container(
 
     tokio::spawn(traceability_server(receiver));
 
-    let id1 = Identifier::new_process(1, 1);
-    let id2 = Identifier::new_process(2, 1);
+    let id1 = Identifier::new_process(1, 1, String::new());
+    let id2 = Identifier::new_process(2, 1, String::new());
     let id3 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
@@ -123,7 +123,7 @@ async fn unit_traceability_server_declare_invalid_flow() -> Result<(), Box<dyn s
 
     tokio::spawn(traceability_server(receiver));
 
-    let id1 = Identifier::new_process(1, 1);
+    let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
@@ -199,7 +199,7 @@ async fn unit_traceability_server_record() -> Result<(), Box<dyn std::error::Err
 
     tokio::spawn(traceability_server(receiver));
 
-    let id1 = Identifier::new_process(1, 1);
+    let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
@@ -266,7 +266,7 @@ async fn unit_traceability_server_declare_flow_delayed() -> Result<(), Box<dyn s
 
     tokio::spawn(traceability_server(receiver));
 
-    let id1 = Identifier::new_process(1, 1);
+    let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let (tx, rx) = oneshot::channel();
@@ -330,10 +330,16 @@ async fn unit_traceability_server_forced_release() -> Result<(), Box<dyn std::er
         Ok(starttime) => starttime,
         Err(_) => panic!("Unable to get the test process starttime."),
     };
+    let process_exe_path = match Process::new(process.id().try_into().unwrap())
+        .and_then(|p| p.exe())
+    {
+        Ok(path_buf) => path_buf.to_str().unwrap_or("").to_string(),
+        Err(_) => panic!("Unable to get the test process exe path."),
+    };
 
-    let id1 = Identifier::new_process(process.id(), process_starttime);
+    let id1 = Identifier::new_process(process.id(), process_starttime, process_exe_path);
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
-    let id3 = Identifier::new_process(1, 1);
+    let id3 = Identifier::new_process(1, 1, String::new());
 
     let (tx, rx) = oneshot::channel();
     sender

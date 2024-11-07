@@ -37,12 +37,12 @@ impl Identifier {
         }
     }
 
-    pub fn new_process(pid: u32, starttime: u64) -> Self {
+    pub fn new_process(pid: u32, starttime: u64, exe_path: String) -> Self {
         Self {
             node: MIDDLEWARE_ID
                 .get_or_init(|| "localhost".to_string())
                 .clone(),
-            resource: Resource::Process(pid, starttime),
+            resource: Resource::Process(pid, starttime, exe_path),
         }
     }
 
@@ -55,7 +55,7 @@ impl Identifier {
 
     pub fn is_process(&self) -> Option<u32> {
         match self.resource {
-            Resource::Process(pid, _) => Some(pid),
+            Resource::Process(pid, ..) => Some(pid),
             _ => None,
         }
     }
@@ -80,7 +80,7 @@ impl From<m2m::Id> for Identifier {
                     stream.peer_socket.parse().unwrap(),
                 ),
                 m2m::resource::Variant::Process(process) => {
-                    Resource::Process(process.pid, process.starttime)
+                    Resource::Process(process.pid, process.starttime, process.exe_path)
                 }
             },
         }
@@ -100,8 +100,8 @@ impl From<Identifier> for m2m::Id {
                             peer_socket: peer_socket.to_string(),
                         })
                     }
-                    Resource::Process(pid, starttime) => {
-                        m2m::resource::Variant::Process(m2m::Process { pid, starttime })
+                    Resource::Process(pid, starttime, exe_path) => {
+                        m2m::resource::Variant::Process(m2m::Process { pid, starttime, exe_path })
                     }
                 }),
             }),
@@ -124,7 +124,8 @@ pub enum Resource {
     /// Stream variant includes the local socket address and peer socket address
     /// as a couple of SocketAddr objects.
     Stream(SocketAddr, SocketAddr),
-    /// Process variant includes the pid as u32 and the starttime as u64 to
-    /// properly handle possible pid recycling for different process instances.
-    Process(u32, u64),
+    /// Process variant includes the pid as u32, the starttime as u64 (to 
+    /// properly handle possible pid recycling for different process instances) 
+    /// and exe path as String. 
+    Process(u32, u64, String),
 }

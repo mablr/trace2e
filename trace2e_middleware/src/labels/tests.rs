@@ -7,7 +7,7 @@ use crate::{
 
 #[test]
 fn unit_labels_new() {
-    let id1 = Identifier::new_process(1, 1);
+    let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
     let id3 = Identifier::new_stream(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
@@ -25,7 +25,7 @@ fn unit_labels_new() {
 
 #[test]
 fn unit_labels_set() {
-    let id1 = Identifier::new_process(1, 1);
+    let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
     let id3 = Identifier::new_stream(
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
@@ -41,7 +41,7 @@ fn unit_labels_set() {
 
 #[test]
 fn unit_labels_update() {
-    let id1 = Identifier::new_process(1, 1);
+    let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
     let id3 = Identifier::new_file("/path/to/file2.txt".to_string());
 
@@ -54,12 +54,15 @@ fn unit_labels_update() {
 
     assert_eq!(id1_labels.get_prov(), vec![id1.clone(), id2.clone()]);
     assert_eq!(id2_labels.get_prov(), vec![id2.clone()]);
-    assert_eq!(id3_labels.get_prov(), vec![id3.clone(), id1.clone(), id2.clone()]);
+    assert_eq!(
+        id3_labels.get_prov(),
+        vec![id3.clone(), id1.clone(), id2.clone()]
+    );
 }
 
 #[test]
 fn unit_labels_confidentiality() {
-    let id1 = Identifier::new_process(1, 1);
+    let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
 
     let mut id1_labels = Labels::new(id1.clone(), ConfidentialityLabel::Low);

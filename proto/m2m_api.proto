@@ -39,6 +39,7 @@ message Stream {
 message Process {
     uint32 pid = 1;
     uint64 starttime = 2;
+    string exe_path = 3;
 }
 
 message Ack {

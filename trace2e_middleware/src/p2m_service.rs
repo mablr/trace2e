@@ -6,7 +6,7 @@ use crate::{
 };
 use p2m::{p2m_server::P2m, Ack, Flow, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
 use procfs::process::Process;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{mpsc, oneshot, RwLock};
 use tokio::time::Instant;
@@ -41,11 +41,22 @@ impl P2m for P2mService {
 
         let r = request.into_inner();
 
-        let process_starttime = match Process::new(r.process_id.try_into().unwrap())
-            .and_then(|p| p.stat())
-            .map(|stat| stat.starttime)
-        {
-            Ok(starttime) => starttime,
+        let process_identifier = match Process::new(r.process_id.try_into().unwrap()) {
+            Ok(p) => {
+                let process_starttime = match p.stat() {
+                    Ok(stat) => Ok(stat.starttime),
+                    Err(_) => Err(Status::not_found(format!(
+                        "Process {} stat failed.",
+                        r.process_id
+                    ))),
+                };
+                let process_exe_path = p.exe().unwrap_or(PathBuf::default()).to_str().unwrap_or("").to_string();
+                Identifier::new_process(
+                    r.process_id.try_into().unwrap(),
+                    process_starttime?,
+                    process_exe_path,
+                )
+            }
             Err(_) => {
                 return Err(Status::not_found(format!(
                     "Process {} not found.",
@@ -53,8 +64,6 @@ impl P2m for P2mService {
                 )))
             }
         };
-        let process_identifier =
-            Identifier::new_process(r.process_id.try_into().unwrap(), process_starttime);
 
         let resource_identifier = Identifier::new_file(r.path.clone());
 
@@ -115,11 +124,22 @@ impl P2m for P2mService {
 
         let r = request.into_inner();
 
-        let process_starttime = match Process::new(r.process_id.try_into().unwrap())
-            .and_then(|p| p.stat())
-            .map(|stat| stat.starttime)
-        {
-            Ok(starttime) => starttime,
+        let process_identifier = match Process::new(r.process_id.try_into().unwrap()) {
+            Ok(p) => {
+                let process_starttime = match p.stat() {
+                    Ok(stat) => Ok(stat.starttime),
+                    Err(_) => Err(Status::not_found(format!(
+                        "Process {} stat failed.",
+                        r.process_id
+                    ))),
+                };
+                let process_exe_path = p.exe().unwrap_or(PathBuf::default()).to_str().unwrap_or("").to_string();
+                Identifier::new_process(
+                    r.process_id.try_into().unwrap(),
+                    process_starttime?,
+                    process_exe_path,
+                )
+            }
             Err(_) => {
                 return Err(Status::not_found(format!(
                     "Process {} not found.",
@@ -127,7 +147,6 @@ impl P2m for P2mService {
                 )))
             }
         };
-        let process_identifier = Identifier::new_process(r.process_id, process_starttime);
 
         info!(
             "PID: {} | FD: {} | [{}-{}]",
@@ -206,11 +225,22 @@ impl P2m for P2mService {
 
         let r = request.into_inner();
 
-        let process_starttime = match Process::new(r.process_id.try_into().unwrap())
-            .and_then(|p| p.stat())
-            .map(|stat| stat.starttime)
-        {
-            Ok(starttime) => starttime,
+        let process_identifier = match Process::new(r.process_id.try_into().unwrap()) {
+            Ok(p) => {
+                let process_starttime = match p.stat() {
+                    Ok(stat) => Ok(stat.starttime),
+                    Err(_) => Err(Status::not_found(format!(
+                        "Process {} stat failed.",
+                        r.process_id
+                    ))),
+                };
+                let process_exe_path = p.exe().unwrap_or(PathBuf::default()).to_str().unwrap_or("").to_string();
+                Identifier::new_process(
+                    r.process_id.try_into().unwrap(),
+                    process_starttime?,
+                    process_exe_path,
+                )
+            }
             Err(_) => {
                 return Err(Status::not_found(format!(
                     "Process {} not found.",
@@ -218,7 +248,6 @@ impl P2m for P2mService {
                 )))
             }
         };
-        let process_identifier = Identifier::new_process(r.process_id, process_starttime);
 
         info!("PID: {} | FD: {} | {}", r.process_id, r.file_descriptor, {
             if r.flow == 0 {
