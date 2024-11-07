@@ -18,7 +18,7 @@ fn unit_labels_new() {
     let id2_labels = Labels::new(id2.clone(), ConfidentialityLabel::Low);
     let id3_labels = Labels::new(id3.clone(), ConfidentialityLabel::Low);
 
-    assert_eq!(id1_labels.get_prov(), vec![]);
+    assert_eq!(id1_labels.get_prov(), vec![id1.clone()]);
     assert_eq!(id2_labels.get_prov(), vec![id2.clone()]);
     assert_eq!(id3_labels.get_prov(), vec![]);
 }
@@ -33,7 +33,7 @@ fn unit_labels_set() {
     );
 
     let mut labels = Labels::new(id1.clone(), ConfidentialityLabel::Low);
-    assert_eq!(labels.get_prov(), vec![]);
+    assert_eq!(labels.get_prov(), vec![id1.clone()]);
 
     labels.set_prov(vec![id2.clone(), id3.clone()]);
     assert_eq!(labels.get_prov(), vec![id2.clone(), id3.clone()]);
@@ -52,9 +52,9 @@ fn unit_labels_update() {
     id1_labels.update_prov(&id2_labels);
     id3_labels.update_prov(&id1_labels);
 
-    assert_eq!(id1_labels.get_prov(), vec![id2.clone()]);
+    assert_eq!(id1_labels.get_prov(), vec![id1.clone(), id2.clone()]);
     assert_eq!(id2_labels.get_prov(), vec![id2.clone()]);
-    assert_eq!(id3_labels.get_prov(), vec![id3.clone(), id2.clone()]);
+    assert_eq!(id3_labels.get_prov(), vec![id3.clone(), id1.clone(), id2.clone()]);
 }
 
 #[test]
