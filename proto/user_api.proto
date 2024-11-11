@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package user_api;
+
+service User {
+    rpc PrintDB(Req) returns (Ack);    
+}
+
+
+message Req {
+}
+
+message Ack {
+}

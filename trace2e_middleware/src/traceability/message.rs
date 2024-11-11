@@ -35,4 +35,5 @@ pub enum TraceabilityRequest {
     ),
     RecordFlow(u64, oneshot::Sender<TraceabilityResponse>),
     SyncStream(Identifier, oneshot::Sender<TraceabilityResponse>),
+    PrintProvenance,
 }

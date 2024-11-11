@@ -18,3 +18,4 @@ pub mod labels;
 pub mod m2m_service;
 pub mod p2m_service;
 pub mod traceability;
+pub mod user_service;

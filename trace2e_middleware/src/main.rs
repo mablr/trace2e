@@ -12,6 +12,10 @@ use trace2e_middleware::{
         P2mService,
     },
     traceability::traceability_server,
+    user_service::{
+        user::{user_server::UserServer, USER_DESCRIPTOR_SET},
+        UserService,
+    },
 };
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -45,15 +49,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let address = "[::]:8080".parse().unwrap();
     let p2m_service = P2mService::new(sender.clone());
     let m2m_service = M2mService::new(sender.clone());
+    let user_service = UserService::new(sender.clone());
 
     let reflection_service = Builder::configure()
         .register_encoded_file_descriptor_set(P2M_DESCRIPTOR_SET)
         .register_encoded_file_descriptor_set(M2M_DESCRIPTOR_SET)
+        .register_encoded_file_descriptor_set(USER_DESCRIPTOR_SET)
         .build_v1()?;
 
     Server::builder()
         .add_service(P2mServer::new(p2m_service))
         .add_service(M2mServer::new(m2m_service))
+        .add_service(UserServer::new(user_service))
         .add_service(reflection_service)
         .serve(address)
         .await?;

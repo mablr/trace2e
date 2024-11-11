@@ -1,5 +1,6 @@
 //! Global identification mechanism for data containers.
 
+use std::fmt;
 use std::net::SocketAddr;
 
 use std::sync::OnceLock;
@@ -124,8 +125,35 @@ pub enum Resource {
     /// Stream variant includes the local socket address and peer socket address
     /// as a couple of SocketAddr objects.
     Stream(SocketAddr, SocketAddr),
-    /// Process variant includes the pid as u32, the starttime as u64 (to 
-    /// properly handle possible pid recycling for different process instances) 
-    /// and exe path as String. 
+    /// Process variant includes the pid as u32, the starttime as u64 (to
+    /// properly handle possible pid recycling for different process instances)
+    /// and exe path as String.
     Process(u32, u64, String),
+}
+
+impl fmt::Display for Resource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Resource::File(path) => write!(f, "file://{}", path),
+            Resource::Stream(local, peer) => write!(
+                f,
+                "stream://tcp;{};{}",
+                local, peer
+            ),
+            Resource::Process(pid, start_time, exe_path) => {
+                write!(
+                    f,
+                    "process://{};{};{}",
+                    pid, start_time, exe_path
+                )
+            }
+        }
+    }
+}
+
+// Implement Display for Identifier
+impl fmt::Display for Identifier {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}@{}", self.resource, self.node)
+    }
 }
