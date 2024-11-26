@@ -9,7 +9,7 @@ edition = "2021"
 procfs = "0.16.0"
 prost = "0.13.2"
 rustix = { version = "0.38.36", features = ["system"]}
-tokio = { version = "1.40.0", features = ["macros", "rt-multi-thread"] }
+tokio = { version = "1.40.0", features = ["macros", "rt-multi-thread", "process"] }
 tonic = "0.12.2"
 tonic-reflection = "0.12.2"
 tracing = "0.1.40"

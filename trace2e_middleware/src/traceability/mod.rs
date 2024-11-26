@@ -8,6 +8,7 @@ mod message;
 mod server;
 #[cfg(test)]
 mod tests;
+mod whyenf;
 
 pub use error::TraceabilityError;
 pub use message::{TraceabilityRequest, TraceabilityResponse};
