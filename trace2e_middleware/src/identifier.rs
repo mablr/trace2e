@@ -102,7 +102,11 @@ impl From<Identifier> for m2m::Id {
                         })
                     }
                     Resource::Process(pid, starttime, exe_path) => {
-                        m2m::resource::Variant::Process(m2m::Process { pid, starttime, exe_path })
+                        m2m::resource::Variant::Process(m2m::Process {
+                            pid,
+                            starttime,
+                            exe_path,
+                        })
                     }
                 }),
             }),
@@ -135,17 +139,9 @@ impl fmt::Display for Resource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Resource::File(path) => write!(f, "file://{}", path),
-            Resource::Stream(local, peer) => write!(
-                f,
-                "stream://tcp;{};{}",
-                local, peer
-            ),
+            Resource::Stream(local, peer) => write!(f, "stream://tcp;{};{}", local, peer),
             Resource::Process(pid, start_time, exe_path) => {
-                write!(
-                    f,
-                    "process://{};{};{}",
-                    pid, start_time, exe_path
-                )
+                write!(f, "process://{};{};{}", pid, start_time, exe_path)
             }
         }
     }

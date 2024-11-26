@@ -181,10 +181,7 @@ pub async fn traceability_server(mut receiver: mpsc::Receiver<TraceabilityReques
                         println!("  {{ \"{}\":\n    [", id);
                         let label = label.read().await;
                         for ref_id in label.get_prov() {
-                            println!(
-                                "      \"{}\",",
-                                ref_id
-                            );
+                            println!("      \"{}\",", ref_id);
                         }
                         println!("    ]\n  }},");
                     }

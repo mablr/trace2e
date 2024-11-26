@@ -50,7 +50,12 @@ impl P2m for P2mService {
                         r.process_id
                     ))),
                 };
-                let process_exe_path = p.exe().unwrap_or(PathBuf::default()).to_str().unwrap_or("").to_string();
+                let process_exe_path = p
+                    .exe()
+                    .unwrap_or(PathBuf::default())
+                    .to_str()
+                    .unwrap_or("")
+                    .to_string();
                 Identifier::new_process(
                     r.process_id.try_into().unwrap(),
                     process_starttime?,
@@ -133,7 +138,12 @@ impl P2m for P2mService {
                         r.process_id
                     ))),
                 };
-                let process_exe_path = p.exe().unwrap_or(PathBuf::default()).to_str().unwrap_or("").to_string();
+                let process_exe_path = p
+                    .exe()
+                    .unwrap_or(PathBuf::default())
+                    .to_str()
+                    .unwrap_or("")
+                    .to_string();
                 Identifier::new_process(
                     r.process_id.try_into().unwrap(),
                     process_starttime?,
@@ -234,7 +244,12 @@ impl P2m for P2mService {
                         r.process_id
                     ))),
                 };
-                let process_exe_path = p.exe().unwrap_or(PathBuf::default()).to_str().unwrap_or("").to_string();
+                let process_exe_path = p
+                    .exe()
+                    .unwrap_or(PathBuf::default())
+                    .to_str()
+                    .unwrap_or("")
+                    .to_string();
                 Identifier::new_process(
                     r.process_id.try_into().unwrap(),
                     process_starttime?,
