@@ -11,7 +11,7 @@ use tonic::{transport::Channel, Request};
 use crate::{
     identifier::Identifier,
     labels::{Compliance, Labels, Provenance},
-    m2m_service::m2m::{m2m_client::M2mClient, Id, Stream, StreamProv},
+    m2m_service::m2m::{m2m_client::M2mClient, ComplianceLabel, Stream, StreamProv},
 };
 
 use super::{TraceabilityError, TraceabilityRequest, TraceabilityResponse};
@@ -181,7 +181,7 @@ pub async fn traceability_server(mut receiver: mpsc::Receiver<TraceabilityReques
                         println!("  {{ \"{}\":\n    [", id);
                         let label = label.read().await;
                         for ref_id in label.get_prov() {
-                            println!("      \"{}\",", ref_id);
+                            println!("      \"{:?}\",", ref_id);
                         }
                         println!("    ]\n  }},");
                     }
@@ -199,18 +199,17 @@ async fn handle_register_container(
 ) {
     if let Some(container) = containers.get(&identifier).cloned() {
         if identifier.is_stream().is_some() {
-            container.write().await.set_prov(vec![]); // Purge previous provenance
+            container.write().await.clear_prov(); // Purge previous provenance
         }
     } else {
         containers.insert(
             identifier.clone(),
-            Arc::new(RwLock::new(Labels::new(
-                identifier.clone(),
-                crate::labels::ConfidentialityLabel::Low,
-            ))),
+            Arc::new(RwLock::new(Labels::new(identifier.clone()))),
         );
     }
-    responder.send(TraceabilityResponse::Registered).unwrap();
+    responder
+        .send(TraceabilityResponse::Registered(identifier))
+        .unwrap();
 }
 
 async fn handle_flow(
@@ -243,16 +242,12 @@ async fn handle_flow(
                     #[cfg(feature = "verbose")]
                     println!("⚠️  Reservation timeout Flow {}", grant_id);
 
-                    // Remove flow release handle
-                    flows_release_handles.lock().await.remove(&grant_id);
-
                     // Try to kill the process that holds the reservation for too long,
                     // to release the reservation safely
                     let _ = std::process::Command::new("kill")
                         .arg("-9")
                         .arg(pid.to_string())
                         .status();
-                    // Todo: handle the result ?
 
                     // Release remote stream
                     let _ = client
@@ -262,6 +257,9 @@ async fn handle_flow(
                             provenance: Vec::new(), // empty provenance to skip update and release remote stream
                         }))
                         .await;
+
+                    // Remove flow release handle
+                    flows_release_handles.lock().await.remove(&grant_id);
                 } else {
                     #[cfg(feature = "verbose")]
                     println!(
@@ -278,7 +276,7 @@ async fn handle_flow(
                             provenance: source_labels
                                 .get_prov()
                                 .into_iter()
-                                .map(Id::from)
+                                .map(ComplianceLabel::from)
                                 .collect(),
                         }))
                         .await; // Todo Sync failure management
@@ -293,7 +291,7 @@ async fn handle_flow(
         let (source_labels, mut destination_labels) =
             reserve_local_flow(output, &id1_container, &id2_container).await;
 
-        if destination_labels.is_compliant(source_labels.to_owned()) {
+        if destination_labels.is_compliant(&source_labels.to_owned()) {
             let (grant_id, release) =
                 grant_flow(grant_counter, flows_release_handles.clone(), responder).await;
             #[cfg(feature = "verbose")]
@@ -309,16 +307,15 @@ async fn handle_flow(
                 #[cfg(feature = "verbose")]
                 println!("⚠️  Reservation timeout Flow {}", grant_id);
 
-                // Remove flow release handle
-                flows_release_handles.lock().await.remove(&grant_id);
-
                 // Try to kill the process that holds the reservation for too long,
                 // to release the reservation safely
                 let _ = std::process::Command::new("kill")
                     .arg("-9")
                     .arg(pid.to_string())
                     .status();
-                // Todo: handle the result ?
+
+                // Remove flow release handle
+                flows_release_handles.lock().await.remove(&grant_id);
             } else {
                 // Record flow locally if it is not an output to a stream
                 #[cfg(feature = "verbose")]
@@ -366,12 +363,32 @@ fn validate_flow(
     containers: &ContainersMap,
 ) -> Result<(u32, Arc<RwLock<Labels>>, Arc<RwLock<Labels>>), TraceabilityError> {
     if let Some(pid) = id1.is_process().filter(|_| id2.is_process().is_none()) {
+        // if let (Some(id1_container), Some(id2_container)) =
+        //     (containers.get(&id1).cloned(), containers.get(&id2).cloned())
+        // {
+        //     Ok((pid, id1_container, id2_container))
+        // } else {
+        //     Err(TraceabilityError::MissingRegistration(id1, id2))
+        // }
+        let id1_container = containers.get(&id1).cloned();
+        let id2_container = containers.get(&id2).cloned();
         if let (Some(id1_container), Some(id2_container)) =
-            (containers.get(&id1).cloned(), containers.get(&id2).cloned())
+            (id1_container.clone(), id2_container.clone())
         {
             Ok((pid, id1_container, id2_container))
         } else {
-            Err(TraceabilityError::MissingRegistration(id1, id2))
+            Err(TraceabilityError::MissingRegistration(
+                if id1_container.is_none() {
+                    Some(id1)
+                } else {
+                    None
+                },
+                if id2_container.is_none() {
+                    Some(id2)
+                } else {
+                    None
+                },
+            ))
         }
     } else {
         Err(TraceabilityError::InvalidFlow(id1, id2))

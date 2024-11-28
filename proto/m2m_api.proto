@@ -11,8 +11,14 @@ service M2M {
 message StreamProv {
     string local_socket = 1;
     string peer_socket = 2;
-    repeated Id provenance = 3;
-} 
+    repeated ComplianceLabel provenance = 3;
+}
+
+message ComplianceLabel {
+    Id identifier = 1;
+    bool local_confidentiality = 2;
+    bool local_integrity = 3;
+}
 
 message Id {
     string node = 1;

@@ -24,7 +24,7 @@ async fn unit_traceability_server_declare_flow() -> Result<(), Box<dyn std::erro
         .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id1),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
@@ -33,7 +33,7 @@ async fn unit_traceability_server_declare_flow() -> Result<(), Box<dyn std::erro
         .send(TraceabilityRequest::RegisterContainer(id2.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id2),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
@@ -64,7 +64,7 @@ async fn unit_traceability_server_declare_missing_container(
         .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id1),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
@@ -81,11 +81,7 @@ async fn unit_traceability_server_declare_missing_container(
         TraceabilityResponse::Error(e) => {
             assert_eq!(
                 format!("{}", e),
-                format!(
-                    "Traceability error: ({:?} || {:?}) are not registered.",
-                    id1.clone(),
-                    id3.clone()
-                )
+                format!("Traceability error: {:?} is not registered.", id3.clone())
             );
         }
         _ => panic!("A Flow MissingRegistration was expected."),
@@ -131,7 +127,7 @@ async fn unit_traceability_server_declare_invalid_flow() -> Result<(), Box<dyn s
         .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id1),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
@@ -140,7 +136,7 @@ async fn unit_traceability_server_declare_invalid_flow() -> Result<(), Box<dyn s
         .send(TraceabilityRequest::RegisterContainer(id2.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id2),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
@@ -207,7 +203,7 @@ async fn unit_traceability_server_record() -> Result<(), Box<dyn std::error::Err
         .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id1),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
@@ -216,7 +212,7 @@ async fn unit_traceability_server_record() -> Result<(), Box<dyn std::error::Err
         .send(TraceabilityRequest::RegisterContainer(id2.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id2),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
@@ -274,7 +270,7 @@ async fn unit_traceability_server_declare_flow_delayed() -> Result<(), Box<dyn s
         .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id1),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
@@ -283,7 +279,7 @@ async fn unit_traceability_server_declare_flow_delayed() -> Result<(), Box<dyn s
         .send(TraceabilityRequest::RegisterContainer(id2.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id2),
         _ => panic!("Container was expected to be registered successfully."),
     };
     let (tx1, rx1) = oneshot::channel();
@@ -323,6 +319,8 @@ async fn unit_traceability_server_forced_release() -> Result<(), Box<dyn std::er
     tokio::spawn(traceability_server(receiver));
 
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
     let process_starttime = match Process::new(process.id().try_into().unwrap())
         .and_then(|p| p.stat())
         .map(|stat| stat.starttime)
@@ -345,7 +343,7 @@ async fn unit_traceability_server_forced_release() -> Result<(), Box<dyn std::er
         .send(TraceabilityRequest::RegisterContainer(id1.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id1),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
@@ -354,7 +352,7 @@ async fn unit_traceability_server_forced_release() -> Result<(), Box<dyn std::er
         .send(TraceabilityRequest::RegisterContainer(id2.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id2),
         _ => panic!("Container was expected to be registered successfully."),
     };
 
@@ -363,7 +361,7 @@ async fn unit_traceability_server_forced_release() -> Result<(), Box<dyn std::er
         .send(TraceabilityRequest::RegisterContainer(id3.clone(), tx))
         .await?;
     match rx.await.unwrap() {
-        TraceabilityResponse::Registered => (),
+        TraceabilityResponse::Registered(id) => assert_eq!(id, id3),
         _ => panic!("Container was expected to be registered successfully."),
     };
 

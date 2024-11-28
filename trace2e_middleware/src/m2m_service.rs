@@ -3,6 +3,7 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
 use crate::{
     identifier::Identifier,
+    labels::ComplianceLabel,
     traceability::{TraceabilityRequest, TraceabilityResponse},
 };
 use m2m::{m2m_server::M2m, Ack, Stream, StreamProv};
@@ -19,7 +20,7 @@ pub struct M2mService {
         Mutex<
             HashMap<
                 Identifier,
-                oneshot::Sender<(Vec<Identifier>, oneshot::Sender<TraceabilityResponse>)>,
+                oneshot::Sender<(Vec<ComplianceLabel>, oneshot::Sender<TraceabilityResponse>)>,
             >,
         >,
     >,
@@ -99,8 +100,11 @@ impl M2m for M2mService {
         let stream_id = Identifier::new_stream(peer_socket, local_socket);
 
         if let Some(provenance_sync_channel) = self.synced_streams.lock().await.remove(&stream_id) {
-            let provenance: Vec<Identifier> =
-                r.provenance.into_iter().map(Identifier::from).collect();
+            let provenance = r
+                .provenance
+                .into_iter()
+                .map(ComplianceLabel::from)
+                .collect();
 
             let (tx, rx) = oneshot::channel();
             let _ = provenance_sync_channel.send((provenance, tx));

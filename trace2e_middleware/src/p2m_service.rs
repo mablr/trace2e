@@ -196,7 +196,7 @@ impl P2m for P2mService {
             }
         };
 
-        let identifier = Identifier::new_stream(local_socket, peer_socket);
+        let resource_identifier = Identifier::new_stream(local_socket, peer_socket);
 
         let (tx, rx) = oneshot::channel();
         let _ = self
@@ -212,17 +212,14 @@ impl P2m for P2mService {
         let _ = self
             .provenance
             .send(TraceabilityRequest::RegisterContainer(
-                identifier.clone(),
+                resource_identifier.clone(),
                 tx,
             ))
             .await;
         rx.await.unwrap();
 
         let mut identifiers_map = self.identifiers_map.write().await;
-        identifiers_map.insert(
-            (r.process_id.clone(), r.file_descriptor.clone()),
-            identifier.clone(),
-        );
+        identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
 
         info!("completed in {:?}", start_time.elapsed());
 
@@ -412,6 +409,7 @@ mod tests {
         tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         let file_creation1 = tonic::Request::new(LocalCt {
             process_id: 0,
@@ -489,6 +487,7 @@ mod tests {
         tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         // CT declaration
         let file_creation = tonic::Request::new(LocalCt {
@@ -523,6 +522,7 @@ mod tests {
         tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         // CT declaration
         let file_creation = tonic::Request::new(LocalCt {
@@ -551,6 +551,7 @@ mod tests {
         tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         // CT declaration
         let file_creation = tonic::Request::new(LocalCt {
@@ -583,6 +584,7 @@ mod tests {
         tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         // CT declaration
         let file_creation = tonic::Request::new(LocalCt {
@@ -616,6 +618,7 @@ mod tests {
         tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         // CT declaration
         let file_creation = tonic::Request::new(LocalCt {
@@ -655,6 +658,7 @@ mod tests {
         tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         // CT declaration
         let file_creation = tonic::Request::new(LocalCt {
@@ -694,6 +698,7 @@ mod tests {
         tokio::spawn(traceability_server(receiver));
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         // CT declaration
         let stream_creation = tonic::Request::new(RemoteCt {

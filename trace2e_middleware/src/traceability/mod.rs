@@ -10,5 +10,6 @@ mod server;
 mod tests;
 
 pub use error::TraceabilityError;
-pub use message::{TraceabilityRequest, TraceabilityResponse};
+pub use message::TraceabilityRequest;
+pub(crate) use message::TraceabilityResponse;
 pub use server::traceability_server;

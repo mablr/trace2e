@@ -4,8 +4,9 @@ mod provenance;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use compliance::{Compliance, ConfidentialityLabel};
-pub(crate) use provenance::{Provenance, ProvenanceLabel};
+pub(crate) use compliance::{Compliance, ComplianceLabel};
+pub(crate) use provenance::Provenance;
+use provenance::ProvenanceLabel;
 
 use crate::identifier::Identifier;
 
@@ -14,26 +15,16 @@ use crate::identifier::Identifier;
 /// A [`Labels`] structure is instantiated for each declared container.
 #[derive(Debug, Clone)]
 pub struct Labels {
+    compliance: ComplianceLabel,
     provenance: ProvenanceLabel,
-    confidentiality: ConfidentialityLabel,
 }
 
 impl Labels {
-    /// Creates a new [`Labels`] object given an [`Identifier`] enum, and a
-    /// confidentiality level reprensented by [`ConfidentialityLabel`] enum.
-    ///
-    /// If the object is instantiated for a File or a Process [`Identifier`],
-    /// the provenance is initialized with the given Identifier.
-    pub fn new(identifier: Identifier, confidentiality: ConfidentialityLabel) -> Self {
-        let mut labels = Labels {
-            provenance: Vec::new(),
-            confidentiality,
-        };
-
-        if identifier.is_file().is_some() || identifier.is_process().is_some() {
-            labels.provenance.push(identifier);
+    /// Creates a new [`Labels`] object given an [`Identifier`] enum.
+    pub fn new(identifier: Identifier) -> Self {
+        Labels {
+            compliance: ComplianceLabel::new(identifier),
+            provenance: ProvenanceLabel::default(),
         }
-
-        labels
     }
 }

@@ -67,6 +67,13 @@ impl Identifier {
             _ => None,
         }
     }
+
+    pub fn is_local(&self) -> bool {
+        self.node
+            == MIDDLEWARE_ID
+                .get_or_init(|| "localhost".to_string())
+                .clone()
+    }
 }
 
 impl From<m2m::Id> for Identifier {

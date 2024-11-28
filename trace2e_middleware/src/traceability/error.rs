@@ -5,9 +5,9 @@ use crate::identifier::Identifier;
 /// Traceability layer error type.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TraceabilityError {
-    /// Flow declaration failed because at least one of the given containers is
+    /// Flow declaration failed because one of the given containers is
     /// not registered so far in the middleware.
-    MissingRegistration(Identifier, Identifier),
+    MissingRegistration(Option<Identifier>, Option<Identifier>),
     /// Flow declaration failed because the type of the given containers is
     /// not valid.
     InvalidFlow(Identifier, Identifier),
@@ -27,11 +27,31 @@ impl std::fmt::Display for TraceabilityError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TraceabilityError::MissingRegistration(id1, id2) => {
-                write!(
-                    f,
-                    "Traceability error: ({:?} || {:?}) are not registered.",
-                    id1, id2
-                )
+                if id1.is_some() && id2.is_none() {
+                    write!(
+                        f,
+                        "Traceability error: {:?} is not registered.",
+                        id1.clone().unwrap()
+                    )
+                } else if id1.is_none() && id2.is_some() {
+                    write!(
+                        f,
+                        "Traceability error: {:?} is not registered.",
+                        id2.clone().unwrap()
+                    )
+                } else if id1.is_none() && id2.is_none() {
+                    write!(
+                        f,
+                        "Traceability error: invalid MissingRegistration parameters."
+                    )
+                } else {
+                    write!(
+                        f,
+                        "Traceability error: ({:?} || {:?}) are not registered.",
+                        id1.clone().unwrap(),
+                        id2.clone().unwrap()
+                    )
+                }
             }
             TraceabilityError::InvalidFlow(id1, id2) => {
                 write!(

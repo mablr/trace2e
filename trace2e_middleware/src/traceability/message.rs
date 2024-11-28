@@ -1,17 +1,17 @@
 use tokio::sync::oneshot;
 
-use crate::identifier::Identifier;
+use crate::{identifier::Identifier, labels::ComplianceLabel};
 
 use super::TraceabilityError;
 
 /// Provenance layer response message type.
 #[derive(Debug)]
 pub enum TraceabilityResponse {
-    Registered,
+    Registered(Identifier),
     Declared(u64),
     Recorded,
     Error(TraceabilityError),
-    WaitingSync(oneshot::Sender<(Vec<Identifier>, oneshot::Sender<TraceabilityResponse>)>),
+    WaitingSync(oneshot::Sender<(Vec<ComplianceLabel>, oneshot::Sender<TraceabilityResponse>)>),
 }
 
 impl TraceabilityResponse {

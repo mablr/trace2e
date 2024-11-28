@@ -2,8 +2,10 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 use crate::{
     identifier::Identifier,
-    labels::{provenance::Provenance, Compliance, ConfidentialityLabel, Labels},
+    labels::{provenance::Provenance, Compliance, Labels},
 };
+
+use super::compliance::ComplianceSettings;
 
 #[test]
 fn unit_labels_new() {
@@ -14,17 +16,62 @@ fn unit_labels_new() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
 
-    let id1_labels = Labels::new(id1.clone(), ConfidentialityLabel::Low);
-    let id2_labels = Labels::new(id2.clone(), ConfidentialityLabel::Low);
-    let id3_labels = Labels::new(id3.clone(), ConfidentialityLabel::Low);
+    let id1_labels = Labels::new(id1.clone());
+    let id2_labels = Labels::new(id2.clone());
+    let id3_labels = Labels::new(id3.clone());
 
-    assert_eq!(id1_labels.get_prov(), vec![id1.clone()]);
-    assert_eq!(id2_labels.get_prov(), vec![id2.clone()]);
-    assert_eq!(id3_labels.get_prov(), vec![]);
+    assert_eq!(id1_labels.get_prov().len(), 0);
+    assert_eq!(id2_labels.get_prov().len(), 0);
+    assert_eq!(id3_labels.get_prov().len(), 0);
+
+    assert_eq!(id1_labels.get_identifier(), &id1);
+    assert_eq!(id2_labels.get_identifier(), &id2);
+    assert_eq!(id3_labels.get_identifier(), &id3);
 }
 
 #[test]
-fn unit_labels_set() {
+fn unit_labels_prov_update_basic() {
+    let id1 = Identifier::new_process(1, 1, String::new());
+    let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
+    let id3 = Identifier::new_file("/path/to/file2.txt".to_string());
+
+    let mut id1_labels = Labels::new(id1.clone());
+    let id2_labels = Labels::new(id2.clone());
+    let mut id3_labels = Labels::new(id3.clone());
+
+    id1_labels.update_prov(&id2_labels);
+    id3_labels.update_prov(&id1_labels);
+
+    assert_eq!(id1_labels.get_prov(), vec![id2_labels.compliance.clone()]);
+    assert_eq!(id2_labels.get_prov(), vec![]);
+    assert_eq!(
+        id3_labels.get_prov(),
+        vec![id1_labels.compliance.clone(), id2_labels.compliance.clone()]
+    );
+}
+
+#[test]
+fn unit_labels_prov_update_self_ref() {
+    let id1 = Identifier::new_process(1, 1, String::new());
+    let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
+
+    let mut id1_labels = Labels::new(id1.clone());
+    let mut id2_labels = Labels::new(id2.clone());
+
+    // unlikely, but useful to show update behavior in case of self-reference
+    id1_labels.update_prov(&id1_labels.clone());
+    id2_labels.update_prov(&id2_labels.clone());
+    assert_eq!(id1_labels.get_prov().len(), 0);
+    assert_eq!(id2_labels.get_prov().len(), 0);
+
+    id1_labels.update_prov(&id2_labels);
+    id2_labels.update_prov(&id1_labels);
+    assert_eq!(id1_labels.get_prov(), vec![id2_labels.compliance.clone()]);
+    assert_eq!(id2_labels.get_prov(), vec![id1_labels.compliance]);
+}
+
+#[test]
+fn unit_labels_prov_clear() {
     let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
     let id3 = Identifier::new_stream(
@@ -32,45 +79,88 @@ fn unit_labels_set() {
         SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
     );
 
-    let mut labels = Labels::new(id1.clone(), ConfidentialityLabel::Low);
-    assert_eq!(labels.get_prov(), vec![id1.clone()]);
-
-    labels.set_prov(vec![id2.clone(), id3.clone()]);
-    assert_eq!(labels.get_prov(), vec![id2.clone(), id3.clone()]);
-}
-
-#[test]
-fn unit_labels_update() {
-    let id1 = Identifier::new_process(1, 1, String::new());
-    let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
-    let id3 = Identifier::new_file("/path/to/file2.txt".to_string());
-
-    let mut id1_labels = Labels::new(id1.clone(), ConfidentialityLabel::Low);
-    let id2_labels = Labels::new(id2.clone(), ConfidentialityLabel::Low);
-    let mut id3_labels = Labels::new(id3.clone(), ConfidentialityLabel::Low);
+    let mut id1_labels = Labels::new(id1.clone());
+    let mut id2_labels = Labels::new(id2.clone());
+    let mut id3_labels = Labels::new(id3.clone());
 
     id1_labels.update_prov(&id2_labels);
+    id2_labels.update_prov(&id1_labels);
     id3_labels.update_prov(&id1_labels);
 
-    assert_eq!(id1_labels.get_prov(), vec![id1.clone(), id2.clone()]);
-    assert_eq!(id2_labels.get_prov(), vec![id2.clone()]);
+    assert_eq!(id1_labels.get_prov(), vec![id2_labels.compliance.clone()]);
+    assert_eq!(id2_labels.get_prov(), vec![id1_labels.compliance.clone()]);
     assert_eq!(
         id3_labels.get_prov(),
-        vec![id3.clone(), id1.clone(), id2.clone()]
+        vec![id1_labels.compliance.clone(), id2_labels.compliance.clone()]
     );
+
+    // Clear prov
+    id1_labels.clear_prov();
+    id2_labels.clear_prov();
+    id3_labels.clear_prov();
+
+    assert_eq!(id1_labels.get_prov(), vec![id2_labels.compliance.clone()]);
+    assert_eq!(id2_labels.get_prov(), vec![id1_labels.compliance.clone()]);
+    assert_eq!(id3_labels.get_prov(), vec![]);
 }
 
 #[test]
-fn unit_labels_confidentiality() {
+fn unit_labels_compliance_local_confidentiality_default() {
     let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
+    let id3 = Identifier::new_stream(
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
+    );
 
-    let mut id1_labels = Labels::new(id1.clone(), ConfidentialityLabel::Low);
-    let id2_labels = Labels::new(id2.clone(), ConfidentialityLabel::Low);
+    let mut id1_labels = Labels::new(id1.clone());
+    let id2_labels = Labels::new(id2.clone());
+    let mut id3_labels = Labels::new(id3.clone());
 
-    assert_eq!(id2_labels.is_compliant(id1_labels.clone()), true);
+    assert!(id1_labels.is_compliant(&id2_labels));
+    id1_labels.update_prov(&id2_labels);
+    assert!(id3_labels.is_compliant(&id1_labels));
+    id3_labels.update_prov(&id1_labels);
+}
 
-    id1_labels.confidentiality = ConfidentialityLabel::High;
+#[test]
+fn unit_labels_compliance_local_confidentiality_direct() {
+    let id1 = Identifier::new_process(1, 1, String::new());
+    let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
+    let id3 = Identifier::new_stream(
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
+    );
 
-    assert_eq!(id2_labels.is_compliant(id1_labels), false);
+    let mut id1_labels = Labels::new(id1.clone());
+    let id2_labels = Labels::new(id2.clone());
+    let id3_labels = Labels::new(id3.clone());
+
+    // Set local confidentiality for process to prevent any leakage outside localhost
+    id1_labels.set_local_confidentiality(true);
+
+    assert!(id1_labels.is_compliant(&id2_labels));
+    id1_labels.update_prov(&id2_labels);
+    assert!(!id3_labels.is_compliant(&id1_labels));
+}
+
+#[test]
+fn unit_labels_compliance_local_confidentiality_prov() {
+    let id1 = Identifier::new_process(1, 1, String::new());
+    let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
+    let id3 = Identifier::new_stream(
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
+    );
+
+    let mut id1_labels = Labels::new(id1.clone());
+    let mut id2_labels = Labels::new(id2.clone());
+    let id3_labels = Labels::new(id3.clone());
+
+    // Set local confidentiality for file to prevent any leakage outside localhost
+    id2_labels.set_local_confidentiality(true);
+
+    assert!(id1_labels.is_compliant(&id2_labels));
+    id1_labels.update_prov(&id2_labels);
+    assert!(!id3_labels.is_compliant(&id1_labels));
 }

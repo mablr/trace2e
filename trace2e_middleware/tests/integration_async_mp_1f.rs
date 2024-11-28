@@ -8,6 +8,7 @@ use trace2e_middleware::p2m_service::p2m::{
 async fn integration_async_mp_1f_write1() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
@@ -45,6 +46,7 @@ async fn integration_async_mp_1f_write1() -> Result<(), Box<dyn std::error::Erro
 async fn integration_async_mp_1f_write2() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
@@ -82,6 +84,7 @@ async fn integration_async_mp_1f_write2() -> Result<(), Box<dyn std::error::Erro
 async fn integration_async_mp_1f_write3() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
@@ -119,6 +122,7 @@ async fn integration_async_mp_1f_write3() -> Result<(), Box<dyn std::error::Erro
 async fn integration_async_mp_1f_read1() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
@@ -156,6 +160,7 @@ async fn integration_async_mp_1f_read1() -> Result<(), Box<dyn std::error::Error
 async fn integration_async_mp_1f_read2() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
@@ -193,6 +198,7 @@ async fn integration_async_mp_1f_read2() -> Result<(), Box<dyn std::error::Error
 async fn integration_async_mp_1f_read3() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = P2mClient::connect("http://[::1]:8080").await?;
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
