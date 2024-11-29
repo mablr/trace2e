@@ -3,11 +3,38 @@ syntax = "proto3";
 package user_api;
 
 service User {
-    rpc PrintDB(Req) returns (Ack);    
+    rpc PrintDB(Req) returns (Ack);
+    rpc EnableLocalConfidentiality(Resource) returns (Ack);
+    rpc EnableLocalIntegrity(Resource) returns (Ack);
+    rpc DisableLocalConfidentiality(Resource) returns (Ack);
+    rpc DisableLocalIntegrity(Resource) returns (Ack);
 }
 
 
 message Req {
+}
+
+message Resource {
+    oneof variant {
+        File file = 1;
+        Stream stream = 2;
+        Process process = 3;
+    }
+}
+
+message File {
+    string path = 1;
+}
+
+message Stream {
+    string local_socket = 1;
+    string peer_socket = 2;
+} 
+
+message Process {
+    uint32 pid = 1;
+    uint64 starttime = 2;
+    string exe_path = 3;
 }
 
 message Ack {

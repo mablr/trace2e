@@ -27,6 +27,12 @@ impl TraceabilityResponse {
 /// Provenance layer request message type.
 pub enum TraceabilityRequest {
     RegisterContainer(Identifier, oneshot::Sender<TraceabilityResponse>),
+    SetComplianceLabel(
+        Identifier,
+        Option<bool>,
+        Option<bool>,
+        oneshot::Sender<TraceabilityResponse>,
+    ),
     DeclareFlow(
         Identifier,
         Identifier,

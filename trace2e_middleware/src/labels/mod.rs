@@ -4,7 +4,7 @@ mod provenance;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use compliance::{Compliance, ComplianceLabel};
+pub(crate) use compliance::{Compliance, ComplianceLabel, ComplianceSettings};
 pub(crate) use provenance::Provenance;
 use provenance::ProvenanceLabel;
 

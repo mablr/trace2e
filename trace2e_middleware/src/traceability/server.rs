@@ -10,8 +10,8 @@ use tonic::{transport::Channel, Request};
 
 use crate::{
     identifier::Identifier,
-    labels::{Compliance, Labels, Provenance},
-    m2m_service::m2m::{m2m_client::M2mClient, ComplianceLabel, Stream, StreamProv},
+    labels::{Compliance, ComplianceSettings, Labels, Provenance},
+    m2m_service::m2m::{self, m2m_client::M2mClient},
 };
 
 use super::{TraceabilityError, TraceabilityRequest, TraceabilityResponse};
@@ -150,6 +150,21 @@ pub async fn traceability_server(mut receiver: mpsc::Receiver<TraceabilityReques
             TraceabilityRequest::RegisterContainer(identifier, responder) => {
                 handle_register_container(&mut containers, identifier, responder).await
             }
+            TraceabilityRequest::SetComplianceLabel(
+                identifier,
+                local_confidentiality,
+                local_integrity,
+                responder,
+            ) => {
+                set_compliance_label(
+                    &mut containers,
+                    identifier,
+                    local_confidentiality,
+                    local_integrity,
+                    responder,
+                )
+                .await
+            }
             TraceabilityRequest::DeclareFlow(id1, id2, output, responder) => {
                 match validate_flow(id1.clone(), id2.clone(), &containers) {
                     Ok((pid, id1_container, id2_container)) => {
@@ -178,10 +193,15 @@ pub async fn traceability_server(mut receiver: mpsc::Receiver<TraceabilityReques
                 println!("[");
                 for (id, label) in &containers {
                     if id.is_stream().is_none() {
-                        println!("  {{ \"{}\":\n    [", id);
                         let label = label.read().await;
-                        for ref_id in label.get_prov() {
-                            println!("      \"{:?}\",", ref_id);
+                        println!(
+                            "  {{ \"{}\" (local_confidentiality: {}, local_integrity: {}):\n    [",
+                            id,
+                            label.get_local_confidentiality(),
+                            label.get_local_integrity()
+                        );
+                        for cl in label.get_prov() {
+                            println!("      \"{:?}\",", cl);
                         }
                         println!("    ]\n  }},");
                     }
@@ -210,6 +230,39 @@ async fn handle_register_container(
     responder
         .send(TraceabilityResponse::Registered(identifier))
         .unwrap();
+}
+
+async fn set_compliance_label(
+    containers: &mut ContainersMap,
+    identifier: Identifier,
+    local_confidentiality: Option<bool>,
+    local_integrity: Option<bool>,
+    responder: oneshot::Sender<TraceabilityResponse>,
+) {
+    if let Some(container) = containers.get(&identifier).cloned() {
+        let mut labels = container.write().await;
+        set_local_compliance_rules(&mut labels, local_confidentiality, local_integrity);
+    } else {
+        let mut labels = Labels::new(identifier.clone());
+        set_local_compliance_rules(&mut labels, local_confidentiality, local_integrity);
+        containers.insert(identifier.clone(), Arc::new(RwLock::new(labels)));
+    }
+    responder
+        .send(TraceabilityResponse::Registered(identifier))
+        .unwrap();
+}
+
+fn set_local_compliance_rules(
+    labels: &mut Labels,
+    local_confidentiality: Option<bool>,
+    local_integrity: Option<bool>,
+) {
+    if let Some(value) = local_confidentiality {
+        labels.set_local_confidentiality(value);
+    }
+    if let Some(value) = local_integrity {
+        labels.set_local_integrity(value);
+    }
 }
 
 async fn handle_flow(
@@ -251,7 +304,7 @@ async fn handle_flow(
 
                     // Release remote stream
                     let _ = client
-                        .sync_provenance(Request::new(StreamProv {
+                        .sync_provenance(Request::new(m2m::StreamProv {
                             local_socket: local_socket.to_string(),
                             peer_socket: peer_socket.to_string(),
                             provenance: Vec::new(), // empty provenance to skip update and release remote stream
@@ -270,13 +323,13 @@ async fn handle_flow(
                         id2.clone()
                     );
                     let _ = client
-                        .sync_provenance(Request::new(StreamProv {
+                        .sync_provenance(Request::new(m2m::StreamProv {
                             local_socket: local_socket.to_string(),
                             peer_socket: peer_socket.to_string(),
                             provenance: source_labels
                                 .get_prov()
                                 .into_iter()
-                                .map(ComplianceLabel::from)
+                                .map(m2m::ComplianceLabel::from)
                                 .collect(),
                         }))
                         .await; // Todo Sync failure management
@@ -424,7 +477,7 @@ async fn reserve_remote_flow<'a>(
         let source_labels = id_container.read().await;
 
         if let Ok(_) = client
-            .reserve(Request::new(Stream {
+            .reserve(Request::new(m2m::Stream {
                 local_socket: local_socket.to_string(),
                 peer_socket: peer_socket.to_string(),
             }))

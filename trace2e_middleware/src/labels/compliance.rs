@@ -54,11 +54,21 @@ impl Compliance for Labels {
 }
 
 pub trait ComplianceSettings {
+    fn get_local_confidentiality(&self) -> bool;
+    fn get_local_integrity(&self) -> bool;
     fn set_local_confidentiality(&mut self, value: bool);
     fn set_local_integrity(&mut self, value: bool);
 }
 
 impl ComplianceSettings for Labels {
+    fn get_local_confidentiality(&self) -> bool {
+        self.compliance.local_confidentiality
+    }
+
+    fn get_local_integrity(&self) -> bool {
+        self.compliance.local_integrity
+    }
+
     fn set_local_confidentiality(&mut self, value: bool) {
         self.compliance.local_confidentiality = value;
     }

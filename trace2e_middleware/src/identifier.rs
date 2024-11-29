@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use std::sync::OnceLock;
 
 use crate::m2m_service::m2m;
+use crate::user_service::user;
 
 pub static MIDDLEWARE_ID: OnceLock<String> = OnceLock::new();
 
@@ -93,6 +94,27 @@ impl From<m2m::Id> for Identifier {
                     stream.peer_socket.parse().unwrap(),
                 ),
                 m2m::resource::Variant::Process(process) => {
+                    Resource::Process(process.pid, process.starttime, process.exe_path)
+                }
+            },
+        }
+    }
+}
+
+impl From<user::Resource> for Identifier {
+    fn from(resource: user::Resource) -> Self {
+        Identifier {
+            node: MIDDLEWARE_ID
+                .get_or_init(|| "localhost".to_string())
+                .clone(),
+            // Assuming the resource field is always for a file.
+            resource: match resource.variant.unwrap() {
+                user::resource::Variant::File(file) => Resource::File(file.path),
+                user::resource::Variant::Stream(stream) => Resource::Stream(
+                    stream.local_socket.parse().unwrap(),
+                    stream.peer_socket.parse().unwrap(),
+                ),
+                user::resource::Variant::Process(process) => {
                     Resource::Process(process.pid, process.starttime, process.exe_path)
                 }
             },
