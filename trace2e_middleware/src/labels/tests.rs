@@ -30,24 +30,25 @@ fn unit_labels_new() {
 }
 
 #[test]
-fn unit_labels_prov_update_basic() {
+fn unit_labels_prov_update_stream() {
     let id1 = Identifier::new_process(1, 1, String::new());
-    let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
-    let id3 = Identifier::new_file("/path/to/file2.txt".to_string());
+    let id2 = Identifier::new_stream(
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 12312),
+        SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 8081),
+    );
+    let mut id3 = Identifier::new_process(1, 1, String::new());
+    id3.mock_node(String::from("foreign"));
 
-    let mut id1_labels = Labels::new(id1.clone());
-    let id2_labels = Labels::new(id2.clone());
+    let id1_labels = Labels::new(id1.clone());
+    let mut id2_labels = Labels::new(id2.clone());
     let mut id3_labels = Labels::new(id3.clone());
 
-    id1_labels.update_prov(&id2_labels);
-    id3_labels.update_prov(&id1_labels);
+    id2_labels.update_prov(&id1_labels);
+    id3_labels.update_prov(&id2_labels);
 
-    assert_eq!(id1_labels.get_prov(), vec![id2_labels.compliance.clone()]);
-    assert_eq!(id2_labels.get_prov(), vec![]);
-    assert_eq!(
-        id3_labels.get_prov(),
-        vec![id1_labels.compliance.clone(), id2_labels.compliance.clone()]
-    );
+    assert_eq!(id1_labels.get_prov(), vec![]);
+    assert_eq!(id2_labels.get_prov(), vec![id1_labels.compliance.clone()]);
+    assert_eq!(id3_labels.get_prov(), vec![id1_labels.compliance.clone()]);
 }
 
 #[test]
@@ -216,7 +217,6 @@ fn unit_labels_compliance_local_integrity_direct() {
 
     // local_integrity on stream to demonstrate integrity enforcement based on source compliance label
     id3_labels.set_local_integrity(true);
-
 
     assert!(id4_labels.is_compliant(&id5_labels));
     id4_labels.update_prov(&id5_labels);

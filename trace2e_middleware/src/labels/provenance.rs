@@ -25,7 +25,10 @@ impl Provenance for Labels {
     /// The provenance references of the source object are merged into self
     /// object by avoiding duplicates.
     fn update_prov(&mut self, source: &Labels) {
-        if !(self.provenance.contains(&source.compliance) || self.compliance == source.compliance) {
+        if !(self.provenance.contains(&source.compliance)
+            || self.compliance == source.compliance
+            || source.get_identifier().is_stream().is_some())
+        {
             self.provenance.push(source.compliance.clone());
         }
         for cl in &source.provenance {
