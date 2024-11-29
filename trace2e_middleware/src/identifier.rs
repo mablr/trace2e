@@ -74,6 +74,11 @@ impl Identifier {
                 .get_or_init(|| "localhost".to_string())
                 .clone()
     }
+
+    #[cfg(test)]
+    pub fn mock_node(&mut self, node: String) {
+        self.node = node;
+    }
 }
 
 impl From<m2m::Id> for Identifier {
