@@ -18,7 +18,7 @@ pub enum TraceabilityError {
     /// Incoming Remote Update of the provenance failed.
     MissingRegistrationStream(Identifier),
     /// Missing stream registration on remote (triggered by MissingRegistrationStream on remote)
-    MissingRegistrationRemote(Identifier),
+    MissingRegistrationRemote(SocketAddr, SocketAddr),
     /// Communication failed with the remote middleware
     NonCompliantRemote(SocketAddr),
 }
@@ -73,8 +73,8 @@ impl std::fmt::Display for TraceabilityError {
             TraceabilityError::MissingRegistrationStream(id) => {
                 write!(f, "Traceability error: {:?} is not registered, so traceability can not be enforced.", id)
             }
-            TraceabilityError::MissingRegistrationRemote(id) => {
-                write!(f, "Traceability error: {:?} is not registered on remote, so traceability can not be enforced.", id)
+            TraceabilityError::MissingRegistrationRemote(local_socket, peer_socket) => {
+                write!(f, "Traceability error: stream://tcp;{};{} is not registered on remote, so traceability can not be enforced.", local_socket, peer_socket)
             }
             TraceabilityError::NonCompliantRemote(s) => {
                 write!(

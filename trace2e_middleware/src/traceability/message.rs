@@ -1,6 +1,9 @@
 use tokio::sync::oneshot;
 
-use crate::{identifier::Identifier, labels::ComplianceLabel};
+use crate::{
+    identifier::Identifier,
+    labels::{ComplianceLabel, Labels},
+};
 
 use super::TraceabilityError;
 
@@ -11,7 +14,10 @@ pub enum TraceabilityResponse {
     Declared(u64),
     Recorded,
     Error(TraceabilityError),
-    WaitingSync(oneshot::Sender<(Vec<ComplianceLabel>, oneshot::Sender<TraceabilityResponse>)>),
+    WaitingSync(
+        Labels,
+        oneshot::Sender<(Vec<ComplianceLabel>, oneshot::Sender<TraceabilityResponse>)>,
+    ),
 }
 
 impl TraceabilityResponse {

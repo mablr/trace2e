@@ -279,30 +279,77 @@ async fn handle_flow(
     if let Some((local_socket, peer_socket)) = id2.is_stream().filter(|_| output) {
         // Output Flow to stream (Decentralized procedure)
         match reserve_remote_flow(&id1_container, local_socket, peer_socket).await {
-            Ok((source_labels, mut client)) => {
-                let (grant_id, release) =
-                    grant_flow(grant_counter, flows_release_handles.clone(), responder).await;
-                #[cfg(feature = "verbose")]
-                println!(
-                    "✅ Flow {} granted ({:?} {} {:?})",
-                    grant_id,
-                    id1.clone(),
-                    if output { "->" } else { "<-" },
-                    id2.clone()
-                );
-
-                if timeout(Duration::from_millis(50), release).await.is_err() {
+            Ok((source_labels, destination_labels, mut client)) => {
+                if destination_labels.is_compliant(&source_labels) {
+                    let (grant_id, release) =
+                        grant_flow(grant_counter, flows_release_handles.clone(), responder).await;
                     #[cfg(feature = "verbose")]
-                    println!("⚠️  Reservation timeout Flow {}", grant_id);
+                    println!(
+                        "✅ Flow {} granted ({:?} {} {:?})",
+                        grant_id,
+                        id1.clone(),
+                        if output { "->" } else { "<-" },
+                        id2.clone()
+                    );
 
-                    // Try to kill the process that holds the reservation for too long,
-                    // to release the reservation safely
-                    let _ = std::process::Command::new("kill")
-                        .arg("-9")
-                        .arg(pid.to_string())
-                        .status();
+                    if timeout(Duration::from_millis(50), release).await.is_err() {
+                        #[cfg(feature = "verbose")]
+                        println!("⚠️  Reservation timeout Flow {}", grant_id);
+
+                        // Try to kill the process that holds the reservation for too long,
+                        // to release the reservation safely
+                        let _ = std::process::Command::new("kill")
+                            .arg("-9")
+                            .arg(pid.to_string())
+                            .status();
+
+                        // Release remote stream
+                        // Todo make specific rpc
+                        let _ = client
+                            .sync_provenance(Request::new(m2m::StreamProv {
+                                local_socket: local_socket.to_string(),
+                                peer_socket: peer_socket.to_string(),
+                                provenance: Vec::new(), // empty provenance to skip update and release remote stream
+                            }))
+                            .await;
+
+                        // Remove flow release handle
+                        flows_release_handles.lock().await.remove(&grant_id);
+                    } else {
+                        #[cfg(feature = "verbose")]
+                        println!(
+                            "🔼 Flow {} Sync to {} ({:?} -> {:?})",
+                            grant_id,
+                            peer_socket.ip(),
+                            id1.clone(),
+                            id2.clone()
+                        );
+                        let _ = client
+                            .sync_provenance(Request::new(m2m::StreamProv {
+                                local_socket: local_socket.to_string(),
+                                peer_socket: peer_socket.to_string(),
+                                provenance: source_labels
+                                    .get_prov()
+                                    .into_iter()
+                                    .map(m2m::ComplianceLabel::from)
+                                    .collect(),
+                            }))
+                            .await; // Todo Sync failure management
+                    }
+                    #[cfg(feature = "verbose")]
+                    println!("🗑️  Flow {} destruction", grant_id);
+                } else {
+                    // Todo: refactor logic sequence
+                    #[cfg(feature = "verbose")]
+                    println!(
+                        "⛔ Flow refused ({:?} {} {:?})",
+                        id1.clone(),
+                        if output { "->" } else { "<-" },
+                        id2.clone()
+                    );
 
                     // Release remote stream
+                    // Todo make specific rpc
                     let _ = client
                         .sync_provenance(Request::new(m2m::StreamProv {
                             local_socket: local_socket.to_string(),
@@ -311,31 +358,12 @@ async fn handle_flow(
                         }))
                         .await;
 
-                    // Remove flow release handle
-                    flows_release_handles.lock().await.remove(&grant_id);
-                } else {
-                    #[cfg(feature = "verbose")]
-                    println!(
-                        "🔼 Flow {} Sync to {} ({:?} -> {:?})",
-                        grant_id,
-                        peer_socket.ip(),
-                        id1.clone(),
-                        id2.clone()
-                    );
-                    let _ = client
-                        .sync_provenance(Request::new(m2m::StreamProv {
-                            local_socket: local_socket.to_string(),
-                            peer_socket: peer_socket.to_string(),
-                            provenance: source_labels
-                                .get_prov()
-                                .into_iter()
-                                .map(m2m::ComplianceLabel::from)
-                                .collect(),
-                        }))
-                        .await; // Todo Sync failure management
+                    responder
+                        .send(TraceabilityResponse::Error(
+                            TraceabilityError::ForbiddenFlow(id1, id2),
+                        ))
+                        .unwrap();
                 }
-                #[cfg(feature = "verbose")]
-                println!("🗑️  Flow {} destruction", grant_id);
             }
             Err(e) => responder.send(TraceabilityResponse::Error(e)).unwrap(),
         }
@@ -344,7 +372,7 @@ async fn handle_flow(
         let (source_labels, mut destination_labels) =
             reserve_local_flow(output, &id1_container, &id2_container).await;
 
-        if destination_labels.is_compliant(&source_labels.to_owned()) {
+        if destination_labels.is_compliant(&source_labels) {
             let (grant_id, release) =
                 grant_flow(grant_counter, flows_release_handles.clone(), responder).await;
             #[cfg(feature = "verbose")]
@@ -472,22 +500,21 @@ async fn reserve_remote_flow<'a>(
     id_container: &'a Arc<RwLock<Labels>>,
     local_socket: SocketAddr,
     peer_socket: SocketAddr,
-) -> Result<(RwLockReadGuard<'a, Labels>, M2mClient<Channel>), TraceabilityError> {
+) -> Result<(RwLockReadGuard<'a, Labels>, Labels, M2mClient<Channel>), TraceabilityError> {
     if let Ok(mut client) = M2mClient::connect(format!("http://{}:8080", peer_socket.ip())).await {
         let source_labels = id_container.read().await;
-
-        if let Ok(_) = client
+        match client
             .reserve(Request::new(m2m::Stream {
                 local_socket: local_socket.to_string(),
                 peer_socket: peer_socket.to_string(),
             }))
             .await
         {
-            Ok((source_labels, client))
-        } else {
-            Err(TraceabilityError::MissingRegistrationRemote(
-                Identifier::new_stream(peer_socket, local_socket),
-            ))
+            Ok(response) => Ok((source_labels, response.into_inner().into(), client)),
+            Err(_) => Err(TraceabilityError::MissingRegistrationRemote(
+                peer_socket,
+                local_socket,
+            )),
         }
     } else {
         Err(TraceabilityError::NonCompliantRemote(peer_socket))
@@ -531,24 +558,33 @@ async fn handle_sync_stream(
             let mut stream_labels = id_container.write().await;
             let (provenance_sender, provenance_receiver) = oneshot::channel();
             responder
-                .send(TraceabilityResponse::WaitingSync(provenance_sender))
+                .send(TraceabilityResponse::WaitingSync(
+                    stream_labels.clone(),
+                    provenance_sender,
+                ))
                 .unwrap();
 
-            match provenance_receiver.await {
-                Ok((provenance, callback)) => {
-                    stream_labels.set_prov(provenance);
-                    let _ = callback.send(TraceabilityResponse::Recorded);
-                }
-                Err(_) => todo!(),
+            if let Ok((provenance, callback)) = provenance_receiver.await {
+                stream_labels.set_prov(provenance);
+                let _ = callback.send(TraceabilityResponse::Recorded);
+                #[cfg(feature = "verbose")]
+                println!("🔽 Remote provenance sync on {:?}", identifier.clone());
+                #[cfg(feature = "verbose")]
+                println!(
+                    "🆕 Provenance: {{{:?}: {:?}}}",
+                    identifier.clone(),
+                    stream_labels.get_prov()
+                );
+            } else {
+                #[cfg(feature = "verbose")]
+                println!(
+                    "⛔ Remote provenance sync on {:?} failed",
+                    identifier.clone()
+                );
+
+                // Todo handle provenance sync failures
+                todo!();
             }
-            #[cfg(feature = "verbose")]
-            println!("🔽 Remote provenance sync on {:?}", identifier.clone());
-            #[cfg(feature = "verbose")]
-            println!(
-                "🆕 Provenance: {{{:?}: {:?}}}",
-                identifier.clone(),
-                stream_labels.get_prov()
-            );
         });
     } else {
         responder

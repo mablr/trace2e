@@ -6,7 +6,6 @@ use crate::{
     labels::ComplianceLabel,
     traceability::{TraceabilityRequest, TraceabilityResponse},
 };
-use m2m::{m2m_server::M2m, Ack, Stream, StreamProv};
 use tokio::sync::{mpsc, oneshot, Mutex};
 use tonic::{Request, Response, Status};
 
@@ -37,8 +36,11 @@ impl M2mService {
 }
 
 #[tonic::async_trait]
-impl M2m for M2mService {
-    async fn reserve(&self, request: Request<Stream>) -> Result<Response<Ack>, Status> {
+impl m2m::m2m_server::M2m for M2mService {
+    async fn reserve(
+        &self,
+        request: Request<m2m::Stream>,
+    ) -> Result<Response<m2m::Labels>, Status> {
         let r = request.into_inner();
 
         // Check consistency of the provided sockets
@@ -65,19 +67,22 @@ impl M2m for M2mService {
             .send(TraceabilityRequest::SyncStream(stream_id.clone(), tx))
             .await;
         match rx.await.unwrap() {
-            TraceabilityResponse::WaitingSync(provenance_sync_channel) => {
+            TraceabilityResponse::WaitingSync(peer_stream_labels, provenance_sync_channel) => {
                 self.synced_streams
                     .lock()
                     .await
                     .insert(stream_id, provenance_sync_channel);
-                Ok(Response::new(Ack {}))
+                Ok(Response::new(peer_stream_labels.into()))
             }
             TraceabilityResponse::Error(e) => Err(Status::from_error(Box::new(e))),
             _ => unreachable!(),
         }
     }
 
-    async fn sync_provenance(&self, request: Request<StreamProv>) -> Result<Response<Ack>, Status> {
+    async fn sync_provenance(
+        &self,
+        request: Request<m2m::StreamProv>,
+    ) -> Result<Response<m2m::Ack>, Status> {
         let r = request.into_inner();
 
         // Check consistency of the provided sockets
@@ -109,7 +114,7 @@ impl M2m for M2mService {
             let (tx, rx) = oneshot::channel();
             let _ = provenance_sync_channel.send((provenance, tx));
             match rx.await.unwrap() {
-                TraceabilityResponse::Recorded => Ok(Response::new(Ack {})),
+                TraceabilityResponse::Recorded => Ok(Response::new(m2m::Ack {})),
                 TraceabilityResponse::Error(e) => Err(Status::from_error(Box::new(e))),
                 _ => unreachable!(),
             }

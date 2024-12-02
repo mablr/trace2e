@@ -3,10 +3,19 @@ syntax = "proto3";
 package m2m_api;
 
 service M2M {
-    rpc Reserve(Stream) returns (Ack);
+    rpc Reserve(Stream) returns (Labels);
     rpc SyncProvenance(StreamProv) returns (Ack);
 }
 
+message Stream {
+    string local_socket = 1;
+    string peer_socket = 2;
+} 
+
+message Labels {
+    ComplianceLabel compliance = 1;
+    repeated ComplianceLabel provenance = 2;
+}
 
 message StreamProv {
     string local_socket = 1;
@@ -36,11 +45,6 @@ message Resource {
 message File {
     string path = 1;
 }
-
-message Stream {
-    string local_socket = 1;
-    string peer_socket = 2;
-} 
 
 message Process {
     uint32 pid = 1;
