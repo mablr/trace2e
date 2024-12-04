@@ -1,0 +1,22 @@
+networks:
+  trace2e_network:
+    driver: bridge
+
+services:
+  hyper_server:
+    build:
+      context: ../../
+      dockerfile: demo/hyper/trace2e-hyper-server.Dockerfile
+    hostname: hyper_server
+    container_name: hyper_server
+    networks:
+      - trace2e_network
+
+  hyper_client:
+    build:
+      context: ../../
+      dockerfile: demo/hyper/trace2e-hyper-client.Dockerfile
+    hostname: hyper_client
+    container_name: hyper_client
+    networks:
+      - trace2e_network

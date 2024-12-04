@@ -1,12 +1,14 @@
 diff --git a/examples/gateway.rs b/examples/gateway.rs
-index e0e3e053..8d3a0e50 100644
+index e0e3e053..e7f8b3d8 100644
 --- a/examples/gateway.rs
 +++ b/examples/gateway.rs
-@@ -13,7 +13,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
+@@ -12,8 +12,8 @@ use support::TokioIo;
+ async fn main() -> Result<(), Box<dyn std::error::Error>> {
      pretty_env_logger::init();
  
-     let in_addr: SocketAddr = ([127, 0, 0, 1], 3001).into();
+-    let in_addr: SocketAddr = ([127, 0, 0, 1], 3001).into();
 -    let out_addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
++    let in_addr: SocketAddr = ([0, 0, 0, 0], 3001).into();
 +    let out_addr: SocketAddr = ([127, 0, 0, 1], 1337).into();
  
      let out_addr_clone = out_addr.clone();
