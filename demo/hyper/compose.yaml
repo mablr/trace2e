@@ -11,6 +11,10 @@ services:
     container_name: hyper_server
     networks:
       - trace2e_network
+    restart: unless-stopped
+    entrypoint: >
+      sh -c "/hyper_example_server & /hyper_example_gateway & /trace2e_middleware"
+
 
   hyper_client:
     build:
@@ -20,3 +24,12 @@ services:
     container_name: hyper_client
     networks:
       - trace2e_network
+    stdin_open: true
+    tty: true
+    depends_on:
+      - hyper_server
+    volumes:
+      - ./scripts:/scripts
+    entrypoint: >
+      sh -c "/trace2e_middleware & bash"
+

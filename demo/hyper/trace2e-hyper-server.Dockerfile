@@ -42,6 +42,3 @@ COPY --from=builder /hyper/target/debug/examples/gateway /hyper_example_gateway
 # Ensure the binaries are executable
 RUN chmod +x /trace2e_middleware
 RUN chmod +x /hyper*
-
-# Set the entry point to the middleware binary
-ENTRYPOINT sh -c "/hyper_example_server & /hyper_example_gateway & /trace2e_middleware"
