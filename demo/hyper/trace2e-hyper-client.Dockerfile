@@ -21,9 +21,11 @@ WORKDIR /tokioe2e
 RUN git clone --branch tokio-1.41.1 https://github.com/tokio-rs/tokio .
 RUN git apply ../trace2e/patches/tokioe2e.patch
 
-# Clone Hyper
+# Prepare Hyper clients
 WORKDIR /hyper
 RUN git clone --branch v1.5.1 https://github.com/hyperium/hyper .
+RUN cargo build --example client --features full
+RUN mv /hyper/target/debug/examples/client /hyper/target/debug/examples/client_vanilla
 RUN git apply ../trace2e/patches/hyper_tokio.patch
 RUN cargo build --example client --features full
 
@@ -32,7 +34,8 @@ FROM debian:bookworm-slim
 
 # Copy the compiled binaries from the builder stage
 COPY --from=builder /trace2e/target/release/trace2e_middleware /trace2e_middleware
-COPY --from=builder /hyper/target/debug/examples/client /hyper_client
+COPY --from=builder /hyper/target/debug/examples/client_vanilla /hyper_client
+COPY --from=builder /hyper/target/debug/examples/client /hypere2e_client
 
 # Ensure the binaries are executable
 RUN chmod +x /trace2e_middleware

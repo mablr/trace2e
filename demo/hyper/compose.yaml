@@ -13,7 +13,7 @@ services:
       - trace2e_network
     restart: unless-stopped
     entrypoint: >
-      sh -c "/hyper_example_server & /hyper_example_gateway & /trace2e_middleware"
+      sh -c "/hypere2e_server & /hypere2e_gateway & /hyper_server & /hyper_gateway & /trace2e_middleware"
 
 
   hyper_client:
