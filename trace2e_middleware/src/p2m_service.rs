@@ -11,7 +11,7 @@ use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{mpsc, oneshot, RwLock};
 use tokio::time::Instant;
 use tonic::{Request, Response, Status};
-use tracing::{error, info, instrument};
+use tracing::{error, info, debug};
 
 pub mod p2m {
     tonic::include_proto!("p2m_api");
@@ -35,11 +35,15 @@ impl P2mService {
 
 #[tonic::async_trait]
 impl P2m for P2mService {
-    #[instrument(skip(self, request))]
     async fn local_enroll(&self, request: Request<LocalCt>) -> Result<Response<Ack>, Status> {
         let start_time = Instant::now();
-
         let r = request.into_inner();
+        debug!(
+            "[P2M] local_enroll (PID: {}, FD: {}, Path: {})",
+            r.process_id.clone(),
+            r.file_descriptor.clone(),
+            r.path.clone()
+        );
 
         let process_identifier = match Process::new(r.process_id.try_into().unwrap()) {
             Ok(p) => {
@@ -63,6 +67,7 @@ impl P2m for P2mService {
                 )
             }
             Err(_) => {
+                error!("Process {} not found.", r.process_id);
                 return Err(Status::not_found(format!(
                     "Process {} not found.",
                     r.process_id
@@ -71,13 +76,6 @@ impl P2m for P2mService {
         };
 
         let resource_identifier = Identifier::new_file(r.path.clone());
-
-        info!(
-            "PID: {} | FD: {} | {}",
-            r.process_id.clone(),
-            r.file_descriptor.clone(),
-            r.path.clone()
-        );
 
         let (tx, rx) = oneshot::channel();
         let _ = self
@@ -118,16 +116,21 @@ impl P2m for P2mService {
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
 
-        info!("completed in {:?}", start_time.elapsed());
+        info!("[P2M] local_enroll_duration:\t{:?}", start_time.elapsed());
 
         Ok(Response::new(Ack {}))
     }
 
-    #[instrument(skip(self, request))]
     async fn remote_enroll(&self, request: Request<RemoteCt>) -> Result<Response<Ack>, Status> {
         let start_time = Instant::now();
-
         let r = request.into_inner();
+        debug!(
+            "[P2M] remote_enroll (PID: {}, FD: {}, Stream: [{}-{}])",
+            r.process_id.clone(),
+            r.file_descriptor.clone(),
+            r.local_socket.clone(),
+            r.peer_socket.clone()
+        );
 
         let process_identifier = match Process::new(r.process_id.try_into().unwrap()) {
             Ok(p) => {
@@ -151,6 +154,7 @@ impl P2m for P2mService {
                 )
             }
             Err(_) => {
+                error!("Process {} not found.", r.process_id);
                 return Err(Status::not_found(format!(
                     "Process {} not found.",
                     r.process_id
@@ -158,22 +162,13 @@ impl P2m for P2mService {
             }
         };
 
-        info!(
-            "PID: {} | FD: {} | [{}-{}]",
-            r.process_id.clone(),
-            r.file_descriptor.clone(),
-            r.local_socket.clone(),
-            r.peer_socket.clone()
-        );
-
         // Check consistency of the provided sockets
         let local_socket = match r.local_socket.clone().parse::<SocketAddr>() {
             Ok(socket) => socket,
             Err(_) => {
                 error!(
-                    "PID: {} | FD {} | Local socket string can not be parsed.",
-                    r.process_id.clone(),
-                    r.file_descriptor.clone()
+                    "[{}] Local socket string can not be parsed.",
+                    r.local_socket.clone()
                 );
 
                 return Err(Status::invalid_argument(format!(
@@ -185,9 +180,8 @@ impl P2m for P2mService {
             Ok(socket) => socket,
             Err(_) => {
                 error!(
-                    "PID: {} | FD {} | Peer socket string can not be parsed.",
-                    r.process_id.clone(),
-                    r.file_descriptor.clone()
+                    "[{}] Peer socket string can not be parsed.",
+                    r.peer_socket.clone()
                 );
 
                 return Err(Status::invalid_argument(format!(
@@ -221,16 +215,30 @@ impl P2m for P2mService {
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
 
-        info!("completed in {:?}", start_time.elapsed());
+        info!("[P2M] remote_enroll_duration:\t{:?}", start_time.elapsed());
 
         Ok(Response::new(Ack {}))
     }
 
-    #[instrument(skip(self, request))]
     async fn io_request(&self, request: Request<IoInfo>) -> Result<Response<Grant>, Status> {
         let start_time = Instant::now();
 
         let r = request.into_inner();
+
+        debug!(
+            "[P2M] io_request (PID: {}, FD: {}, Flow: {})",
+            r.process_id,
+            r.file_descriptor,
+            {
+                if r.flow == 0 {
+                    "Input/Read  "
+                } else if r.flow == 1 {
+                    "Output/Write"
+                } else {
+                    "None"
+                }
+            }
+        );
 
         let process_identifier = match Process::new(r.process_id.try_into().unwrap()) {
             Ok(p) => {
@@ -254,22 +262,13 @@ impl P2m for P2mService {
                 )
             }
             Err(_) => {
+                error!("Process {} not found.", r.process_id);
                 return Err(Status::not_found(format!(
                     "Process {} not found.",
                     r.process_id
                 )))
             }
         };
-
-        info!("PID: {} | FD: {} | {}", r.process_id, r.file_descriptor, {
-            if r.flow == 0 {
-                "Input/Read  "
-            } else if r.flow == 1 {
-                "Output/Write"
-            } else {
-                "None"
-            }
-        },);
 
         if let Some(resource_identifier) = self
             .identifiers_map
@@ -300,7 +299,10 @@ impl P2m for P2mService {
                         ))
                         .await
                 }
-                _ => return Err(Status::invalid_argument(format!("Unsupported Flow type."))),
+                _ => {
+                    error!("Unsupported Flow type.");
+                    return Err(Status::invalid_argument(format!("Unsupported Flow type.")));
+                }
             };
 
             let grant_id = match rx.await.unwrap() {
@@ -314,7 +316,8 @@ impl P2m for P2mService {
             };
 
             info!(
-                "PID: {} | FD: {} | {} granted in {:?} | {:?}",
+                "[P2M] io_request_duration:\t{:?} (PID: {}, FD: {}, Flow: {}, RI: {}, grant_id: {})",
+                start_time.elapsed(),
                 r.process_id,
                 r.file_descriptor,
                 {
@@ -326,8 +329,8 @@ impl P2m for P2mService {
                         "None"
                     }
                 },
-                start_time.elapsed(),
                 resource_identifier.clone(),
+                grant_id,
             );
 
             Ok(Response::new(Grant { id: grant_id }))
@@ -344,13 +347,18 @@ impl P2m for P2mService {
         }
     }
 
-    #[instrument(skip(self, request))]
     async fn io_report(&self, request: Request<IoResult>) -> Result<Response<Ack>, Status> {
         let start_time = Instant::now();
 
         let r = request.into_inner();
 
-        if let Some(resource_identifier) = self
+        debug!(
+            "[P2M] io_report (grant_id: {}, result: {})",
+            r.grant_id,
+            r.result
+        );
+
+        if let Some(_resource_identifier) = self
             .identifiers_map
             .read()
             .await
@@ -365,11 +373,9 @@ impl P2m for P2mService {
             match rx.await.unwrap() {
                 TraceabilityResponse::Recorded => {
                     info!(
-                        "PID: {} | FD: {} | done in {:?} | {:?}",
-                        r.process_id,
-                        r.file_descriptor,
+                        "[P2M] io_report_duration:\t{:?} (grant_id: {})",
                         start_time.elapsed(),
-                        resource_identifier.clone()
+                        r.grant_id
                     );
 
                     Ok(Response::new(Ack {}))

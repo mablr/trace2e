@@ -14,7 +14,7 @@ COPY Cargo.toml ./
 COPY patches/ patches/
 
 # Build the project
-RUN cargo build --release --features verbose
+RUN cargo build --release
 
 # Prepare Tokio
 WORKDIR /tokioe2e

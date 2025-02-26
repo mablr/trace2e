@@ -7,6 +7,7 @@ use tokio::{
     time::timeout,
 };
 use tonic::{transport::Channel, Request};
+use tracing::debug;
 
 use crate::{
     identifier::Identifier,
@@ -283,9 +284,8 @@ async fn handle_flow(
                 if destination_labels.is_compliant(&source_labels) {
                     let (grant_id, release) =
                         grant_flow(grant_counter, flows_release_handles.clone(), responder).await;
-                    #[cfg(feature = "verbose")]
-                    println!(
-                        "✅ Flow {} granted ({:?} {} {:?})",
+                    debug!(
+                        "[TS] ✅ Flow {} granted ({:?} {} {:?})",
                         grant_id,
                         id1.clone(),
                         if output { "->" } else { "<-" },
@@ -293,8 +293,7 @@ async fn handle_flow(
                     );
 
                     if timeout(Duration::from_millis(50), release).await.is_err() {
-                        #[cfg(feature = "verbose")]
-                        println!("⚠️  Reservation timeout Flow {}", grant_id);
+                        debug!("[TS] ⚠️  Reservation timeout Flow {}", grant_id);
 
                         // Try to kill the process that holds the reservation for too long,
                         // to release the reservation safely
@@ -316,9 +315,8 @@ async fn handle_flow(
                         // Remove flow release handle
                         flows_release_handles.lock().await.remove(&grant_id);
                     } else {
-                        #[cfg(feature = "verbose")]
-                        println!(
-                            "🔼 Flow {} Sync to {} ({:?} -> {:?})",
+                        debug!(
+                            "[TS] 🔼 Flow {} Sync to {} ({:?} -> {:?})",
                             grant_id,
                             peer_socket.ip(),
                             id1.clone(),
@@ -336,12 +334,10 @@ async fn handle_flow(
                             }))
                             .await; // Todo Sync failure management
                     }
-                    #[cfg(feature = "verbose")]
-                    println!("🗑️  Flow {} destruction", grant_id);
+                    debug!("[TS] 🗑️  Flow {} destruction", grant_id);
                 } else {
                     // Todo: refactor logic sequence
-                    #[cfg(feature = "verbose")]
-                    println!(
+                    debug!(
                         "⛔ Flow refused ({:?} {} {:?})",
                         id1.clone(),
                         if output { "->" } else { "<-" },
@@ -375,9 +371,8 @@ async fn handle_flow(
         if destination_labels.is_compliant(&source_labels) {
             let (grant_id, release) =
                 grant_flow(grant_counter, flows_release_handles.clone(), responder).await;
-            #[cfg(feature = "verbose")]
-            println!(
-                "✅ Flow {} granted ({:?} {} {:?})",
+            debug!(
+                "[TS] ✅ Flow {} granted ({:?} {} {:?})",
                 grant_id,
                 id1.clone(),
                 if output { "->" } else { "<-" },
@@ -385,8 +380,7 @@ async fn handle_flow(
             );
 
             if timeout(Duration::from_millis(50), release).await.is_err() {
-                #[cfg(feature = "verbose")]
-                println!("⚠️  Reservation timeout Flow {}", grant_id);
+                debug!("[TS] ⚠️  Reservation timeout Flow {}", grant_id);
 
                 // Try to kill the process that holds the reservation for too long,
                 // to release the reservation safely
@@ -399,30 +393,26 @@ async fn handle_flow(
                 flows_release_handles.lock().await.remove(&grant_id);
             } else {
                 // Record flow locally if it is not an output to a stream
-                #[cfg(feature = "verbose")]
-                println!(
-                    "⏺️  Flow {} recording ({:?} {} {:?})",
+                debug!(
+                    "[TS] ⏺️  Flow {} recording ({:?} {} {:?})",
                     grant_id,
                     id1.clone(),
                     if output { "->" } else { "<-" },
                     id2.clone()
                 );
                 destination_labels.update_prov(&source_labels);
-                #[cfg(feature = "verbose")]
-                println!(
-                    "🆕 Provenance: {{{:?}: {:?},  {:?}: {:?}}}",
+                debug!(
+                    "[TS] 🆕 Provenance: {{{:?}: {:?},  {:?}: {:?}}}",
                     if output { id1.clone() } else { id2.clone() },
                     source_labels.get_prov(),
                     if output { id2.clone() } else { id1.clone() },
                     destination_labels.get_prov(),
                 );
             }
-            #[cfg(feature = "verbose")]
-            println!("🗑️  Flow {} destruction", grant_id);
+            debug!("[TS] 🗑️  Flow {} destruction", grant_id);
         } else {
-            #[cfg(feature = "verbose")]
-            println!(
-                "⛔ Flow refused ({:?} {} {:?})",
+            debug!(
+                "[TS] ⛔ Flow refused ({:?} {} {:?})",
                 id1.clone(),
                 if output { "->" } else { "<-" },
                 id2.clone()
@@ -567,20 +557,14 @@ async fn handle_sync_stream(
             if let Ok((provenance, callback)) = provenance_receiver.await {
                 stream_labels.set_prov(provenance);
                 let _ = callback.send(TraceabilityResponse::Recorded);
-                #[cfg(feature = "verbose")]
-                println!("🔽 Remote provenance sync on {:?}", identifier.clone());
-                #[cfg(feature = "verbose")]
-                println!(
-                    "🆕 Provenance: {{{:?}: {:?}}}",
+                debug!("[TS] 🔽 Remote provenance sync on {:?}", identifier.clone());
+                debug!(
+                    "[TS] 🆕 Provenance: {{{:?}: {:?}}}",
                     identifier.clone(),
                     stream_labels.get_prov()
                 );
             } else {
-                #[cfg(feature = "verbose")]
-                println!(
-                    "⛔ Remote provenance sync on {:?} failed",
-                    identifier.clone()
-                );
+                debug!("⛔ Remote provenance sync on {:?} failed", identifier.clone());
 
                 // Todo handle provenance sync failures
                 todo!();

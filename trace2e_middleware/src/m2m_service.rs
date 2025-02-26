@@ -6,8 +6,9 @@ use crate::{
     labels::ComplianceLabel,
     traceability::{TraceabilityRequest, TraceabilityResponse},
 };
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::{sync::{mpsc, oneshot, Mutex}, time::Instant};
 use tonic::{Request, Response, Status};
+use tracing::{error, info, debug};
 
 pub mod m2m {
     tonic::include_proto!("m2m_api");
@@ -41,12 +42,19 @@ impl m2m::m2m_server::M2m for M2mService {
         &self,
         request: Request<m2m::Stream>,
     ) -> Result<Response<m2m::Labels>, Status> {
+        let start_time = Instant::now();
         let r = request.into_inner();
+        debug!(
+            "[M2M] reserve (Stream: [{}-{}])",
+            r.peer_socket.clone(),
+            r.local_socket.clone()
+        );
 
         // Check consistency of the provided sockets
         let local_socket = match r.local_socket.clone().parse::<SocketAddr>() {
             Ok(socket) => socket,
             Err(_) => {
+                error!("Local socket string can not be parsed.");
                 return Err(Status::invalid_argument(format!(
                     "Local socket string can not be parsed."
                 )));
@@ -55,6 +63,7 @@ impl m2m::m2m_server::M2m for M2mService {
         let peer_socket = match r.peer_socket.clone().parse::<SocketAddr>() {
             Ok(socket) => socket,
             Err(_) => {
+                error!("Peer socket string can not be parsed.");
                 return Err(Status::invalid_argument(format!(
                     "Peer socket string can not be parsed."
                 )));
@@ -72,9 +81,23 @@ impl m2m::m2m_server::M2m for M2mService {
                     .lock()
                     .await
                     .insert(stream_id, provenance_sync_channel);
+                debug!(
+                    "[M2M] Stream: [{}-{}] -> WaitingSync",
+                    r.peer_socket.clone(),
+                    r.local_socket.clone()
+                );
+                info!(
+                    "[M2M] reserve_duration:\t{:?} (Stream: [{}-{}])",
+                    start_time.elapsed(),
+                    r.peer_socket.clone(),
+                    r.local_socket.clone()
+                );
                 Ok(Response::new(peer_stream_labels.into()))
             }
-            TraceabilityResponse::Error(e) => Err(Status::from_error(Box::new(e))),
+            TraceabilityResponse::Error(e) => {
+                error!("{:?}", e);
+                Err(Status::from_error(Box::new(e)))
+            }
             _ => unreachable!(),
         }
     }
@@ -83,12 +106,19 @@ impl m2m::m2m_server::M2m for M2mService {
         &self,
         request: Request<m2m::StreamProv>,
     ) -> Result<Response<m2m::Ack>, Status> {
+        let start_time = Instant::now();
         let r = request.into_inner();
+        debug!(
+            "[M2M] sync_prov (Stream: [{}-{}])",
+            r.peer_socket.clone(),
+            r.local_socket.clone()
+        );
 
         // Check consistency of the provided sockets
         let local_socket = match r.local_socket.clone().parse::<SocketAddr>() {
             Ok(socket) => socket,
             Err(_) => {
+                error!("Local socket string can not be parsed.");
                 return Err(Status::invalid_argument(format!(
                     "Local socket string can not be parsed."
                 )));
@@ -97,6 +127,7 @@ impl m2m::m2m_server::M2m for M2mService {
         let peer_socket = match r.peer_socket.clone().parse::<SocketAddr>() {
             Ok(socket) => socket,
             Err(_) => {
+                error!("Peer socket string can not be parsed.");
                 return Err(Status::invalid_argument(format!(
                     "Peer socket string can not be parsed."
                 )));
@@ -114,11 +145,23 @@ impl m2m::m2m_server::M2m for M2mService {
             let (tx, rx) = oneshot::channel();
             let _ = provenance_sync_channel.send((provenance, tx));
             match rx.await.unwrap() {
-                TraceabilityResponse::Recorded => Ok(Response::new(m2m::Ack {})),
-                TraceabilityResponse::Error(e) => Err(Status::from_error(Box::new(e))),
+                TraceabilityResponse::Recorded => {
+                    info!(
+                        "[M2M] sync_prov_duration:\t{:?} (Stream: [{}-{}])",
+                        start_time.elapsed(),
+                        r.peer_socket.clone(),
+                        r.local_socket.clone()
+                    );
+                    Ok(Response::new(m2m::Ack {}))
+                }
+                TraceabilityResponse::Error(e) => {
+                    error!("{:?}", e);
+                    Err(Status::from_error(Box::new(e)))
+                }
                 _ => unreachable!(),
             }
         } else {
+            error!("{:?} is not synced.", stream_id);
             Err(Status::failed_precondition(format!(
                 "{:?} is not synced.",
                 stream_id
