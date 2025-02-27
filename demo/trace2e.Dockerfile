@@ -5,18 +5,19 @@ RUN git clone --branch v1.5.1 https://github.com/hyperium/hyper .
 
 FROM rust:latest AS protobuf_base
 RUN apt update && apt install -y protobuf-compiler libprotobuf-dev && rm -rf /var/lib/apt/lists/*
-COPY proto/ proto/
 
 
 # Prepare trace2e middleware
 FROM protobuf_base AS trace2e_middleware
 COPY trace2e_middleware/ trace2e_middleware/
+COPY proto/ proto/
 WORKDIR /trace2e_middleware
 RUN cargo build --release
 
 # Prepare stde2e examples
 FROM protobuf_base AS stde2e
 COPY trace2e_client/ trace2e_client/
+COPY proto/p2m_api.proto proto/p2m_api.proto
 COPY stde2e/ stde2e/
 WORKDIR /stde2e
 RUN cargo build --example file_forwarder
@@ -27,6 +28,7 @@ FROM protobuf_base AS hypere2e_source
 WORKDIR /trace2e
 COPY patches/ patches/
 COPY trace2e_client/ trace2e_client/
+COPY proto/p2m_api.proto proto/p2m_api.proto
 WORKDIR /tokioe2e
 RUN git clone --branch tokio-1.41.1 https://github.com/tokio-rs/tokio .
 RUN git apply ../trace2e/patches/tokioe2e.patch
