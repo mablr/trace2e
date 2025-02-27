@@ -6,7 +6,8 @@ services:
   hyper_server:
     build:
       context: ../../
-      dockerfile: demo/hyper/trace2e-hyper-server.Dockerfile
+      dockerfile: demo/hyper/trace2e-hyper.Dockerfile
+      target: hyper_server_runtime
     hostname: hyper_server
     container_name: hyper_server
     networks:
@@ -19,7 +20,8 @@ services:
   hyper_client:
     build:
       context: ../../
-      dockerfile: demo/hyper/trace2e-hyper-client.Dockerfile
+      dockerfile: demo/hyper/trace2e-hyper.Dockerfile
+      target: hyper_client_runtime
     hostname: hyper_client
     container_name: hyper_client
     networks:
