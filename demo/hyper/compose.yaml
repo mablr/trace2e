@@ -3,12 +3,6 @@ networks:
     driver: bridge
 
 services:
-  trace2e_base:
-    build:
-      context: ../../
-      dockerfile: demo/base/trace2e-base.Dockerfile
-    image: trace2e-base
-
   hyper_server:
     build:
       context: ../../
@@ -18,10 +12,9 @@ services:
     networks:
       - trace2e_network
     restart: unless-stopped
-    depends_on:
-      - trace2e_base
     entrypoint: >
       sh -c "/hypere2e_server & /hypere2e_gateway & /hyper_server & /hyper_gateway & RUST_LOG="trace2e_middleware::traceability=debug,trace2e_middleware::m2m_service=info,trace2e_middleware::p2m_service=info" /trace2e_middleware"
+
 
   hyper_client:
     build:
@@ -34,7 +27,6 @@ services:
     stdin_open: true
     tty: true
     depends_on:
-      - trace2e_base
       - hyper_server
     volumes:
       - ./scripts:/scripts
