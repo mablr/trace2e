@@ -1,4 +1,5 @@
 use clap::Parser;
+use std::time::Instant;
 use std::{fs::File, io::{Read, Write}};
 
 /// File manipulation program that reads from input and writes to output
@@ -16,6 +17,7 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let start_time = Instant::now();
     // Parse command line arguments
     let args = Args::parse();
 
@@ -37,5 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("No output file provided".into());
     }
 
+    let end_time = start_time.elapsed();
+    println!("\"std\": \"{:?}\",", end_time);
     Ok(())
 }
