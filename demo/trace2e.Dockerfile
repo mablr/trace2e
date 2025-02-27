@@ -5,19 +5,27 @@ RUN git clone --branch v1.5.1 https://github.com/hyperium/hyper .
 
 FROM rust:latest AS protobuf_base
 RUN apt update && apt install -y protobuf-compiler libprotobuf-dev && rm -rf /var/lib/apt/lists/*
-
-FROM protobuf_base AS trace2e_middleware
-# Prepare trace2e middleware
 COPY proto/ proto/
+
+
+# Prepare trace2e middleware
+FROM protobuf_base AS trace2e_middleware
 COPY trace2e_middleware/ trace2e_middleware/
 WORKDIR /trace2e_middleware
 RUN cargo build --release
+
+# Prepare stde2e examples
+FROM protobuf_base AS stde2e
+COPY trace2e_client/ trace2e_client/
+COPY stde2e/ stde2e/
+WORKDIR /stde2e
+RUN cargo build --example file_forwarder
+RUN cargo build --example file_forwarder_e2e
 
 # Get Tokio source code and patch it
 FROM protobuf_base AS hypere2e_source
 WORKDIR /trace2e
 COPY patches/ patches/
-COPY proto/ proto/
 COPY trace2e_client/ trace2e_client/
 WORKDIR /tokioe2e
 RUN git clone --branch tokio-1.41.1 https://github.com/tokio-rs/tokio .
@@ -52,13 +60,21 @@ RUN git apply ../trace2e/patches/hyper_example_gateway.patch
 RUN cargo build --example send_file --features full
 RUN cargo build --example gateway --features full
 
-# Create Hyper client runtime environment
-FROM debian:bookworm-slim AS hyper_client_runtime
-# Install tools for demo
+# Install tools for interactive runtime
+FROM debian:bookworm-slim AS interactive_runtime
 RUN apt update && apt install -y iputils-ping iproute2 wget && rm -rf /var/lib/apt/lists/*
 RUN wget https://github.com/fullstorydev/grpcurl/releases/download/v1.9.2/grpcurl_1.9.2_linux_amd64.deb
 RUN dpkg -i grpcurl_1.9.2_linux_amd64.deb
 RUN rm grpcurl_1.9.2_linux_amd64.deb
+
+# Create stde2e runtime environment
+FROM interactive_runtime AS stde2e_runtime
+COPY --from=trace2e_middleware /trace2e_middleware/target/release/trace2e_middleware /trace2e_middleware
+COPY --from=stde2e /stde2e/target/debug/examples/file_forwarder /file_forwarder
+COPY --from=stde2e /stde2e/target/debug/examples/file_forwarder_e2e /file_forwarder_e2e
+
+# Create Hyper client runtime environment
+FROM interactive_runtime AS hyper_client_runtime
 # Copy the compiled binaries from the builder stage
 COPY --from=trace2e_middleware /trace2e_middleware/target/release/trace2e_middleware /trace2e_middleware
 COPY --from=hyper_client /hyper/target/debug/examples/client /hyper_client

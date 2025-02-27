@@ -1,0 +1,21 @@
+networks:
+  trace2e_network:
+    driver: bridge
+
+services:
+  stde2e:
+    build:
+      context: ../../
+      dockerfile: demo/trace2e.Dockerfile
+      target: stde2e_runtime
+    hostname: stde2e
+    container_name: stde2e
+    networks:
+      - trace2e_network
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./scripts:/scripts
+    entrypoint: >
+      sh -c "RUST_LOG="trace2e_middleware=info" /trace2e_middleware & bash"
+
