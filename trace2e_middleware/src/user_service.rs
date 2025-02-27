@@ -6,7 +6,7 @@ use tonic::{Request, Response, Status};
 
 pub mod user {
     tonic::include_proto!("user_api");
-    pub const USER_DESCRIPTOR_SET: &[u8] = include_bytes!("../../target/user_descriptor.bin");
+    pub const USER_DESCRIPTOR_SET: &[u8] = include_bytes!("../user_descriptor.bin");
 }
 
 pub struct UserService {
