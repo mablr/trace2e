@@ -28,16 +28,24 @@ impl TcpListener {
 
     pub fn accept(&self) -> std::io::Result<(StdTcpStream, SocketAddr)> {
         let (tcp_stream, socket) = self.0.accept()?;
-        (
+        remote_enroll(
             tcp_stream.as_raw_fd(),
             tcp_stream.local_addr()?.to_string(),
             tcp_stream.peer_addr()?.to_string(),
         );
         Ok((tcp_stream, socket))
     }
-
-    pub fn incoming(&self) -> std::net::Incoming<'_> {
-        self.0.incoming()
+    pub fn incoming(&self) -> impl Iterator<Item = std::io::Result<StdTcpStream>> + '_ {
+        self.0.incoming().map(|stream_result| {
+            stream_result.map(|stream| {
+                remote_enroll(
+                    stream.as_raw_fd(),
+                    stream.local_addr().unwrap().to_string(),
+                    stream.peer_addr().unwrap().to_string(),
+                );
+                stream
+            })
+        })
     }
 
     pub fn set_ttl(&self, ttl: u32) -> std::io::Result<()> {
