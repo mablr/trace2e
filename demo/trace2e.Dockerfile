@@ -20,8 +20,7 @@ COPY trace2e_client/ trace2e_client/
 COPY proto/p2m_api.proto proto/p2m_api.proto
 COPY stde2e/ stde2e/
 WORKDIR /stde2e
-RUN cargo build --example file_forwarder
-RUN cargo build --example file_forwarder_e2e
+RUN ls examples | sed "s/.rs$//g" | xargs -I % cargo build --example %
 
 # Get Tokio source code and patch it
 FROM protobuf_base AS hypere2e_source
@@ -72,6 +71,10 @@ RUN rm grpcurl_1.9.2_linux_amd64.deb
 # Create stde2e runtime environment
 FROM interactive_runtime AS stde2e_runtime
 COPY --from=trace2e_middleware /trace2e_middleware/target/release/trace2e_middleware /trace2e_middleware
+COPY --from=stde2e /stde2e/target/debug/examples/tcp_client /tcp_client
+COPY --from=stde2e /stde2e/target/debug/examples/tcp_client_e2e /tcp_client_e2e
+COPY --from=stde2e /stde2e/target/debug/examples/tcp_server /tcp_server
+COPY --from=stde2e /stde2e/target/debug/examples/tcp_server_e2e /tcp_server_e2e
 COPY --from=stde2e /stde2e/target/debug/examples/file_forwarder /file_forwarder
 COPY --from=stde2e /stde2e/target/debug/examples/file_forwarder_e2e /file_forwarder_e2e
 
