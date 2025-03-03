@@ -19,7 +19,7 @@ cd demo/hyper
 
 ### 2. Start the Environment
 ```
-docker-compose up -d
+docker compose up -d
 ```
 This command starts the `hyper_server` and `hyper_client` services.
 The hyper_client service is interactive and allows you to run demo scripts.
@@ -67,7 +67,7 @@ The response will now be an incomplete message, demonstrating the confidentialit
 
 To stop and clean up all running containers:
 ```
-docker-compose down
+docker compose down
 ```
 
 ## Folder Structure
