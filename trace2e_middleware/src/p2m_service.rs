@@ -116,7 +116,7 @@ impl P2m for P2mService {
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
 
-        info!("[P2M] local_enroll_duration:\t{:?}", start_time.elapsed());
+        info!("[P2M] local_enroll:\t{:?}\t(PID: {}, FD: {}, Path: {})", start_time.elapsed().as_micros(), r.process_id, r.file_descriptor, r.path);
 
         Ok(Response::new(Ack {}))
     }
@@ -215,7 +215,7 @@ impl P2m for P2mService {
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
 
-        info!("[P2M] remote_enroll_duration:\t{:?}", start_time.elapsed());
+        info!("[P2M] remote_enroll:\t{:?}\t(PID: {}, FD: {}, Stream: [{}-{}])", start_time.elapsed().as_micros(), r.process_id, r.file_descriptor, r.local_socket, r.peer_socket);
 
         Ok(Response::new(Ack {}))
     }
@@ -316,8 +316,8 @@ impl P2m for P2mService {
             };
 
             info!(
-                "[P2M] io_request_duration:\t{:?} (PID: {}, FD: {}, Flow: {}, RI: {}, grant_id: {})",
-                start_time.elapsed(),
+                "[P2M] io_request:\t{:?}\t(PID: {}, FD: {}, Flow: {}, RI: {}, grant_id: {})",
+                start_time.elapsed().as_micros(),
                 r.process_id,
                 r.file_descriptor,
                 {
@@ -373,8 +373,8 @@ impl P2m for P2mService {
             match rx.await.unwrap() {
                 TraceabilityResponse::Recorded => {
                     info!(
-                        "[P2M] io_report_duration:\t{:?} (grant_id: {})",
-                        start_time.elapsed(),
+                        "[P2M] io_report:\t{:?}\t(grant_id: {})",
+                        start_time.elapsed().as_micros(),
                         r.grant_id
                     );
 

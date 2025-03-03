@@ -87,8 +87,8 @@ impl m2m::m2m_server::M2m for M2mService {
                     r.local_socket.clone()
                 );
                 info!(
-                    "[M2M] reserve_duration:\t{:?} (Stream: [{}-{}])",
-                    start_time.elapsed(),
+                    "[M2M] reserve:\t{:?}\t(Stream: [{}-{}])",
+                    start_time.elapsed().as_micros(),
                     r.peer_socket.clone(),
                     r.local_socket.clone()
                 );
@@ -147,8 +147,8 @@ impl m2m::m2m_server::M2m for M2mService {
             match rx.await.unwrap() {
                 TraceabilityResponse::Recorded => {
                     info!(
-                        "[M2M] sync_prov_duration:\t{:?} (Stream: [{}-{}])",
-                        start_time.elapsed(),
+                        "[M2M] sync_prov:\t{:?}\t(Stream: [{}-{}])",
+                        start_time.elapsed().as_micros(),
                         r.peer_socket.clone(),
                         r.local_socket.clone()
                     );
