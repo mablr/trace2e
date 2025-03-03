@@ -1,6 +1,11 @@
 use clap::Parser;
 use std::time::Instant;
-use stde2e::{fs::File, io::{Read, Write}};
+use stde2e::{
+    fs::File,
+    io::{Read, Write},
+};
+use tracing::info;
+use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// File manipulation program that reads from input and writes to output
 #[derive(Parser, Debug)]
@@ -17,7 +22,17 @@ struct Args {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let fmt_layer = fmt::layer().with_target(false);
+    let filter_layer = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new("off"))
+        .unwrap();
+    tracing_subscriber::registry()
+        .with(filter_layer)
+        .with(fmt_layer)
+        .init();
+
     let start_time = Instant::now();
+
     // Parse command line arguments
     let args = Args::parse();
 
@@ -40,6 +55,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let end_time = start_time.elapsed();
-    println!("\"stde2e\": \"{:?}\",", end_time);
+    info!("[DEMO] file_forwarder_e2e:\t{}", end_time.as_micros());
     Ok(())
 }
