@@ -63,7 +63,7 @@ RUN cargo build --example gateway --features full
 
 # Install tools for interactive runtime
 FROM debian:bookworm-slim AS interactive_runtime
-RUN apt update && apt install -y iputils-ping iproute2 wget && rm -rf /var/lib/apt/lists/*
+RUN apt update && apt install -y iputils-ping iproute2 wget bc && rm -rf /var/lib/apt/lists/*
 RUN wget https://github.com/fullstorydev/grpcurl/releases/download/v1.9.2/grpcurl_1.9.2_linux_amd64.deb
 RUN dpkg -i grpcurl_1.9.2_linux_amd64.deb
 RUN rm grpcurl_1.9.2_linux_amd64.deb

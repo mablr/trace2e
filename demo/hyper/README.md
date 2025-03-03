@@ -43,7 +43,7 @@ docker compose logs -f
 
 Inside the `hyper_client` container, run the `get_file.sh` script:
 ```
-./scripts/get_file.sh
+cat scripts/get_file.sh | docker exec -i hyper_client bash
 ```
 This fetches the HTML file hosted by `hyper_server` and displays it.
 
@@ -51,7 +51,7 @@ This fetches the HTML file hosted by `hyper_server` and displays it.
 
 Run the enable_confidentiality.sh script to enable local confidentiality for the file:
 ```
-./scripts/enable_confidentiality.sh
+cat scripts/enable_confidentiality.sh | docker exec -i hyper_client bash
 ```
 This uses grpcurl to send a gRPC request to the server.
 
@@ -59,7 +59,7 @@ This uses grpcurl to send a gRPC request to the server.
 
 Re-run the get_file.sh script:
 
-./scripts/get_file.sh
+cat scripts/get_file.sh | docker exec -i hyper_client bash
 
 The response will now be an incomplete message, demonstrating the confidentiality feature.
 

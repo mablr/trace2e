@@ -30,8 +30,6 @@ services:
     tty: true
     depends_on:
       - hyper_server
-    volumes:
-      - ./scripts:/scripts
     entrypoint: >
       sh -c "/trace2e_middleware & bash"
 
