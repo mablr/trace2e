@@ -7,7 +7,7 @@ async fn main() -> std::io::Result<()> {
         Ok((mut s, _)) => {
             s.write(b"Hello, world!\n").unwrap();
             Ok(())
-        },
+        }
         Err(e) => Err(e),
     }
 }
