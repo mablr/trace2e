@@ -29,10 +29,10 @@ COPY patches/ patches/
 COPY trace2e_client/ trace2e_client/
 COPY proto/p2m_api.proto proto/p2m_api.proto
 WORKDIR /tokioe2e
-RUN git clone --branch tokio-1.41.1 https://github.com/tokio-rs/tokio .
+RUN git clone --branch tokio-1.42.0 https://github.com/tokio-rs/tokio .
 RUN git apply ../trace2e/patches/tokioe2e.patch
 WORKDIR /hyper
-RUN git clone --branch v1.5.1 https://github.com/hyperium/hyper .
+RUN git clone --branch v1.6.0 https://github.com/hyperium/hyper .
 RUN git apply ../trace2e/patches/hyper_tokio.patch
 
 # Build Hyper client vanilla
