@@ -49,7 +49,6 @@ RUN cargo build --example client --features full
 FROM hyper_source AS hyper_server
 WORKDIR /hyper
 RUN sed -i "s/1337/1338/" examples/send_file.rs
-RUN sed -i "s/1337/1338/" examples/send_file.rs
 RUN sed -i "s/3000/1338/;s/\[127, 0, 0, 1\], 3001/\[0, 0, 0, 0\], 3002/" examples/gateway.rs
 RUN cargo build --example send_file --features full
 RUN cargo build --example gateway --features full
@@ -57,7 +56,7 @@ RUN cargo build --example gateway --features full
 # Build Hyper server for trace2e
 FROM hypere2e_source AS hypere2e_server
 WORKDIR /hyper
-RUN git apply ../trace2e/patches/hyper_example_gateway.patch
+RUN sed -i "s/3000/1337/;s/\[127, 0, 0, 1\], 3001/\[0, 0, 0, 0\], 3001/" examples/gateway.rs
 RUN cargo build --example send_file --features full
 RUN cargo build --example gateway --features full
 
