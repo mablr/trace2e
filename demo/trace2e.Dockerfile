@@ -38,27 +38,36 @@ RUN git apply ../trace2e/patches/hyper_tokio.patch
 # Build Hyper client vanilla
 FROM hyper_source AS hyper_client
 WORKDIR /hyper
+COPY demo/hyper/src/client_post.rs examples/
 RUN cargo build --example client --features full
+RUN cargo build --example client_post --features full
 
 # Build Hyper client for trace2e
 FROM hypere2e_source AS hypere2e_client
 WORKDIR /hyper
+COPY demo/hyper/src/client_post.rs examples/
 RUN cargo build --example client --features full
+RUN cargo build --example client_post --features full
 
 # Build Hyper server vanilla
 FROM hyper_source AS hyper_server
 WORKDIR /hyper
+COPY demo/hyper/src/file_upload.rs examples/
 RUN sed -i "s/1337/1338/" examples/send_file.rs
+RUN sed -i "s/1339/1340/" examples/file_upload.rs
 RUN sed -i "s/3000/1338/;s/\[127, 0, 0, 1\], 3001/\[0, 0, 0, 0\], 3002/" examples/gateway.rs
 RUN cargo build --example send_file --features full
 RUN cargo build --example gateway --features full
+RUN cargo build --example file_upload --features full
 
 # Build Hyper server for trace2e
 FROM hypere2e_source AS hypere2e_server
 WORKDIR /hyper
+COPY demo/hyper/src/file_upload.rs examples/
 RUN sed -i "s/3000/1337/;s/\[127, 0, 0, 1\], 3001/\[0, 0, 0, 0\], 3001/" examples/gateway.rs
 RUN cargo build --example send_file --features full
 RUN cargo build --example gateway --features full
+RUN cargo build --example file_upload --features full
 
 # Install tools for interactive runtime
 FROM debian:bookworm-slim AS interactive_runtime
@@ -83,13 +92,16 @@ FROM interactive_runtime AS hyper_client_runtime
 COPY --from=trace2e_middleware /trace2e_middleware/target/release/trace2e_middleware /trace2e_middleware
 COPY --from=hyper_client /hyper/target/debug/examples/client /hyper_client
 COPY --from=hypere2e_client /hyper/target/debug/examples/client /hypere2e_client
-
+COPY --from=hyper_client /hyper/target/debug/examples/client_post /hyper_client_post
+COPY --from=hypere2e_client /hyper/target/debug/examples/client_post /hypere2e_client_post
 
 # Create Hyper server runtime environment
 FROM debian:bookworm-slim AS hyper_server_runtime
 COPY --from=trace2e_middleware /trace2e_middleware/target/release/trace2e_middleware /trace2e_middleware
-COPY --from=hyper_server /hyper/target/debug/examples/send_file /hyper_server
-COPY --from=hypere2e_server /hyper/target/debug/examples/send_file /hypere2e_server
+COPY --from=hyper_server /hyper/target/debug/examples/send_file /hyper_send_file
+COPY --from=hypere2e_server /hyper/target/debug/examples/send_file /hypere2e_send_file
 COPY --from=hyper_server /hyper/target/debug/examples/gateway /hyper_gateway
 COPY --from=hypere2e_server /hyper/target/debug/examples/gateway /hypere2e_gateway
 COPY --from=hyper_server /hyper/examples/send_file_index.html /examples/send_file_index.html
+COPY --from=hyper_server /hyper/target/debug/examples/file_upload /hyper_file_upload
+COPY --from=hypere2e_server /hyper/target/debug/examples/file_upload /hypere2e_file_upload
