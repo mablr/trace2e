@@ -1,48 +1,51 @@
 diff --git a/tokio/Cargo.toml b/tokio/Cargo.toml
-index 23873e5b..cf67a6ac 100644
+index 86017871..51982765 100644
 --- a/tokio/Cargo.toml
 +++ b/tokio/Cargo.toml
-@@ -87,6 +87,8 @@ time = []
+@@ -87,6 +87,7 @@ time = []
  
  [dependencies]
- tokio-macros = { version = "~2.4.0", path = "../tokio-macros", optional = true }
-+# WIP
+ tokio-macros = { version = "~2.5.0", path = "../tokio-macros", optional = true }
 +trace2e_client = { path = "../../trace2e/trace2e_client" }
  
  pin-project-lite = "0.2.11"
  
 diff --git a/tokio/src/fs/file.rs b/tokio/src/fs/file.rs
-index 63dd8af3..fa430572 100644
+index 78470664..10915b23 100644
 --- a/tokio/src/fs/file.rs
 +++ b/tokio/src/fs/file.rs
-@@ -150,8 +150,12 @@ impl File {
-     /// [`AsyncReadExt`]: trait@crate::io::AsyncReadExt
-     pub async fn open(path: impl AsRef<Path>) -> io::Result<File> {
-         let path = path.as_ref().to_owned();
-+        let path_clone = path.clone();
-         let std = asyncify(|| StdFile::open(path)).await?;
--
-+        trace2e_client::local_enroll(
-+            path_clone,
-+            std::os::fd::AsRawFd::as_raw_fd(&std)
-+        );
-         Ok(File::from_std(std))
+@@ -275,7 +275,7 @@ impl File {
+     /// let file = tokio::fs::File::from_std(std_file);
+     /// ```
+     pub fn from_std(std: StdFile) -> File {
+-        File {
++        let file = File {
+             std: Arc::new(std),
+             inner: Mutex::new(Inner {
+                 state: State::Idle(Some(Buf::with_capacity(0))),
+@@ -283,7 +283,21 @@ impl File {
+                 pos: 0,
+             }),
+             max_buf_size: DEFAULT_MAX_BUF_SIZE,
++        };
++        // Use a workaround since path() method is not directly available on std::fs::File
++        // We can skip the path enrollment if we can't get it
++        #[cfg(unix)]
++        {
++            use std::os::unix::io::AsRawFd;
++            if let Ok(path) = std::fs::read_link(format!("/proc/self/fd/{}", file.std.as_raw_fd()))
++            {
++                trace2e_client::local_enroll(
++                    &path,
++                    std::os::fd::AsRawFd::as_raw_fd(&file.std)
++                );
++            }
+         }
++        file
      }
  
-@@ -188,7 +192,12 @@ impl File {
-     /// [`AsyncWriteExt`]: trait@crate::io::AsyncWriteExt
-     pub async fn create(path: impl AsRef<Path>) -> io::Result<File> {
-         let path = path.as_ref().to_owned();
-+        let path_clone = path.clone();
-         let std_file = asyncify(move || StdFile::create(path)).await?;
-+        trace2e_client::local_enroll(
-+            path_clone,
-+            std::os::fd::AsRawFd::as_raw_fd(&std_file)
-+        );
-         Ok(File::from_std(std_file))
-     }
- 
-@@ -586,27 +595,42 @@ impl AsyncRead for File {
+     /// Attempts to sync all OS-internal metadata to disk.
+@@ -587,6 +601,11 @@ impl AsyncRead for File {
          dst: &mut ReadBuf<'_>,
      ) -> Poll<io::Result<()>> {
          ready!(crate::trace::trace_leaf(cx));
@@ -53,17 +56,14 @@ index 63dd8af3..fa430572 100644
 +        };
          let me = self.get_mut();
          let inner = me.inner.get_mut();
--
-         loop {
-             match inner.state {
-                 State::Idle(ref mut buf_cell) => {
+ 
+@@ -596,21 +615,32 @@ impl AsyncRead for File {
                      let mut buf = buf_cell.take().unwrap();
  
                      if !buf.is_empty() {
 -                        buf.copy_to(dst);
 -                        *buf_cell = Some(buf);
 -                        return Poll::Ready(Ok(()));
-+                        //// Middleware call here
 +                        if let Ok(grant_id) = trace2e_client::io_request(raw_fd, trace2e_client::Flow::Input.into()) {
 +                            buf.copy_to(dst);
 +                            *buf_cell = Some(buf);
@@ -74,16 +74,25 @@ index 63dd8af3..fa430572 100644
 +                        }
                      }
  
-                     buf.ensure_capacity_for(dst, me.max_buf_size);
-                     let std = me.std.clone();
+-                    let std = me.std.clone();
++                    if let Ok(grant_id) = trace2e_client::io_request(raw_fd, trace2e_client::Flow::Input.into()) {
  
+-                    let max_buf_size = cmp::min(dst.remaining(), me.max_buf_size);
 -                    inner.state = State::Busy(spawn_blocking(move || {
--                        let res = buf.read_from(&mut &*std);
+-                        // SAFETY: the `Read` implementation of `std` does not
+-                        // read from the buffer it is borrowing and correctly
+-                        // reports the length of the data written into the buffer.
+-                        let res = unsafe { buf.read_from(&mut &*std, max_buf_size) };
 -                        (Operation::Read(res), buf)
 -                    }));
-+                    if let Ok(grant_id) = trace2e_client::io_request(raw_fd, trace2e_client::Flow::Input.into()) {
++                        let std = me.std.clone();
++
++                        let max_buf_size = cmp::min(dst.remaining(), me.max_buf_size);
 +                        inner.state = State::Busy(spawn_blocking(move || {
-+                            let res = buf.read_from(&mut &*std);
++                            // SAFETY: the `Read` implementation of `std` does not
++                            // read from the buffer it is borrowing and correctly
++                            // reports the length of the data written into the buffer.
++                            let res = unsafe { buf.read_from(&mut &*std, max_buf_size) };
 +                            let _ = trace2e_client::io_report(raw_fd, grant_id, res.is_ok());
 +                            (Operation::Read(res), buf)
 +                        }));
@@ -93,7 +102,7 @@ index 63dd8af3..fa430572 100644
                  }
                  State::Busy(ref mut rx) => {
                      let (op, mut buf) = ready!(Pin::new(rx).poll(cx))?;
-@@ -719,6 +743,11 @@ impl AsyncWrite for File {
+@@ -723,6 +753,11 @@ impl AsyncWrite for File {
          src: &[u8],
      ) -> Poll<io::Result<usize>> {
          ready!(crate::trace::trace_leaf(cx));
@@ -105,10 +114,13 @@ index 63dd8af3..fa430572 100644
          let me = self.get_mut();
          let inner = me.inner.get_mut();
  
-@@ -740,22 +769,23 @@ impl AsyncWrite for File {
-                     let n = buf.copy_from(src, me.max_buf_size);
-                     let std = me.std.clone();
+@@ -741,25 +776,29 @@ impl AsyncWrite for File {
+                         None
+                     };
  
+-                    let n = buf.copy_from(src, me.max_buf_size);
+-                    let std = me.std.clone();
+-
 -                    let blocking_task_join_handle = spawn_mandatory_blocking(move || {
 -                        let res = if let Some(seek) = seek {
 -                            (&*std).seek(seek).and_then(|_| buf.write_to(&mut &*std))
@@ -126,7 +138,10 @@ index 63dd8af3..fa430572 100644
 -
 -                    return Poll::Ready(Ok(n));
 +                    if let Ok(grant_id) = trace2e_client::io_request(raw_fd, trace2e_client::Flow::Output.into()) {
-+                        inner.state = State::Busy(spawn_mandatory_blocking(move || {
++                        let n = buf.copy_from(src, me.max_buf_size);
++                        let std = me.std.clone();
++
++                        let blocking_task_join_handle = spawn_mandatory_blocking(move || {
 +                            let res = if let Some(seek) = seek {
 +                                (&*std).seek(seek).and_then(|_| buf.write_to(&mut &*std))
 +                            } else {
@@ -137,7 +152,71 @@ index 63dd8af3..fa430572 100644
 +                        })
 +                        .ok_or_else(|| {
 +                            io::Error::new(io::ErrorKind::Other, "background task failed")
-+                        })?);
++                        })?;
++
++                        inner.state = State::Busy(blocking_task_join_handle);
++
++                        return Poll::Ready(Ok(n));
++                    } else {
++                        return Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
++                    }
+                 }
+                 State::Busy(ref mut rx) => {
+                     let (op, buf) = ready!(Pin::new(rx).poll(cx))?;
+@@ -794,6 +833,11 @@ impl AsyncWrite for File {
+         bufs: &[io::IoSlice<'_>],
+     ) -> Poll<Result<usize, io::Error>> {
+         ready!(crate::trace::trace_leaf(cx));
++
++        let raw_fd = {
++            use std::os::fd::AsRawFd;
++            self.as_raw_fd()
++        };
+         let me = self.get_mut();
+         let inner = me.inner.get_mut();
+ 
+@@ -812,25 +856,29 @@ impl AsyncWrite for File {
+                         None
+                     };
+ 
+-                    let n = buf.copy_from_bufs(bufs, me.max_buf_size);
+-                    let std = me.std.clone();
+-
+-                    let blocking_task_join_handle = spawn_mandatory_blocking(move || {
+-                        let res = if let Some(seek) = seek {
+-                            (&*std).seek(seek).and_then(|_| buf.write_to(&mut &*std))
+-                        } else {
+-                            buf.write_to(&mut &*std)
+-                        };
+-
+-                        (Operation::Write(res), buf)
+-                    })
+-                    .ok_or_else(|| {
+-                        io::Error::new(io::ErrorKind::Other, "background task failed")
+-                    })?;
+-
+-                    inner.state = State::Busy(blocking_task_join_handle);
+-
+-                    return Poll::Ready(Ok(n));
++                    if let Ok(grant_id) = trace2e_client::io_request(raw_fd, trace2e_client::Flow::Output.into()) {
++                        let n = buf.copy_from_bufs(bufs, me.max_buf_size);
++                        let std = me.std.clone();
++
++                        let blocking_task_join_handle = spawn_mandatory_blocking(move || {
++                            let res = if let Some(seek) = seek {
++                                (&*std).seek(seek).and_then(|_| buf.write_to(&mut &*std))
++                            } else {
++                                buf.write_to(&mut &*std)
++                            };
++                            let _ = trace2e_client::io_report(raw_fd, grant_id, res.is_ok());
++                            (Operation::Write(res), buf)
++                        })
++                        .ok_or_else(|| {
++                            io::Error::new(io::ErrorKind::Other, "background task failed")
++                        })?;
++
++                        inner.state = State::Busy(blocking_task_join_handle);
++
 +                        return Poll::Ready(Ok(n));
 +                    } else {
 +                        return Poll::Ready(Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)));
@@ -164,10 +243,10 @@ index e70e6aa0..72cce263 100644
      }
  
 diff --git a/tokio/src/net/tcp/listener.rs b/tokio/src/net/tcp/listener.rs
-index 618da62b..d6a60227 100644
+index 1545e654..aa0ef57f 100644
 --- a/tokio/src/net/tcp/listener.rs
 +++ b/tokio/src/net/tcp/listener.rs
-@@ -165,6 +165,11 @@ impl TcpListener {
+@@ -166,6 +166,11 @@ impl TcpListener {
              .await?;
  
          let stream = TcpStream::new(mio)?;
@@ -179,30 +258,47 @@ index 618da62b..d6a60227 100644
          Ok((stream, addr))
      }
  
+@@ -182,6 +187,11 @@ impl TcpListener {
+             match self.io.accept() {
+                 Ok((io, addr)) => {
+                     let io = TcpStream::new(io)?;
++                    trace2e_client::remote_enroll(
++                        std::os::fd::AsRawFd::as_raw_fd(&io),
++                        io.local_addr()?.to_string(),
++                        addr.to_string()
++                    );
+                     return Poll::Ready(Ok((io, addr)));
+                 }
+                 Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
 diff --git a/tokio/src/net/tcp/stream.rs b/tokio/src/net/tcp/stream.rs
-index 82f4c05f..5278f7ce 100644
+index 0504bf2e..a6dd39b8 100644
 --- a/tokio/src/net/tcp/stream.rs
 +++ b/tokio/src/net/tcp/stream.rs
-@@ -134,7 +134,17 @@ impl TcpStream {
-         /// Establishes a connection to the specified `addr`.
-         async fn connect_addr(addr: SocketAddr) -> io::Result<TcpStream> {
-             let sys = mio::net::TcpStream::connect(addr)?;
--            TcpStream::connect_mio(sys).await
-+            match TcpStream::connect_mio(sys).await {
-+                Ok(stream)=> {
-+                    trace2e_client::remote_enroll(
-+                        std::os::fd::AsRawFd::as_raw_fd(&stream),
-+                        stream.local_addr()?.to_string(),
-+                        stream.peer_addr()?.to_string()
-+                    );
-+                    Ok(stream)
-+                }
-+                Err(e) => Err(e),
-+            }
-         }
+@@ -152,6 +152,11 @@ impl TcpStream {
+                 return Err(e);
+             }
  
-         pub(crate) async fn connect_mio(sys: mio::net::TcpStream) -> io::Result<TcpStream> {
-@@ -1328,7 +1338,18 @@ impl AsyncRead for TcpStream {
++            trace2e_client::remote_enroll(
++                std::os::fd::AsRawFd::as_raw_fd(&stream),
++                stream.local_addr()?.to_string(),
++                stream.peer_addr()?.to_string()
++            );
+             Ok(stream)
+         }
+     }
+@@ -200,6 +205,11 @@ impl TcpStream {
+     /// explicitly with [`Runtime::enter`](crate::runtime::Runtime::enter) function.
+     #[track_caller]
+     pub fn from_std(stream: std::net::TcpStream) -> io::Result<TcpStream> {
++        trace2e_client::remote_enroll(
++            std::os::fd::AsRawFd::as_raw_fd(&stream),
++            stream.local_addr()?.to_string(),
++            stream.peer_addr()?.to_string()
++        );
+         let io = mio::net::TcpStream::from_std(stream);
+         let io = PollEvented::new(io)?;
+         Ok(TcpStream { io })
+@@ -1329,7 +1339,18 @@ impl AsyncRead for TcpStream {
          cx: &mut Context<'_>,
          buf: &mut ReadBuf<'_>,
      ) -> Poll<io::Result<()>> {
@@ -222,7 +318,7 @@ index 82f4c05f..5278f7ce 100644
      }
  }
  
-@@ -1338,7 +1359,18 @@ impl AsyncWrite for TcpStream {
+@@ -1339,7 +1360,18 @@ impl AsyncWrite for TcpStream {
          cx: &mut Context<'_>,
          buf: &[u8],
      ) -> Poll<io::Result<usize>> {
@@ -242,7 +338,7 @@ index 82f4c05f..5278f7ce 100644
      }
  
      fn poll_write_vectored(
-@@ -1346,7 +1378,18 @@ impl AsyncWrite for TcpStream {
+@@ -1347,7 +1379,18 @@ impl AsyncWrite for TcpStream {
          cx: &mut Context<'_>,
          bufs: &[io::IoSlice<'_>],
      ) -> Poll<io::Result<usize>> {
