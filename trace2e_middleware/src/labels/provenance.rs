@@ -12,7 +12,9 @@ pub trait Provenance {
 impl Provenance for Labels {
     /// Returns the provenance information as the list of Identifiers references.
     fn get_prov(&self) -> Vec<ComplianceLabel> {
-        self.provenance.clone()
+        let mut result = vec![self.compliance.clone()];
+        result.extend(self.provenance.clone());
+        result
     }
 
     /// Sets the provenance information given remote provenance.
