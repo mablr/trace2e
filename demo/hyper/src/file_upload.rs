@@ -6,7 +6,7 @@ use http_body_util::{BodyExt, Full};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{body::{Incoming as IncomingBody, Bytes}, header, Method, Request, Response, StatusCode};
-use tokio::fs::File;
+use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 
@@ -26,7 +26,7 @@ async fn api_upload_file(req: Request<IncomingBody>, path: &str) -> Result<Respo
 
     let file_name = path.split('/').last().unwrap();
     // Save file using the filename from the request
-    let mut file = File::create(file_name).await?;
+    let mut file = OpenOptions::new().write(true).create(true).open(file_name).await?;
 
     // Aggregate the body...
     let whole_body = req.collect().await?;
