@@ -38,12 +38,12 @@ If you want to see the middleware logs, run the following in second terminal, wi
 docker compose logs -f
 ```
 
-## Running the Demo
+## Running the Demo on Confidentiality
 ### Step 1: Retrieve the File
 
-Inside the `hyper_client` container, run the `get_file.sh` script:
+Inside the `hyper_client` container, run the `read_confidential_file.sh` script:
 ```
-cat scripts/get_file.sh | docker exec -i hyper_client bash
+cat scripts/read_confidential_file.sh | docker exec -i hyper_client bash
 ```
 This fetches the HTML file hosted by `hyper_server` and displays it.
 
@@ -57,11 +57,36 @@ This uses grpcurl to send a gRPC request to the server.
 
 ### Step 3: Attempt to Retrieve the File Again
 
-Re-run the get_file.sh script:
-
-cat scripts/get_file.sh | docker exec -i hyper_client bash
-
+Re-run the read_confidential_file.sh script:
+```
+cat scripts/read_confidential_file.sh | docker exec -i hyper_client bash
+```
 The response will now be an incomplete message, demonstrating the confidentiality feature.
+
+## Running the Demo on Integrity
+### Step 1: Try to alter the template.html file
+
+Run the alter_template.sh script:
+```
+cat scripts/alter_template.sh | docker exec -i hyper_client bash
+```
+This will attempt to alter the remote template.html file.
+
+### Step 2: Enable Integrity
+
+Run the enable_integrity.sh script to enable local integrity for the file:
+```
+cat scripts/enable_integrity.sh | docker exec -i hyper_client bash
+```
+This will enable local integrity for the remote template.html file.
+
+### Step 3: Try to alter the template.html file again
+
+Re-run the alter_template.sh script:
+```
+cat scripts/alter_template.sh | docker exec -i hyper_client bash
+```
+This will now fail, demonstrating the integrity feature.
 
 ## Stopping the Environment
 
@@ -73,9 +98,10 @@ docker compose down
 ## Folder Structure
 
 - `scripts/`: Contains the demo scripts to run from `hyper_client`:
-    - `get_file.sh`: Fetches the file from the server.
+    - `read_confidential_file.sh`: Fetches the confidential file from the server.
     - `enable_confidentiality.sh`: Enables confidentiality for the file on the server.
-- `*.Dockerfile`: Configuration files for building server and client containers.
+    - `alter_protected_file.sh`: Attempts to alter the template.html file.
+    - `enable_integrity.sh`: Enables integrity for the template.html file.
 - `compose.yml`: Orchestrates the multi-container setup.
 
 ## Additional Notes
