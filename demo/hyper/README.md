@@ -103,8 +103,3 @@ docker compose down
     - `alter_protected_file.sh`: Attempts to alter the template.html file.
     - `enable_integrity.sh`: Enables integrity for the template.html file.
 - `compose.yml`: Orchestrates the multi-container setup.
-
-## Additional Notes
-
-- **Volumes**: The `scripts/` folder is shared with the `hyper_client` container, allowing you to modify and run scripts dynamically.
-- **Ports**: The `hyper_server` exposes services internally within the Docker network, ensuring isolated communication between containers.
