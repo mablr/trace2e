@@ -45,14 +45,22 @@ The system works through three main components:
 
 ### Quick Demo
 
-The fastest way to see TracE2E in action is to run the Hyper.rs demo in the [demo/hyper](demo/hyper) directory. This demo showcases:
+The easiest way to see TracE2E in action is to run the Hyper.rs demo in the [demo/hyper](demo/hyper) directory. This demo showcases:
 
 - A web server with TracE2E integration
-- File tracing and control
+- File traceability
 - Confidentiality enforcement
-- Performance benchmarking
+- Integrity enforcement
 
 Follow the instructions in [demo/hyper/README.md](demo/hyper/README.md) to run the demo.
+
+If you want evaluate the performance of TracE2E using simple benchmarks, you can run the stde2e demo in the [demo/stde2e](demo/stde2e) directory. This demo showcases:
+
+- File and TCP stream traceability
+- Full tracing of each TracE2E component including the performance measurements
+- Evaluation of the performance overhead of TracE2E compared to the standard library
+
+Follow the instructions in [demo/stde2e/README.md](demo/stde2e/README.md) to run the demo.
 
 ### Building from Source
 
