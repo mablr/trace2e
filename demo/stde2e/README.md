@@ -43,7 +43,7 @@ This demo showcases the performance comparison of I/O operations with Rust stand
 The analysis compares:
 
 - **Standard execution time**: Baseline performance of standard Rust I/O operations
-- **StdE2E execution time**: Performance of the same operations with E2E traceability, this includes the overhead of the TracE2E communicationprotocols.
+- **StdE2E execution time**: Performance of the same operations with E2E traceability, this includes the overhead of the TracE2E communication protocols.
 
 The benchmark covers two resource types:
 - File operations (read/write)
