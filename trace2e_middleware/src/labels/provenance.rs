@@ -6,12 +6,21 @@ pub trait Provenance {
     fn update_prov(&mut self, source: &Labels);
     fn clear_prov(&mut self);
     fn set_prov(&mut self, provenance: Vec<ComplianceLabel>);
+    fn get_all_labels(&self) -> Vec<ComplianceLabel>;
     fn get_prov(&self) -> Vec<ComplianceLabel>;
 }
 
 impl Provenance for Labels {
-    /// Returns the provenance information as the list of Identifiers references.
+    /// Returns the provenance information as a list of ComplianceLabels.
     fn get_prov(&self) -> Vec<ComplianceLabel> {
+        self.provenance.clone()
+    }
+
+    /// Returns the provenance information as a list of ComplianceLabels
+    /// including itself. This is a workaround to provide full provenance
+    /// information to a remote traceability server. Must be merged with
+    /// get_prov() in the future.
+    fn get_all_labels(&self) -> Vec<ComplianceLabel> {
         let mut result = vec![self.compliance.clone()];
         result.extend(self.provenance.clone());
         result

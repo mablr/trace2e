@@ -327,7 +327,7 @@ async fn handle_flow(
                                 local_socket: local_socket.to_string(),
                                 peer_socket: peer_socket.to_string(),
                                 provenance: source_labels
-                                    .get_prov()
+                                    .get_all_labels()
                                     .into_iter()
                                     .map(m2m::ComplianceLabel::from)
                                     .collect(),
