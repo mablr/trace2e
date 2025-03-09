@@ -6,9 +6,12 @@ use crate::{
     labels::ComplianceLabel,
     traceability::{TraceabilityRequest, TraceabilityResponse},
 };
-use tokio::{sync::{mpsc, oneshot, Mutex}, time::Instant};
+use tokio::{
+    sync::{mpsc, oneshot, Mutex},
+    time::Instant,
+};
 use tonic::{Request, Response, Status};
-use tracing::{error, info, debug};
+use tracing::{debug, error, info};
 
 pub mod m2m {
     tonic::include_proto!("m2m_api");

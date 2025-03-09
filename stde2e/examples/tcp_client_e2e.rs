@@ -22,6 +22,9 @@ async fn main() -> std::io::Result<()> {
     let start_read_time = Instant::now();
     stream.read(&mut buf).unwrap();
     let read_time = start_read_time.elapsed();
-    info!("[DEMO] tcp_client_e2e:\t{}", connect_time.as_micros() + read_time.as_micros());
+    info!(
+        "[DEMO] tcp_client_e2e:\t{}",
+        connect_time.as_micros() + read_time.as_micros()
+    );
     Ok(())
 }

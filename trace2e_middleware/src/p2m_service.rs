@@ -11,7 +11,7 @@ use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{mpsc, oneshot, RwLock};
 use tokio::time::Instant;
 use tonic::{Request, Response, Status};
-use tracing::{error, info, debug};
+use tracing::{debug, error, info};
 
 pub mod p2m {
     tonic::include_proto!("p2m_api");
@@ -71,7 +71,7 @@ impl P2m for P2mService {
                 return Err(Status::not_found(format!(
                     "Process {} not found.",
                     r.process_id
-                )))
+                )));
             }
         };
 
@@ -116,7 +116,13 @@ impl P2m for P2mService {
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
 
-        info!("[P2M] local_enroll:\t{:?}\t(PID: {}, FD: {}, Path: {})", start_time.elapsed().as_micros(), r.process_id, r.file_descriptor, r.path);
+        info!(
+            "[P2M] local_enroll:\t{:?}\t(PID: {}, FD: {}, Path: {})",
+            start_time.elapsed().as_micros(),
+            r.process_id,
+            r.file_descriptor,
+            r.path
+        );
 
         Ok(Response::new(Ack {}))
     }
@@ -158,7 +164,7 @@ impl P2m for P2mService {
                 return Err(Status::not_found(format!(
                     "Process {} not found.",
                     r.process_id
-                )))
+                )));
             }
         };
 
@@ -215,7 +221,14 @@ impl P2m for P2mService {
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
 
-        info!("[P2M] remote_enroll:\t{:?}\t(PID: {}, FD: {}, Stream: [{}-{}])", start_time.elapsed().as_micros(), r.process_id, r.file_descriptor, r.local_socket, r.peer_socket);
+        info!(
+            "[P2M] remote_enroll:\t{:?}\t(PID: {}, FD: {}, Stream: [{}-{}])",
+            start_time.elapsed().as_micros(),
+            r.process_id,
+            r.file_descriptor,
+            r.local_socket,
+            r.peer_socket
+        );
 
         Ok(Response::new(Ack {}))
     }
@@ -266,7 +279,7 @@ impl P2m for P2mService {
                 return Err(Status::not_found(format!(
                     "Process {} not found.",
                     r.process_id
-                )))
+                )));
             }
         };
 
@@ -354,8 +367,7 @@ impl P2m for P2mService {
 
         debug!(
             "[P2M] io_report (grant_id: {}, result: {})",
-            r.grant_id,
-            r.result
+            r.grant_id, r.result
         );
 
         if let Some(_resource_identifier) = self

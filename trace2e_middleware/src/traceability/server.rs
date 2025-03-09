@@ -564,7 +564,10 @@ async fn handle_sync_stream(
                     stream_labels.get_prov()
                 );
             } else {
-                debug!("[TS] ⛔ Remote provenance sync on {:?} failed", identifier.clone());
+                debug!(
+                    "[TS] ⛔ Remote provenance sync on {:?} failed",
+                    identifier.clone()
+                );
 
                 // Todo handle provenance sync failures
                 todo!();
