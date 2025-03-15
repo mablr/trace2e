@@ -3,8 +3,8 @@
 
 This folder provides a demo environment to test the Trace2e middleware using Docker. The environment consists of two services:
 
-- hyper_server: Runs the middleware and provides a web service through multiple applications.
-- hyper_client: Allows interactive execution of scripts for demo scenarios using `grpcurl` tool to interact with middleware through its client gRPC interface.
+- `hyper_server`: Runs the middleware and provides a web service through multiple applications.
+- `hyper_client`: Allows interactive execution of scripts for demo scenarios using `grpcurl` tool to interact with middleware through its client gRPC interface.
 
 The infrastructure uses Docker Compose to manage the services and a shared scripts folder for client-side demo scripts.
 Prerequisites
