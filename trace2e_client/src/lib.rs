@@ -1,6 +1,4 @@
 use once_cell::sync::Lazy;
-#[cfg(feature = "benchmarking")]
-use std::time::Instant;
 use std::{fs::canonicalize, path::Path, process::id};
 use tokio::{runtime::Handle, task};
 use tonic::transport::Channel;
@@ -28,7 +26,16 @@ pub(crate) static GRPC_CLIENT: Lazy<proto::p2m_client::P2mClient<Channel>> = Laz
 
 pub fn local_enroll(path: impl AsRef<Path>, fd: i32) {
     #[cfg(feature = "benchmarking")]
-    let start = Instant::now();
+    info!(
+        "[P2M] P-> local_enroll (PID: {}, FD: {}, Path: {})",
+        id(),
+        fd,
+        canonicalize(path.as_ref())
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string()
+    );
 
     let request = tonic::Request::new(proto::LocalCt {
         process_id: id(),
@@ -55,8 +62,7 @@ pub fn local_enroll(path: impl AsRef<Path>, fd: i32) {
 
     #[cfg(feature = "benchmarking")]
     info!(
-        "[P2M] local_enroll:\t{} (PID: {}, FD: {}, Path: {})",
-        start.elapsed().as_micros(),
+        "[P2M] P<- local_enroll (PID: {}, FD: {}, Path: {})",
         id(),
         fd,
         canonicalize(path.as_ref())
@@ -69,7 +75,13 @@ pub fn local_enroll(path: impl AsRef<Path>, fd: i32) {
 
 pub fn remote_enroll(fd: i32, local_socket: String, peer_socket: String) {
     #[cfg(feature = "benchmarking")]
-    let start = Instant::now();
+    info!(
+        "[P2M] P-> remote_enroll (PID: {}, FD: {}, Stream: [{}-{}])",
+        id(),
+        fd,
+        local_socket,
+        peer_socket
+    );
 
     let request = tonic::Request::new(proto::RemoteCt {
         process_id: id(),
@@ -92,17 +104,17 @@ pub fn remote_enroll(fd: i32, local_socket: String, peer_socket: String) {
     }
 
     #[cfg(feature = "benchmarking")]
-    info!(
-        "[P2M] remote_enroll:\t{} (PID: {}, FD: {})",
-        start.elapsed().as_micros(),
-        id(),
-        fd
-    );
+    info!("[P2M] P<- remote_enroll (PID: {}, FD: {})", id(), fd);
 }
 
 pub fn io_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Error>> {
     #[cfg(feature = "benchmarking")]
-    let start = Instant::now();
+    info!(
+        "[P2M] P-> io_request (PID: {}, FD: {}, Flow: {})",
+        id(),
+        fd,
+        flow
+    );
 
     let request = tonic::Request::new(proto::IoInfo {
         process_id: id(),
@@ -135,8 +147,7 @@ pub fn io_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Error>>
 
     #[cfg(feature = "benchmarking")]
     info!(
-        "[P2M] io_request:\t{} (PID: {}, FD: {}, Flow: {})",
-        start.elapsed().as_micros(),
+        "[P2M] P<- io_request (PID: {}, FD: {}, Flow: {})",
         id(),
         fd,
         flow
@@ -147,7 +158,13 @@ pub fn io_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Error>>
 
 pub fn io_report(fd: i32, grant_id: u64, result: bool) -> std::io::Result<()> {
     #[cfg(feature = "benchmarking")]
-    let start = Instant::now();
+    info!(
+        "[P2M] P-> io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
+        id(),
+        fd,
+        grant_id,
+        result
+    );
 
     let request = tonic::Request::new(proto::IoResult {
         process_id: id(),
@@ -177,8 +194,7 @@ pub fn io_report(fd: i32, grant_id: u64, result: bool) -> std::io::Result<()> {
 
     #[cfg(feature = "benchmarking")]
     info!(
-        "[P2M] io_report:\t{} (PID: {}, FD: {}, Grant ID: {}, Result: {})",
-        start.elapsed().as_micros(),
+        "[P2M] P<- io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
         id(),
         fd,
         grant_id,

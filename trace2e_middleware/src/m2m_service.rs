@@ -6,10 +6,7 @@ use crate::{
     labels::ComplianceLabel,
     traceability::{TraceabilityRequest, TraceabilityResponse},
 };
-use tokio::{
-    sync::{mpsc, oneshot, Mutex},
-    time::Instant,
-};
+use tokio::sync::{mpsc, oneshot, Mutex};
 use tonic::{Request, Response, Status};
 use tracing::{debug, error, info};
 
@@ -45,10 +42,9 @@ impl m2m::m2m_server::M2m for M2mService {
         &self,
         request: Request<m2m::Stream>,
     ) -> Result<Response<m2m::Labels>, Status> {
-        let start_time = Instant::now();
         let r = request.into_inner();
-        debug!(
-            "[M2M] reserve (Stream: [{}-{}])",
+        info!(
+            "[M2M] ->RM reserve (Stream: [{}-{}])",
             r.peer_socket.clone(),
             r.local_socket.clone()
         );
@@ -90,8 +86,7 @@ impl m2m::m2m_server::M2m for M2mService {
                     r.local_socket.clone()
                 );
                 info!(
-                    "[M2M] reserve:\t{:?}\t(Stream: [{}-{}])",
-                    start_time.elapsed().as_micros(),
+                    "[M2M] <-RM reserve (Stream: [{}-{}])",
                     r.peer_socket.clone(),
                     r.local_socket.clone()
                 );
@@ -109,10 +104,9 @@ impl m2m::m2m_server::M2m for M2mService {
         &self,
         request: Request<m2m::StreamProv>,
     ) -> Result<Response<m2m::Ack>, Status> {
-        let start_time = Instant::now();
         let r = request.into_inner();
-        debug!(
-            "[M2M] sync_prov (Stream: [{}-{}])",
+        info!(
+            "[M2M] ->RM sync_prov (Stream: [{}-{}])",
             r.peer_socket.clone(),
             r.local_socket.clone()
         );
@@ -150,8 +144,7 @@ impl m2m::m2m_server::M2m for M2mService {
             match rx.await.unwrap() {
                 TraceabilityResponse::Recorded => {
                     info!(
-                        "[M2M] sync_prov:\t{:?}\t(Stream: [{}-{}])",
-                        start_time.elapsed().as_micros(),
+                        "[M2M] <-RM sync_prov (Stream: [{}-{}])",
                         r.peer_socket.clone(),
                         r.local_socket.clone()
                     );

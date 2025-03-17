@@ -9,9 +9,8 @@ use procfs::process::Process;
 use std::{collections::HashMap, path::PathBuf};
 use std::{net::SocketAddr, sync::Arc};
 use tokio::sync::{mpsc, oneshot, RwLock};
-use tokio::time::Instant;
 use tonic::{Request, Response, Status};
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 pub mod p2m {
     tonic::include_proto!("p2m_api");
@@ -36,10 +35,9 @@ impl P2mService {
 #[tonic::async_trait]
 impl P2m for P2mService {
     async fn local_enroll(&self, request: Request<LocalCt>) -> Result<Response<Ack>, Status> {
-        let start_time = Instant::now();
         let r = request.into_inner();
-        debug!(
-            "[P2M] local_enroll (PID: {}, FD: {}, Path: {})",
+        info!(
+            "[P2M] ->M local_enroll (PID: {}, FD: {}, Path: {})",
             r.process_id.clone(),
             r.file_descriptor.clone(),
             r.path.clone()
@@ -117,21 +115,17 @@ impl P2m for P2mService {
         identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
 
         info!(
-            "[P2M] local_enroll:\t{:?}\t(PID: {}, FD: {}, Path: {})",
-            start_time.elapsed().as_micros(),
-            r.process_id,
-            r.file_descriptor,
-            r.path
+            "[P2M] <-M local_enroll (PID: {}, FD: {}, Path: {})",
+            r.process_id, r.file_descriptor, r.path
         );
 
         Ok(Response::new(Ack {}))
     }
 
     async fn remote_enroll(&self, request: Request<RemoteCt>) -> Result<Response<Ack>, Status> {
-        let start_time = Instant::now();
         let r = request.into_inner();
-        debug!(
-            "[P2M] remote_enroll (PID: {}, FD: {}, Stream: [{}-{}])",
+        info!(
+            "[P2M] ->M remote_enroll (PID: {}, FD: {}, Stream: [{}-{}])",
             r.process_id.clone(),
             r.file_descriptor.clone(),
             r.local_socket.clone(),
@@ -222,29 +216,23 @@ impl P2m for P2mService {
         identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
 
         info!(
-            "[P2M] remote_enroll:\t{:?}\t(PID: {}, FD: {}, Stream: [{}-{}])",
-            start_time.elapsed().as_micros(),
-            r.process_id,
-            r.file_descriptor,
-            r.local_socket,
-            r.peer_socket
+            "[P2M] <-M remote_enroll (PID: {}, FD: {}, Stream: [{}-{}])",
+            r.process_id, r.file_descriptor, r.local_socket, r.peer_socket
         );
 
         Ok(Response::new(Ack {}))
     }
 
     async fn io_request(&self, request: Request<IoInfo>) -> Result<Response<Grant>, Status> {
-        let start_time = Instant::now();
-
         let r = request.into_inner();
 
-        debug!(
-            "[P2M] io_request (PID: {}, FD: {}, Flow: {})",
+        info!(
+            "[P2M] ->M io_request (PID: {}, FD: {}, Flow: {})",
             r.process_id,
             r.file_descriptor,
             {
                 if r.flow == 0 {
-                    "Input/Read  "
+                    "Input/Read"
                 } else if r.flow == 1 {
                     "Output/Write"
                 } else {
@@ -329,8 +317,7 @@ impl P2m for P2mService {
             };
 
             info!(
-                "[P2M] io_request:\t{:?}\t(PID: {}, FD: {}, Flow: {}, RI: {}, grant_id: {})",
-                start_time.elapsed().as_micros(),
+                "[P2M] <-M io_request (PID: {}, FD: {}, Flow: {}, RI: {}, grant_id: {})",
                 r.process_id,
                 r.file_descriptor,
                 {
@@ -361,13 +348,11 @@ impl P2m for P2mService {
     }
 
     async fn io_report(&self, request: Request<IoResult>) -> Result<Response<Ack>, Status> {
-        let start_time = Instant::now();
-
         let r = request.into_inner();
 
-        debug!(
-            "[P2M] io_report (grant_id: {}, result: {})",
-            r.grant_id, r.result
+        info!(
+            "[P2M] ->M io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
+            r.process_id, r.file_descriptor, r.grant_id, r.result
         );
 
         if let Some(_resource_identifier) = self
@@ -385,9 +370,8 @@ impl P2m for P2mService {
             match rx.await.unwrap() {
                 TraceabilityResponse::Recorded => {
                     info!(
-                        "[P2M] io_report:\t{:?}\t(grant_id: {})",
-                        start_time.elapsed().as_micros(),
-                        r.grant_id
+                        "[P2M] <-M io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
+                        r.process_id, r.file_descriptor, r.grant_id, r.result
                     );
 
                     Ok(Response::new(Ack {}))

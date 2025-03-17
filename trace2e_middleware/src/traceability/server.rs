@@ -7,7 +7,7 @@ use tokio::{
     time::timeout,
 };
 use tonic::{transport::Channel, Request};
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::{
     identifier::Identifier,
@@ -322,6 +322,10 @@ async fn handle_flow(
                             id1.clone(),
                             id2.clone()
                         );
+                        info!(
+                            "[M2M] LM-> sync_prov (Stream: [{}-{}])",
+                            local_socket, peer_socket
+                        );
                         let _ = client
                             .sync_provenance(Request::new(m2m::StreamProv {
                                 local_socket: local_socket.to_string(),
@@ -333,6 +337,10 @@ async fn handle_flow(
                                     .collect(),
                             }))
                             .await; // Todo Sync failure management
+                        info!(
+                            "[M2M] LM<- sync_prov (Stream: [{}-{}])",
+                            local_socket, peer_socket
+                        );
                     }
                     debug!("[TS] 🗑️  Flow {} destruction", grant_id);
                 } else {
@@ -493,6 +501,10 @@ async fn reserve_remote_flow<'a>(
 ) -> Result<(RwLockReadGuard<'a, Labels>, Labels, M2mClient<Channel>), TraceabilityError> {
     if let Ok(mut client) = M2mClient::connect(format!("http://{}:8080", peer_socket.ip())).await {
         let source_labels = id_container.read().await;
+        info!(
+            "[M2M] LM-> reserve (Stream: [{}-{}])",
+            local_socket, peer_socket
+        );
         match client
             .reserve(Request::new(m2m::Stream {
                 local_socket: local_socket.to_string(),
@@ -500,7 +512,13 @@ async fn reserve_remote_flow<'a>(
             }))
             .await
         {
-            Ok(response) => Ok((source_labels, response.into_inner().into(), client)),
+            Ok(response) => {
+                info!(
+                    "[M2M] LM<- reserve (Stream: [{}-{}])",
+                    local_socket, peer_socket
+                );
+                Ok((source_labels, response.into_inner().into(), client))
+            }
             Err(_) => Err(TraceabilityError::MissingRegistrationRemote(
                 peer_socket,
                 local_socket,
