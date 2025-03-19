@@ -23,10 +23,10 @@ This demo showcases the performance comparison of I/O operations with Rust stand
 
    ```bash
    # Benchmark File operations
-   cat scripts/bench_std_file.sh | docker exec -i stde2e bash > analysis/data/bench_file.csv
+   ./scripts/bench_std_file.sh > analysis/data/bench_file.csv
 
    # Benchmark TCP stream operations
-   cat scripts/bench_std_tcpstream.sh | docker exec -i stde2e bash > analysis/data/bench_tcpstream.csv
+   ./scripts/bench_std_tcpstream.sh > analysis/data/bench_tcpstream.csv
    ```
 
 3. **Analyze the results**:

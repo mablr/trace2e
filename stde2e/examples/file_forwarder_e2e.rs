@@ -1,10 +1,8 @@
 use clap::Parser;
-use std::time::Instant;
 use stde2e::{
     fs::File,
     io::{Read, Write},
 };
-use tracing::info;
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 /// File manipulation program that reads from input and writes to output
@@ -31,8 +29,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(fmt_layer)
         .init();
 
-    let start_time = Instant::now();
-
     // Parse command line arguments
     let args = Args::parse();
 
@@ -54,7 +50,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("No output file provided".into());
     }
 
-    let end_time = start_time.elapsed();
-    info!("[DEMO] file_forwarder_e2e:\t{}", end_time.as_micros());
     Ok(())
 }

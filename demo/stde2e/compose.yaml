@@ -16,4 +16,16 @@ services:
     tty: true
     entrypoint: >
       sh -c "RUST_LOG="trace2e_middleware=info" /trace2e_middleware & bash"
-
+  stde2e_server:
+    build:
+      context: ../../
+      dockerfile: demo/trace2e.Dockerfile
+      target: stde2e_runtime
+    hostname: stde2e_server
+    container_name: stde2e_server
+    networks:
+      - trace2e_network
+    stdin_open: true
+    tty: true
+    entrypoint: >
+      sh -c "RUST_LOG="trace2e_middleware=info" /trace2e_middleware & bash"
