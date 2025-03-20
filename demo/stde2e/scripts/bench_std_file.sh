@@ -43,7 +43,7 @@ while [ $i -lt $NB_ITER ];do
     sudo truncate -s 0 $(docker inspect --format='{{.LogPath}}' stde2e)
 
     P_LOG=$(echo "RUST_LOG=info /file_forwarder_e2e -i /dev/null -o /dev/zero" | docker exec -i stde2e bash | ansi2txt)
-    M_LOG=$(docker logs stde2e | ansi2txt | sed "s/root@.*# //" )
+    M_LOG=$(docker logs stde2e | ansi2txt)
 
     # echo -n "$P_LOG" > p_log.txt
     # echo -n "$M_LOG" > m_log.txt
@@ -56,7 +56,8 @@ while [ $i -lt $NB_ITER ];do
         -o $(echo "$P_LOG" | grep "io_request" | wc -l) -ne $(echo "$M_LOG" | grep "io_request" | wc -l)\
         -o $(echo "$P_LOG" | grep "io_report" | wc -l) -ne $(echo "$M_LOG" | grep "io_report" | wc -l)\
         -o $(echo "$P_LOG" | grep "\[P2M\]" | wc -l) -ne "12"\
-        -o $(echo "$M_LOG" | grep "\[P2M\]" | wc -l) -ne "12" ];
+        -o $(echo "$M_LOG" | grep "\[P2M\]" | wc -l) -ne "12"\
+        -o $(echo "$M_LOG" | grep "root@.*#" | wc -l) -ne "0" ];
     then
         echo "Error: incorrect logs, retrying..." >&2
         continue
