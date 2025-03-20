@@ -15,7 +15,7 @@ services:
     stdin_open: true
     tty: true
     entrypoint: >
-      sh -c "RUST_LOG="trace2e_middleware=info" /trace2e_middleware & bash"
+      sh -c "bash"
   stde2e_server:
     build:
       context: ../../
@@ -28,4 +28,4 @@ services:
     stdin_open: true
     tty: true
     entrypoint: >
-      sh -c "RUST_LOG="trace2e_middleware=info" /trace2e_middleware & bash"
+      sh -c "bash"
