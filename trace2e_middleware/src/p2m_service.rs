@@ -317,7 +317,7 @@ impl P2m for P2mService {
             };
 
             info!(
-                "[P2M] <-M io_request (PID: {}, FD: {}, Flow: {}, RI: {}, grant_id: {})",
+                "[P2M] <-M io_request (PID: {}, FD: {}, Flow: {}, grant_id: {})",
                 r.process_id,
                 r.file_descriptor,
                 {
@@ -329,7 +329,6 @@ impl P2m for P2mService {
                         "None"
                     }
                 },
-                resource_identifier.clone(),
                 grant_id,
             );
 
