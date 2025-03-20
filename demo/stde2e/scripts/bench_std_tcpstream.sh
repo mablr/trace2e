@@ -16,10 +16,10 @@ while [ $i -lt $NB_ITER ];do
     sudo truncate -s 0 $(docker inspect --format='{{.LogPath}}' stde2e) $(docker inspect --format='{{.LogPath}}' stde2e_server)
 
     P_LOG=$(echo "RUST_LOG=info /tcp_server_e2e" | docker exec -i stde2e_server bash 2>/dev/null | ansi2txt & echo "RUST_LOG=info /tcp_client_e2e stde2e_server:8888" | docker exec -i stde2e bash  2>/dev/null | ansi2txt)
-    M_LOG=$(docker compose logs | ansi2txt | sed "s/root.*20/20/;s/.*| //")
+    M_LOG=$(docker compose logs | ansi2txt | sed "s/.*| //")
 
-    echo -n "$P_LOG" > p_log.txt
-    echo -n "$M_LOG" > m_log.txt
+    # echo -n "$P_LOG" > p_log.txt
+    # echo -n "$M_LOG" > m_log.txt
 
     # P_LOG=$(cat p_log.txt)
     # M_LOG=$(cat m_log.txt)
@@ -105,7 +105,7 @@ while [ $i -lt $NB_ITER ];do
     write_enroll_ack_time=$(echo "$write_enroll_p_recv - $write_enroll_m_done" | bc)
 
     write_io_request_req_time=$(echo "$write_io_request_m_begin - $write_io_request_p_sent" | bc)
-    write_io_request_processing_time=$(echo "$write_io_request_m_done - $write_io_request_m_begin" | bc) # includes reserve time
+    write_io_request_processing_time=$(echo "$write_reserve_l_sent - $write_io_request_m_begin + $write_io_request_m_done - $write_reserve_l_recv" | bc) # includes reserve time
     write_io_request_ack_time=$(echo "$write_io_request_p_recv - $write_io_request_m_done" | bc)
 
     write_io_time=$(echo "$write_io_report_p_sent - $write_io_request_p_recv" | bc)
