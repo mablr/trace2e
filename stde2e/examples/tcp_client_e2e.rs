@@ -8,8 +8,7 @@ struct Args {
     addr: Option<String>,
 }
 
-#[tokio::main]
-async fn main() -> std::io::Result<()> {
+fn main() -> std::io::Result<()> {
     let fmt_layer = fmt::layer().with_target(false);
     let filter_layer = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("off"))
@@ -21,9 +20,9 @@ async fn main() -> std::io::Result<()> {
 
     let args = Args::parse();
 
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    std::thread::sleep(std::time::Duration::from_millis(50));
     let mut stream = TcpStream::connect(args.addr.unwrap_or("127.0.0.1:8888".to_string())).unwrap();
-    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    std::thread::sleep(std::time::Duration::from_millis(50));
     let mut buf = [0; 16];
     stream.read(&mut buf).unwrap();
     Ok(())

@@ -1,7 +1,6 @@
 use std::{io::Write, net::TcpListener};
 
-#[tokio::main]
-async fn main() -> std::io::Result<()> {
+fn main() -> std::io::Result<()> {
     let listener = TcpListener::bind("0.0.0.0:8888").unwrap();
     match listener.accept() {
         Ok((mut s, _)) => {
