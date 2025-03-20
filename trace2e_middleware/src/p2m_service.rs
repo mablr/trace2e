@@ -230,15 +230,7 @@ impl P2m for P2mService {
             "[P2M] ->M io_request (PID: {}, FD: {}, Flow: {})",
             r.process_id,
             r.file_descriptor,
-            {
-                if r.flow == 0 {
-                    "Input/Read"
-                } else if r.flow == 1 {
-                    "Output/Write"
-                } else {
-                    "None"
-                }
-            }
+            r.flow
         );
 
         let process_identifier = match Process::new(r.process_id.try_into().unwrap()) {
@@ -320,15 +312,7 @@ impl P2m for P2mService {
                 "[P2M] <-M io_request (PID: {}, FD: {}, Flow: {}, grant_id: {})",
                 r.process_id,
                 r.file_descriptor,
-                {
-                    if r.flow == 0 {
-                        "Input/Read"
-                    } else if r.flow == 1 {
-                        "Output/Write"
-                    } else {
-                        "None"
-                    }
-                },
+                r.flow,
                 grant_id,
             );
 
