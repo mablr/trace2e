@@ -292,55 +292,58 @@ async fn handle_flow(
                         id2.clone()
                     );
 
-                    if timeout(Duration::from_millis(50), release).await.is_err() {
-                        debug!("[TS] ⚠️  Reservation timeout Flow {}", grant_id);
+                    match timeout(Duration::from_millis(50), release).await {
+                        Err(_) | Ok(Err(_)) => {
+                            debug!("[TS] ⚠️  Reservation timeout Flow {}", grant_id);
 
-                        // Try to kill the process that holds the reservation for too long,
-                        // to release the reservation safely
-                        let _ = std::process::Command::new("kill")
-                            .arg("-9")
-                            .arg(pid.to_string())
-                            .status();
+                            // Try to kill the process that holds the reservation for too long,
+                            // to release the reservation safely
+                            let _ = std::process::Command::new("kill")
+                                .arg("-9")
+                                .arg(pid.to_string())
+                                .status();
 
-                        // Release remote stream
-                        // Todo make specific rpc
-                        let _ = client
-                            .sync_provenance(Request::new(m2m::StreamProv {
-                                local_socket: local_socket.to_string(),
-                                peer_socket: peer_socket.to_string(),
-                                provenance: Vec::new(), // empty provenance to skip update and release remote stream
-                            }))
-                            .await;
+                            // Release remote stream
+                            // Todo make specific rpc
+                            let _ = client
+                                .sync_provenance(Request::new(m2m::StreamProv {
+                                    local_socket: local_socket.to_string(),
+                                    peer_socket: peer_socket.to_string(),
+                                    provenance: Vec::new(), // empty provenance to skip update and release remote stream
+                                }))
+                                .await;
 
-                        // Remove flow release handle
-                        flows_release_handles.lock().await.remove(&grant_id);
-                    } else {
-                        debug!(
-                            "[TS] 🔼 Flow {} Sync to {} ({:?} -> {:?})",
-                            grant_id,
-                            peer_socket.ip(),
-                            id1.clone(),
-                            id2.clone()
-                        );
-                        info!(
-                            "[M2M] LM-> sync_prov (Stream: [{}-{}])",
-                            local_socket, peer_socket
-                        );
-                        let _ = client
-                            .sync_provenance(Request::new(m2m::StreamProv {
-                                local_socket: local_socket.to_string(),
-                                peer_socket: peer_socket.to_string(),
-                                provenance: source_labels
-                                    .get_all_labels()
-                                    .into_iter()
-                                    .map(m2m::ComplianceLabel::from)
-                                    .collect(),
-                            }))
-                            .await; // Todo Sync failure management
-                        info!(
-                            "[M2M] LM<- sync_prov (Stream: [{}-{}])",
-                            local_socket, peer_socket
-                        );
+                            // Remove flow release handle
+                            flows_release_handles.lock().await.remove(&grant_id);
+                        },
+                        Ok(Ok(_)) => {
+                            debug!(
+                                "[TS] 🔼 Flow {} Sync to {} ({:?} -> {:?})",
+                                grant_id,
+                                peer_socket.ip(),
+                                id1.clone(),
+                                id2.clone()
+                            );
+                            info!(
+                                "[M2M] LM-> sync_prov (Stream: [{}-{}])",
+                                local_socket, peer_socket
+                            );
+                            let _ = client
+                                .sync_provenance(Request::new(m2m::StreamProv {
+                                    local_socket: local_socket.to_string(),
+                                    peer_socket: peer_socket.to_string(),
+                                    provenance: source_labels
+                                        .get_all_labels()
+                                        .into_iter()
+                                        .map(m2m::ComplianceLabel::from)
+                                        .collect(),
+                                }))
+                                .await; // Todo Sync failure management
+                            info!(
+                                "[M2M] LM<- sync_prov (Stream: [{}-{}])",
+                                local_socket, peer_socket
+                            );
+                        }
                     }
                     debug!("[TS] 🗑️  Flow {} destruction", grant_id);
                 } else {
@@ -387,35 +390,38 @@ async fn handle_flow(
                 id2.clone()
             );
 
-            if timeout(Duration::from_millis(50), release).await.is_err() {
-                debug!("[TS] ⚠️  Reservation timeout Flow {}", grant_id);
+            match timeout(Duration::from_millis(50), release).await {
+                Err(_) | Ok(Err(_)) => {
+                    debug!("[TS] ⚠️  Reservation timeout Flow {}", grant_id);
 
-                // Try to kill the process that holds the reservation for too long,
-                // to release the reservation safely
-                let _ = std::process::Command::new("kill")
-                    .arg("-9")
-                    .arg(pid.to_string())
-                    .status();
+                    // Try to kill the process that holds the reservation for too long,
+                    // to release the reservation safely
+                    let _ = std::process::Command::new("kill")
+                        .arg("-9")
+                        .arg(pid.to_string())
+                        .status();
 
-                // Remove flow release handle
-                flows_release_handles.lock().await.remove(&grant_id);
-            } else {
-                // Record flow locally if it is not an output to a stream
-                debug!(
-                    "[TS] ⏺️  Flow {} recording ({:?} {} {:?})",
-                    grant_id,
-                    id1.clone(),
-                    if output { "->" } else { "<-" },
-                    id2.clone()
-                );
-                destination_labels.update_prov(&source_labels);
-                debug!(
-                    "[TS] 🆕 Provenance: {{{:?}: {:?},  {:?}: {:?}}}",
-                    if output { id1.clone() } else { id2.clone() },
-                    source_labels.get_prov(),
-                    if output { id2.clone() } else { id1.clone() },
-                    destination_labels.get_prov(),
-                );
+                    // Remove flow release handle
+                    flows_release_handles.lock().await.remove(&grant_id);
+                },
+                Ok(Ok(_)) => {
+                    // Record flow locally if it is not an output to a stream
+                    debug!(
+                        "[TS] ⏺️  Flow {} recording ({:?} {} {:?})",
+                        grant_id,
+                        id1.clone(),
+                        if output { "->" } else { "<-" },
+                        id2.clone()
+                    );
+                    destination_labels.update_prov(&source_labels);
+                    debug!(
+                        "[TS] 🆕 Provenance: {{{:?}: {:?},  {:?}: {:?}}}",
+                        if output { id1.clone() } else { id2.clone() },
+                        source_labels.get_prov(),
+                        if output { id2.clone() } else { id1.clone() },
+                        destination_labels.get_prov(),
+                    );
+                }
             }
             debug!("[TS] 🗑️  Flow {} destruction", grant_id);
         } else {
