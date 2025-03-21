@@ -24,7 +24,7 @@ get_timings() {
     local io_request_processing_time=$(echo "$io_request_m_done - $io_request_m_begin" | bc)
     local io_request_ack_time=$(echo "$io_request_p_recv - $io_request_m_done" | bc)
 
-    local io_time=$(echo "$io_request_p_recv - $io_request_p_sent" | bc)
+    local io_time=$((io_report_p_sent - io_request_p_recv))
 
     local io_report_req_time=$(echo "$io_report_m_begin - $io_report_p_sent" | bc)
     local io_report_processing_time=$(echo "$io_report_m_done - $io_report_m_begin" | bc)
