@@ -20,9 +20,8 @@ fn main() -> std::io::Result<()> {
 
     let args = Args::parse();
 
-    std::thread::sleep(std::time::Duration::from_millis(50));
     let mut stream = TcpStream::connect(args.addr.unwrap_or("127.0.0.1:8888".to_string())).unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    std::thread::sleep(std::time::Duration::from_millis(10));
     let mut buf = [0; 16];
     stream.read(&mut buf).unwrap();
     Ok(())
