@@ -40,9 +40,8 @@ echo "read_enroll_req_time;read_enroll_processing_time;read_enroll_ack_time;read
 
 i=0
 while [ $i -lt $NB_ITER ];do
-    sudo truncate -s 0 $(docker inspect --format='{{.LogPath}}' stde2e)
 
-    LOG=$(echo 'RUST_LOG="trace2e_middleware::p2m_service=info" /trace2e_middleware & middleware=$! && RUST_LOG=info /file_forwarder_e2e -i /dev/null -o /dev/zero; kill "$middleware"' | docker exec -i stde2e bash | ansi2txt)
+    LOG=$(echo 'RUST_LOG="trace2e_middleware::p2m_service=info" /trace2e_middleware & middleware=$! && RUST_LOG=info /file_forwarder_e2e -i /dev/null -o /dev/zero; kill "$middleware"' | docker exec -i stde2e_client bash | ansi2txt)
 
     # if same amount of local_enroll, io_request, io_report in P_LOG and M_LOG
     if [ $(echo "$LOG" | grep "local_enroll" | wc -l) -ne "8"\
