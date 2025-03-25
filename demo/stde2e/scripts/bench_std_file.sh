@@ -34,7 +34,7 @@ get_timings() {
 }
 
 
-NB_ITER=100
+NB_ITER=1000
 
 echo "read_enroll_req_time;read_enroll_processing_time;read_enroll_ack_time;read_io_request_req_time;read_io_request_processing_time;read_io_request_ack_time;read_io_time;read_io_report_req_time;read_io_report_processing_time;read_io_report_ack_time;write_enroll_req_time;write_enroll_processing_time;write_enroll_ack_time;write_io_request_req_time;write_io_request_processing_time;write_io_request_ack_time;write_io_time;write_io_report_req_time;write_io_report_processing_time;write_io_report_ack_time"
 
