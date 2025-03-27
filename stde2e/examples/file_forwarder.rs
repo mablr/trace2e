@@ -34,8 +34,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Read from input file if provided
     let content = if let Some(path) = args.input {
         let mut file = File::open(path)?;
-        let mut buffer = String::new();
-        file.read_to_string(&mut buffer)?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer)?;
         buffer
     } else {
         return Err("No input file provided".into());
@@ -44,7 +44,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Write to output file if provided
     if let Some(path) = args.output {
         let mut file = File::create(path)?;
-        file.write_all(content.as_bytes())?;
+        file.write_all(&content)?;
     } else {
         return Err("No output file provided".into());
     }
