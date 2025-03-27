@@ -292,7 +292,7 @@ async fn handle_flow(
                         id2.clone()
                     );
 
-                    match timeout(Duration::from_millis(100), release).await {
+                    match timeout(Duration::from_millis(50), release).await {
                         Err(_) | Ok(Err(_)) => {
                             debug!("[TS] ⚠️  Reservation timeout Flow {}", grant_id);
 
@@ -390,7 +390,7 @@ async fn handle_flow(
                 id2.clone()
             );
 
-            match timeout(Duration::from_millis(100), release).await {
+            match timeout(Duration::from_millis(50), release).await {
                 Err(_) | Ok(Err(_)) => {
                     debug!("[TS] ⚠️  Reservation timeout Flow {}", grant_id);
 
