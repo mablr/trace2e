@@ -505,12 +505,12 @@ async fn reserve_remote_flow<'a>(
     local_socket: SocketAddr,
     peer_socket: SocketAddr,
 ) -> Result<(RwLockReadGuard<'a, Labels>, Labels, M2mClient<Channel>), TraceabilityError> {
+    info!(
+        "[M2M] LM-> reserve (Stream: [{}-{}])",
+        local_socket, peer_socket
+    );
     if let Ok(mut client) = M2mClient::connect(format!("http://{}:8080", peer_socket.ip())).await {
         let source_labels = id_container.read().await;
-        info!(
-            "[M2M] LM-> reserve (Stream: [{}-{}])",
-            local_socket, peer_socket
-        );
         match client
             .reserve(Request::new(m2m::Stream {
                 local_socket: local_socket.to_string(),
