@@ -105,8 +105,12 @@ impl<R: std::io::Read + std::os::fd::AsRawFd> Read for R {
 }
 
 pub trait Write: std::io::Write {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize>;
-    fn flush(&mut self) -> std::io::Result<()>;
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        std::io::Write::write(self, buf)
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        std::io::Write::flush(self)
+    }
 
     fn write_vectored(&mut self, bufs: &[std::io::IoSlice<'_>]) -> std::io::Result<usize> {
         std::io::Write::write_vectored(self, bufs)
@@ -132,16 +136,6 @@ impl<W: std::io::Write + std::os::fd::AsRawFd> Write for W {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Output.into()) {
             let result = std::io::Write::write(self, buf);
-            io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
-            result
-        } else {
-            Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
-        }
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        if let Ok(grant_id) = io_request(self.as_raw_fd(), Flow::Output.into()) {
-            let result = std::io::Write::flush(self);
             io_report(self.as_raw_fd(), grant_id, result.is_ok())?;
             result
         } else {
@@ -181,8 +175,13 @@ impl<W: std::io::Write + std::os::fd::AsRawFd> Write for W {
 }
 
 pub trait BufRead: std::io::BufRead {
-    fn fill_buf(&mut self) -> std::io::Result<&[u8]>;
-    fn consume(&mut self, amt: usize);
+    fn fill_buf(&mut self) -> std::io::Result<&[u8]> {
+        std::io::BufRead::fill_buf(self)
+    }
+
+    fn consume(&mut self, amt: usize) {
+        std::io::BufRead::consume(self, amt)
+    }
 
     fn read_until(&mut self, byte: u8, buf: &mut Vec<u8>) -> std::io::Result<usize> {
         std::io::BufRead::read_until(self, byte, buf)
@@ -218,10 +217,6 @@ impl<T: std::io::BufRead + std::os::fd::AsRawFd> BufRead for std::io::Take<T> {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
         }
     }
-
-    fn consume(&mut self, amt: usize) {
-        std::io::BufRead::consume(self, amt)
-    }
 }
 
 impl<R: ?Sized + std::io::Read + std::os::fd::AsRawFd> BufRead for std::io::BufReader<R> {
@@ -234,9 +229,5 @@ impl<R: ?Sized + std::io::Read + std::os::fd::AsRawFd> BufRead for std::io::BufR
         } else {
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
         }
-    }
-
-    fn consume(&mut self, amt: usize) {
-        std::io::BufRead::consume(self, amt)
     }
 }
