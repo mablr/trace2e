@@ -85,6 +85,8 @@ COPY --from=stde2e /stde2e/target/debug/examples/tcp_server /tcp_server
 COPY --from=stde2e /stde2e/target/debug/examples/tcp_server_e2e /tcp_server_e2e
 COPY --from=stde2e /stde2e/target/debug/examples/file_forwarder /file_forwarder
 COPY --from=stde2e /stde2e/target/debug/examples/file_forwarder_e2e /file_forwarder_e2e
+RUN dd if=/dev/random of=file_1M bs=1M count=1
+RUN dd if=/dev/random of=file_1B bs=1 count=1
 
 # Create Hyper client runtime environment
 FROM interactive_runtime AS hyper_client_runtime
