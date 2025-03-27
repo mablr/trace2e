@@ -40,15 +40,11 @@ echo "read_enroll_req_time;read_enroll_processing_time;read_enroll_ack_time;read
 
 i=0
 while [ $i -lt $NB_ITER ];do
+    LOG=$(echo 'RUST_LOG="trace2e_middleware::p2m_service=info" /trace2e_middleware & middleware=$! && RUST_LOG=trace2e_client=info /file_forwarder_e2e -r 12 -w 6 -i /file_1B -o /output; kill "$middleware"; rm /output' | docker exec -i stde2e_client bash | ansi2txt)
 
-    LOG=$(echo 'RUST_LOG="trace2e_middleware::p2m_service=info" /trace2e_middleware & middleware=$! && RUST_LOG=info /file_forwarder_e2e -i /dev/null -o /dev/zero; kill "$middleware"' | docker exec -i stde2e_client bash | ansi2txt)
-
-    # if same amount of local_enroll, io_request, io_report in P_LOG and M_LOG
     if [ $(echo "$LOG" | grep "local_enroll" | wc -l) -ne "8"\
         -o $(echo "$LOG" | grep "io_request" | wc -l) -ne "8"\
-        -o $(echo "$LOG" | grep "io_report" | wc -l) -ne "8"\
-        -o $(echo "$LOG" | grep "\[P2M\]" | wc -l) -ne "24"\
-        -o $(echo "$LOG" | grep "root@.*#" | wc -l) -ne "0" ];
+        -o $(echo "$LOG" | grep "io_report" | wc -l) -ne "8" ];
     then
         echo "Error: incorrect logs, retrying..." >&2
         continue
