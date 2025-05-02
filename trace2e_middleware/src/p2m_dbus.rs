@@ -1,8 +1,7 @@
 //! Processes to Middleware gRPC Service.
 
 use crate::{
-    identifier::Identifier,
-    traceability::{TraceabilityRequest, TraceabilityResponse},
+    identifier::Identifier, p2m_service::p2m::Flow, traceability::{TraceabilityRequest, TraceabilityResponse}
 };
 use procfs::process::Process;
 use std::{collections::HashMap, path::PathBuf};
@@ -35,7 +34,7 @@ impl P2mDbus {
         path: String,
     ) -> Result<()> {
         info!(
-            "[P2M] ->M local_enroll (PID: {}, FD: {}, Path: {})",
+            "[P2M-DBus] ->M local_enroll (PID: {}, FD: {}, Path: {})",
             process_id, file_descriptor, path
         );
 
@@ -92,7 +91,7 @@ impl P2mDbus {
         identifiers_map.insert((process_id, file_descriptor), resource_identifier);
 
         info!(
-            "[P2M] <-M local_enroll (PID: {}, FD: {}, Path: {})",
+            "[P2M-DBus] <-M local_enroll (PID: {}, FD: {}, Path: {})",
             process_id, file_descriptor, path
         );
 
@@ -107,7 +106,7 @@ impl P2mDbus {
         peer_socket: String,
     ) -> Result<()> {
         info!(
-            "[P2M] ->M remote_enroll (PID: {}, FD: {}, Stream: [{}-{}])",
+            "[P2M-DBus] ->M remote_enroll (PID: {}, FD: {}, Stream: [{}-{}])",
             process_id, file_descriptor, local_socket, peer_socket
         );
 
@@ -186,16 +185,16 @@ impl P2mDbus {
         identifiers_map.insert((process_id, file_descriptor), resource_identifier);
 
         info!(
-            "[P2M] <-M remote_enroll (PID: {}, FD: {}, Stream: [{}-{}])",
+            "[P2M-DBus] <-M remote_enroll (PID: {}, FD: {}, Stream: [{}-{}])",
             process_id, file_descriptor, local_socket, peer_socket
         );
 
         Ok(())
     }
 
-    async fn io_request(&self, process_id: u32, file_descriptor: i32, flow: bool) -> Result<u64> {
+    async fn io_request(&self, process_id: u32, file_descriptor: i32, flow: i32) -> Result<u64> {
         info!(
-            "[P2M] ->M io_request (PID: {}, FD: {}, Flow: {})",
+            "[P2M-DBus] ->M io_request (PID: {}, FD: {}, Flow: {})",
             process_id, file_descriptor, flow
         );
 
@@ -234,15 +233,33 @@ impl P2mDbus {
             .cloned()
         {
             let (tx, rx) = oneshot::channel();
-            let _ = self
-                .provenance
-                .send(TraceabilityRequest::DeclareFlow(
-                    process_identifier.clone(),
-                    resource_identifier.clone(),
-                    flow,
-                    tx,
-                ))
-                .await;
+            let _ = match flow {
+                flow_type if flow_type == Flow::Input.into() => {
+                    self.provenance
+                        .send(TraceabilityRequest::DeclareFlow(
+                            process_identifier.clone(),
+                            resource_identifier.clone(),
+                            false,
+                            tx,
+                        ))
+                        .await
+                }
+                flow_type if flow_type == Flow::Output.into() => {
+                    self.provenance
+                        .send(TraceabilityRequest::DeclareFlow(
+                            process_identifier.clone(),
+                            resource_identifier.clone(),
+                            true,
+                            tx,
+                        ))
+                        .await
+                }
+                _ => {
+                    error!("Unsupported Flow type.");
+                    return Err(Error::Failed(format!("Unsupported Flow type.")));
+                }
+            };
+
 
             let grant_id = match rx.await.unwrap() {
                 TraceabilityResponse::Declared(grant_id) => grant_id,
@@ -254,7 +271,7 @@ impl P2mDbus {
             };
 
             info!(
-                "[P2M] <-M io_request (PID: {}, FD: {}, Flow: {}, grant_id: {})",
+                "[P2M-DBus] <-M io_request (PID: {}, FD: {}, Flow: {}, grant_id: {})",
                 process_id, file_descriptor, flow, grant_id,
             );
 
@@ -280,7 +297,7 @@ impl P2mDbus {
         result: bool,
     ) -> Result<()> {
         info!(
-            "[P2M] ->M io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
+            "[P2M-DBus] ->M io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
             process_id, file_descriptor, grant_id, result
         );
 
@@ -299,7 +316,7 @@ impl P2mDbus {
             match rx.await.unwrap() {
                 TraceabilityResponse::Recorded => {
                     info!(
-                        "[P2M] <-M io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
+                        "[P2M-DBus] <-M io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
                         process_id, file_descriptor, grant_id, result
                     );
 
