@@ -7,6 +7,7 @@ use trace2e_middleware::{
         m2m::{m2m_server::M2mServer, M2M_DESCRIPTOR_SET},
         M2mService,
     },
+    p2m_dbus::P2mDbus,
     p2m_service::{
         p2m::{p2m_server::P2mServer, P2M_DESCRIPTOR_SET},
         P2mService,
@@ -19,6 +20,7 @@ use trace2e_middleware::{
 };
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{fmt, EnvFilter};
+use zbus::connection;
 
 #[cfg(not(tarpaulin_include))]
 #[tokio::main]
@@ -45,6 +47,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (sender, receiver) = mpsc::channel(32);
 
     tokio::spawn(traceability_server(receiver));
+
+    let p2m_dbus = P2mDbus::new(sender.clone());
+    let _conn = connection::Builder::session()?
+        .name("org.trace2e.P2m")?
+        .serve_at("/org/trace2e/P2m", p2m_dbus)?
+        .build()
+        .await?;
 
     let address = "[::]:8080".parse().unwrap();
     let p2m_service = P2mService::new(sender.clone());
