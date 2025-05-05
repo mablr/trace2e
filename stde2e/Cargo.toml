@@ -22,3 +22,8 @@ trace2e_client = { path = "../trace2e_client", features = ["benchmarking"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = " 0.3.18", features = ["env-filter", "fmt", "std"] }
 clap = { version = "4", features = ["derive"] }
+criterion = "0.5"
+
+[[bench]]
+name = "io_benchmarks"
+harness = false
