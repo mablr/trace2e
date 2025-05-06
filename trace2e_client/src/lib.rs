@@ -1,7 +1,4 @@
 use std::{fs::canonicalize, path::Path, process::id};
-#[cfg(feature = "benchmarking")]
-use tracing::info;
-
 mod proto {
     tonic::include_proto!("p2m_api");
 }
@@ -55,18 +52,6 @@ mod grpc {
     }
 
     pub fn local_enroll(path: impl AsRef<Path>, fd: i32) {
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M] P-> local_enroll (PID: {}, FD: {}, Path: {})",
-            id(),
-            fd,
-            canonicalize(path.as_ref())
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string()
-        );
-
         let request = tonic::Request::new(proto::LocalCt {
             process_id: id(),
             file_descriptor: fd,
@@ -86,30 +71,9 @@ mod grpc {
             let mut client = get_client();
             let _ = TOKIO_RUNTIME.block_on(client.local_enroll(request));
         }
-
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M] P<- local_enroll (PID: {}, FD: {}, Path: {})",
-            id(),
-            fd,
-            canonicalize(path.as_ref())
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string()
-        );
     }
 
     pub fn remote_enroll(fd: i32, local_socket: String, peer_socket: String) {
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M] P-> remote_enroll (PID: {}, FD: {}, Stream: [{}-{}])",
-            id(),
-            fd,
-            local_socket,
-            peer_socket
-        );
-
         let request = tonic::Request::new(proto::RemoteCt {
             process_id: id(),
             file_descriptor: fd,
@@ -126,20 +90,9 @@ mod grpc {
             let mut client = get_client();
             let _ = TOKIO_RUNTIME.block_on(client.remote_enroll(request));
         }
-
-        #[cfg(feature = "benchmarking")]
-        info!("[P2M] P<- remote_enroll (PID: {}, FD: {})", id(), fd);
     }
 
     pub fn io_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Error>> {
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M] P-> io_request (PID: {}, FD: {}, Flow: {})",
-            id(),
-            fd,
-            flow
-        );
-
         let request = tonic::Request::new(proto::IoInfo {
             process_id: id(),
             file_descriptor: fd,
@@ -165,28 +118,10 @@ mod grpc {
                 ))),
             }
         };
-
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M] P<- io_request (PID: {}, FD: {}, Flow: {})",
-            id(),
-            fd,
-            flow
-        );
-
         result.map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
     }
 
     pub fn io_report(fd: i32, grant_id: u64, result: bool) -> std::io::Result<()> {
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M] P-> io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
-            id(),
-            fd,
-            grant_id,
-            result
-        );
-
         let request = tonic::Request::new(proto::IoResult {
             process_id: id(),
             file_descriptor: fd,
@@ -209,16 +144,7 @@ mod grpc {
                 Err(_) => Err(std::io::Error::from(std::io::ErrorKind::Other)),
             }
         };
-
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M] P<- io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
-            id(),
-            fd,
-            grant_id,
-            result.is_ok()
-        );
-
+            
         result
     }
 }
@@ -250,106 +176,34 @@ mod dbus {
     });
 
     pub fn local_enroll(path: impl AsRef<Path>, fd: i32) {
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M-DBus] P-> local_enroll (PID: {}, FD: {}, Path: {})",
-            id(),
-            fd,
-            canonicalize(path.as_ref())
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string()
-        );
-
         let path = canonicalize(path.as_ref())
             .unwrap()
             .to_str()
             .unwrap()
             .to_string();
         let process_id = id();
-        
         let _ = DBUS_PROXY.local_enroll(process_id, fd, path.clone());
-
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M-DBus] P<- local_enroll (PID: {}, FD: {}, Path: {})",
-            id(),
-            fd,
-            path
-        );
     }
 
     pub fn remote_enroll(fd: i32, local_socket: String, peer_socket: String) {
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M-DBus] P-> remote_enroll (PID: {}, FD: {}, Stream: [{}-{}])",
-            id(),
-            fd,
-            local_socket,
-            peer_socket
-        );
-
         let process_id = id();
-        
         let _ = DBUS_PROXY.remote_enroll(process_id, fd, local_socket, peer_socket);
-
-        #[cfg(feature = "benchmarking")]
-        info!("[P2M-DBus] P<- remote_enroll (PID: {}, FD: {})", id(), fd);
     }
 
     pub fn io_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Error>> {
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M-DBus] P-> io_request (PID: {}, FD: {}, Flow: {})",
-            id(),
-            fd,
-            flow
-        );
-
-        let result = match DBUS_PROXY.io_request(id(), fd, flow) {
+        match DBUS_PROXY.io_request(id(), fd, flow) {
             Ok(grant_id) => Ok(grant_id),
             Err(_) => Err(Box::new(std::io::Error::from(
                 std::io::ErrorKind::PermissionDenied,
-            ))),
-        };
-
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M-DBus] P<- io_request (PID: {}, FD: {}, Flow: {})",
-            id(),
-            fd,
-            flow
-        );
-
-        result.map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            ))) as Box<dyn std::error::Error>
+        }
     }
 
     pub fn io_report(fd: i32, grant_id: u64, result: bool) -> std::io::Result<()> {
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M-DBus] P-> io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
-            id(),
-            fd,
-            grant_id,
-            result
-        );
-
-        let result = match DBUS_PROXY.io_report(id(), fd, grant_id, result) {
+        match DBUS_PROXY.io_report(id(), fd, grant_id, result) {
             Ok(_) => Ok(()),
             Err(_) => Err(std::io::Error::from(std::io::ErrorKind::Other)),
-        };
-
-        #[cfg(feature = "benchmarking")]
-        info!(
-            "[P2M-DBus] P<- io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
-            id(),
-            fd,
-            grant_id,
-            result.is_ok()
-        );
-
-        result
+        }
     }
 }
 

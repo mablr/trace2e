@@ -14,14 +14,6 @@ COPY proto/ proto/
 WORKDIR /trace2e_middleware
 RUN cargo build --release
 
-# Prepare stde2e examples
-FROM protobuf_base AS stde2e
-COPY trace2e_client/ trace2e_client/
-COPY proto/p2m_api.proto proto/p2m_api.proto
-COPY stde2e/ stde2e/
-WORKDIR /stde2e
-RUN ls examples | sed "s/.rs$//g" | xargs -I % cargo build --example %
-
 # Get Tokio source code and patch it
 FROM protobuf_base AS hypere2e_source
 WORKDIR /trace2e
@@ -75,18 +67,6 @@ RUN apt update && apt install -y iputils-ping iproute2 wget bc && rm -rf /var/li
 RUN wget https://github.com/fullstorydev/grpcurl/releases/download/v1.9.2/grpcurl_1.9.2_linux_amd64.deb
 RUN dpkg -i grpcurl_1.9.2_linux_amd64.deb
 RUN rm grpcurl_1.9.2_linux_amd64.deb
-
-# Create stde2e runtime environment
-FROM interactive_runtime AS stde2e_runtime
-COPY --from=trace2e_middleware /trace2e_middleware/target/release/trace2e_middleware /trace2e_middleware
-COPY --from=stde2e /stde2e/target/debug/examples/tcp_client /tcp_client
-COPY --from=stde2e /stde2e/target/debug/examples/tcp_client_e2e /tcp_client_e2e
-COPY --from=stde2e /stde2e/target/debug/examples/tcp_server /tcp_server
-COPY --from=stde2e /stde2e/target/debug/examples/tcp_server_e2e /tcp_server_e2e
-COPY --from=stde2e /stde2e/target/debug/examples/file_forwarder /file_forwarder
-COPY --from=stde2e /stde2e/target/debug/examples/file_forwarder_e2e /file_forwarder_e2e
-RUN dd if=/dev/random of=file_1M bs=1M count=1
-RUN dd if=/dev/random of=file_1B bs=1 count=1
 
 # Create Hyper client runtime environment
 FROM interactive_runtime AS hyper_client_runtime
