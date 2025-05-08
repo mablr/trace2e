@@ -4,9 +4,9 @@ use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use crate::{
     identifier::Identifier,
     labels::ComplianceLabel,
-    traceability::{TraceabilityRequest, TraceabilityResponse},
+    traceability::{TraceabilityClient, TraceabilityResponse},
 };
-use tokio::sync::{mpsc, oneshot, Mutex};
+use tokio::sync::{oneshot, Mutex};
 use tonic::{Request, Response, Status};
 use tracing::{debug, error, info};
 
@@ -24,14 +24,14 @@ pub struct M2mService {
             >,
         >,
     >,
-    provenance: mpsc::Sender<TraceabilityRequest>,
+    traceability: TraceabilityClient,
 }
 
 impl M2mService {
-    pub fn new(provenance_layer: mpsc::Sender<TraceabilityRequest>) -> Self {
+    pub fn new(traceability: TraceabilityClient) -> Self {
         M2mService {
             synced_streams: Arc::new(Mutex::new(HashMap::new())),
-            provenance: provenance_layer,
+            traceability,
         }
     }
 }
@@ -69,17 +69,12 @@ impl m2m::m2m_server::M2m for M2mService {
             }
         };
         let stream_id = Identifier::new_stream(peer_socket, local_socket);
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .provenance
-            .send(TraceabilityRequest::SyncStream(stream_id.clone(), tx))
-            .await;
-        match rx.await.unwrap() {
-            TraceabilityResponse::WaitingSync(peer_stream_labels, provenance_sync_channel) => {
+        match self.traceability.sync_stream(stream_id.clone()).await {
+            Ok((peer_stream_labels, provenance_sync_channel)) => {
                 self.synced_streams
                     .lock()
                     .await
-                    .insert(stream_id, provenance_sync_channel);
+                    .insert(stream_id.clone(), provenance_sync_channel);
                 debug!(
                     "[M2M] Stream: [{}-{}] -> WaitingSync",
                     r.peer_socket.clone(),
@@ -92,11 +87,10 @@ impl m2m::m2m_server::M2m for M2mService {
                 );
                 Ok(Response::new(peer_stream_labels.into()))
             }
-            TraceabilityResponse::Error(e) => {
+            Err(e) => {
                 error!("{:?}", e);
                 Err(Status::from_error(Box::new(e)))
             }
-            _ => unreachable!(),
         }
     }
 

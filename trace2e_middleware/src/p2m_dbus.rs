@@ -1,26 +1,25 @@
 //! Processes to Middleware gRPC Service.
 
 use crate::{
-    identifier::Identifier, p2m_service::p2m::Flow, traceability::{TraceabilityRequest, TraceabilityResponse}
+    identifier::Identifier, p2m_service::p2m::Flow, traceability::TraceabilityClient
 };
 use procfs::process::Process;
 use std::{collections::HashMap, path::PathBuf};
 use std::{net::SocketAddr, sync::Arc};
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::RwLock;
 use tracing::{error, info};
 use zbus::{fdo::Error, fdo::Result, interface};
 
-#[derive(Debug)]
 pub struct P2mDbus {
     identifiers_map: Arc<RwLock<HashMap<(u32, i32), Identifier>>>,
-    provenance: mpsc::Sender<TraceabilityRequest>,
+    traceability: TraceabilityClient,
 }
 
 impl P2mDbus {
-    pub fn new(traceability_server: mpsc::Sender<TraceabilityRequest>) -> Self {
+    pub fn new(traceability: TraceabilityClient) -> Self {
         P2mDbus {
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
-            provenance: traceability_server,
+            traceability,
         }
     }
 }
@@ -67,25 +66,15 @@ impl P2mDbus {
 
         let resource_identifier = Identifier::new_file(path.clone());
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .provenance
-            .send(TraceabilityRequest::RegisterContainer(
-                process_identifier,
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
+        let _ = self.traceability.register_container(process_identifier).await.map_err(|e| {
+            error!("{}", e);
+            Error::Failed(e.to_string())
+        })?;
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .provenance
-            .send(TraceabilityRequest::RegisterContainer(
-                resource_identifier.clone(),
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
+        let _ = self.traceability.register_container(resource_identifier.clone()).await.map_err(|e| {
+            error!("{}", e);
+            Error::Failed(e.to_string())
+        })?;
 
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert((process_id, file_descriptor), resource_identifier);
@@ -161,25 +150,15 @@ impl P2mDbus {
 
         let resource_identifier = Identifier::new_stream(local_socket, peer_socket);
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .provenance
-            .send(TraceabilityRequest::RegisterContainer(
-                process_identifier,
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
+        let _ = self.traceability.register_container(process_identifier).await.map_err(|e| {
+            error!("{}", e);
+            Error::Failed(e.to_string())
+        })?;
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .provenance
-            .send(TraceabilityRequest::RegisterContainer(
-                resource_identifier.clone(),
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
+        let _ = self.traceability.register_container(resource_identifier.clone()).await.map_err(|e| {
+            error!("{}", e);
+            Error::Failed(e.to_string())
+        })?;
 
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert((process_id, file_descriptor), resource_identifier);
@@ -232,50 +211,28 @@ impl P2mDbus {
             .get(&(process_id, file_descriptor))
             .cloned()
         {
-            let (tx, rx) = oneshot::channel();
-            let _ = match flow {
-                flow_type if flow_type == Flow::Input.into() => {
-                    self.provenance
-                        .send(TraceabilityRequest::DeclareFlow(
-                            process_identifier.clone(),
-                            resource_identifier.clone(),
-                            false,
-                            tx,
-                        ))
-                        .await
-                }
-                flow_type if flow_type == Flow::Output.into() => {
-                    self.provenance
-                        .send(TraceabilityRequest::DeclareFlow(
-                            process_identifier.clone(),
-                            resource_identifier.clone(),
-                            true,
-                            tx,
-                        ))
-                        .await
-                }
-                _ => {
-                    error!("Unsupported Flow type.");
-                    return Err(Error::Failed(format!("Unsupported Flow type.")));
-                }
+            let output = match flow {
+                flow_type if flow_type == Flow::Output as i32 => true,
+                flow_type if flow_type == Flow::Input as i32 => false,
+                _ => return Err(Error::InvalidArgs("Unsupported Flow type.".to_string())),
             };
-
-
-            let grant_id = match rx.await.unwrap() {
-                TraceabilityResponse::Declared(grant_id) => grant_id,
-                TraceabilityResponse::Error(e) => {
+            match self.traceability.declare_flow(
+                process_identifier.clone(),
+                resource_identifier.clone(),
+                output,
+            ).await {
+                Ok(grant_id) => {
+                    info!(
+                        "[P2M-DBus] <-M io_request (PID: {}, FD: {}, Flow: {}, grant_id: {})",
+                        process_id, file_descriptor, flow, grant_id,
+                    );
+                    Ok(grant_id)
+                }
+                Err(e) => {
                     error!("{}", e);
                     return Err(Error::Failed(e.to_string()));
                 }
-                _ => unreachable!(),
-            };
-
-            info!(
-                "[P2M-DBus] <-M io_request (PID: {}, FD: {}, Flow: {}, grant_id: {})",
-                process_id, file_descriptor, flow, grant_id,
-            );
-
-            Ok(grant_id)
+            }
         } else {
             error!(
                 "Process {} has not enrolled FD {}.",
@@ -308,13 +265,8 @@ impl P2mDbus {
             .get(&(process_id, file_descriptor))
             .cloned()
         {
-            let (tx, rx) = oneshot::channel();
-            let _ = self
-                .provenance
-                .send(TraceabilityRequest::RecordFlow(grant_id, tx))
-                .await;
-            match rx.await.unwrap() {
-                TraceabilityResponse::Recorded => {
+            match self.traceability.record_flow(grant_id).await {
+                Ok(()) => {
                     info!(
                         "[P2M-DBus] <-M io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
                         process_id, file_descriptor, grant_id, result
@@ -322,11 +274,10 @@ impl P2mDbus {
 
                     Ok(())
                 }
-                TraceabilityResponse::Error(e) => {
+                Err(e) => {
                     error!("{}", e);
-                    Err(Error::Failed(e.to_string()))
+                    return Err(Error::Failed(e.to_string()));
                 }
-                _ => unreachable!(),
             }
         } else {
             error!(

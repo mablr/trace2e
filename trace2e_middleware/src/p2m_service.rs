@@ -2,13 +2,13 @@
 
 use crate::{
     identifier::Identifier,
-    traceability::{TraceabilityRequest, TraceabilityResponse},
+    traceability::TraceabilityClient,
 };
 use p2m::{p2m_server::P2m, Ack, Flow, Grant, IoInfo, IoResult, LocalCt, RemoteCt};
 use procfs::process::Process;
 use std::{collections::HashMap, path::PathBuf};
 use std::{net::SocketAddr, sync::Arc};
-use tokio::sync::{mpsc, oneshot, RwLock};
+use tokio::sync::RwLock;
 use tonic::{Request, Response, Status};
 use tracing::{error, info};
 
@@ -17,17 +17,16 @@ pub mod p2m {
     pub const P2M_DESCRIPTOR_SET: &[u8] = include_bytes!("../p2m_descriptor.bin");
 }
 
-#[derive(Debug)]
 pub struct P2mService {
     identifiers_map: Arc<RwLock<HashMap<(u32, i32), Identifier>>>,
-    provenance: mpsc::Sender<TraceabilityRequest>,
+    traceability: TraceabilityClient,
 }
 
 impl P2mService {
-    pub fn new(traceability_server: mpsc::Sender<TraceabilityRequest>) -> Self {
+    pub fn new(traceability: TraceabilityClient) -> Self {
         P2mService {
             identifiers_map: Arc::new(RwLock::new(HashMap::new())),
-            provenance: traceability_server,
+            traceability,
         }
     }
 }
@@ -75,25 +74,15 @@ impl P2m for P2mService {
 
         let resource_identifier = Identifier::new_file(r.path.clone());
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .provenance
-            .send(TraceabilityRequest::RegisterContainer(
-                process_identifier,
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
+        let _ = self.traceability.register_container(process_identifier).await.map_err(|e| {
+            error!("{}", e);
+            Status::from_error(Box::new(e))
+        })?;
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .provenance
-            .send(TraceabilityRequest::RegisterContainer(
-                resource_identifier.clone(),
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
+        let _ = self.traceability.register_container(resource_identifier.clone()).await.map_err(|e| {
+            error!("{}", e);
+            Status::from_error(Box::new(e))
+        })?;
 
         /*
         At the process level, there is a bijection between the file_descriptor and the designated underlying container.
@@ -192,25 +181,15 @@ impl P2m for P2mService {
 
         let resource_identifier = Identifier::new_stream(local_socket, peer_socket);
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .provenance
-            .send(TraceabilityRequest::RegisterContainer(
-                process_identifier,
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
+        let _ = self.traceability.register_container(process_identifier).await.map_err(|e| {
+            error!("{}", e);
+            Status::from_error(Box::new(e))
+        })?;
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .provenance
-            .send(TraceabilityRequest::RegisterContainer(
-                resource_identifier.clone(),
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
+        let _ = self.traceability.register_container(resource_identifier.clone()).await.map_err(|e| {
+            error!("{}", e);
+            Status::from_error(Box::new(e))
+        })?;
 
         let mut identifiers_map = self.identifiers_map.write().await;
         identifiers_map.insert((r.process_id, r.file_descriptor), resource_identifier);
@@ -270,53 +249,31 @@ impl P2m for P2mService {
             .get(&(r.process_id, r.file_descriptor))
             .cloned()
         {
-            let (tx, rx) = oneshot::channel();
-            let _ = match r.flow {
-                flow_type if flow_type == Flow::Input.into() => {
-                    self.provenance
-                        .send(TraceabilityRequest::DeclareFlow(
-                            process_identifier.clone(),
-                            resource_identifier.clone(),
-                            false,
-                            tx,
-                        ))
-                        .await
-                }
-                flow_type if flow_type == Flow::Output.into() => {
-                    self.provenance
-                        .send(TraceabilityRequest::DeclareFlow(
-                            process_identifier.clone(),
-                            resource_identifier.clone(),
-                            true,
-                            tx,
-                        ))
-                        .await
-                }
-                _ => {
-                    error!("Unsupported Flow type.");
-                    return Err(Status::invalid_argument(format!("Unsupported Flow type.")));
-                }
+            let output = match r.flow {
+                flow_type if flow_type == Flow::Output as i32 => true,
+                flow_type if flow_type == Flow::Input as i32 => false,
+                _ => return Err(Status::invalid_argument("Unsupported Flow type.")),
             };
-
-            let grant_id = match rx.await.unwrap() {
-                TraceabilityResponse::Declared(grant_id) => grant_id,
-                TraceabilityResponse::Error(e) => {
+            match self.traceability.declare_flow(
+                process_identifier.clone(),
+                resource_identifier.clone(),
+                output,
+            ).await {
+                Ok(grant_id) => {
+                    info!(
+                        "[P2M] <-M io_request (PID: {}, FD: {}, Flow: {}, grant_id: {})",
+                        r.process_id,
+                        r.file_descriptor,
+                        r.flow,
+                        grant_id,
+                    );
+                    Ok(Response::new(Grant { id: grant_id }))
+                }
+                Err(e) => {
                     error!("{}", e);
-
                     return Err(Status::from_error(Box::new(e)));
                 }
-                _ => unreachable!(),
-            };
-
-            info!(
-                "[P2M] <-M io_request (PID: {}, FD: {}, Flow: {}, grant_id: {})",
-                r.process_id,
-                r.file_descriptor,
-                r.flow,
-                grant_id,
-            );
-
-            Ok(Response::new(Grant { id: grant_id }))
+            }
         } else {
             error!(
                 "Process {} has not enrolled FD {}.",
@@ -345,13 +302,8 @@ impl P2m for P2mService {
             .get(&(r.process_id, r.file_descriptor))
             .cloned()
         {
-            let (tx, rx) = oneshot::channel();
-            let _ = self
-                .provenance
-                .send(TraceabilityRequest::RecordFlow(r.grant_id, tx))
-                .await;
-            match rx.await.unwrap() {
-                TraceabilityResponse::Recorded => {
+            match self.traceability.record_flow(r.grant_id).await {
+                Ok(()) => {
                     info!(
                         "[P2M] <-M io_report (PID: {}, FD: {}, grant_id: {}, result: {})",
                         r.process_id, r.file_descriptor, r.grant_id, r.result
@@ -359,12 +311,10 @@ impl P2m for P2mService {
 
                     Ok(Response::new(Ack {}))
                 }
-                TraceabilityResponse::Error(e) => {
+                Err(e) => {
                     error!("{}", e);
-
                     Err(Status::from_error(Box::new(e)))
                 }
-                _ => unreachable!(),
             }
         } else {
             error!(
@@ -384,14 +334,14 @@ impl P2m for P2mService {
 mod tests {
     use std::process::Command;
 
-    use crate::traceability::init_traceability_server;
+    use crate::traceability::spawn_traceability_server;
 
     use super::*;
 
     #[tokio::test]
     async fn unit_p2m_enroll_failure() -> Result<(), Box<dyn std::error::Error>> {
-        let sender = init_traceability_server();
-        let client = P2mService::new(sender);
+        let traceability = TraceabilityClient::new(spawn_traceability_server());
+        let client = P2mService::new(traceability);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
@@ -467,8 +417,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_io_request_dead_process() -> Result<(), Box<dyn std::error::Error>> {
-        let sender = init_traceability_server();
-        let client = P2mService::new(sender);
+        let traceability = TraceabilityClient::new(spawn_traceability_server());
+        let client = P2mService::new(traceability);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
@@ -501,8 +451,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_io_request_unsupported_flow_type() -> Result<(), Box<dyn std::error::Error>> {
-        let sender = init_traceability_server();
-        let client = P2mService::new(sender);
+        let traceability = TraceabilityClient::new(spawn_traceability_server());
+        let client = P2mService::new(traceability);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
@@ -529,8 +479,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_io_request_not_enrolled() -> Result<(), Box<dyn std::error::Error>> {
-        let sender = init_traceability_server();
-        let client = P2mService::new(sender);
+        let traceability = TraceabilityClient::new(spawn_traceability_server());
+        let client = P2mService::new(traceability);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
@@ -561,8 +511,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_io_report_not_enrolled() -> Result<(), Box<dyn std::error::Error>> {
-        let sender = init_traceability_server();
-        let client = P2mService::new(sender);
+        let traceability = TraceabilityClient::new(spawn_traceability_server());
+        let client = P2mService::new(traceability);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
@@ -594,8 +544,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_scenario_file_write() -> Result<(), Box<dyn std::error::Error>> {
-        let sender = init_traceability_server();
-        let client = P2mService::new(sender);
+        let traceability = TraceabilityClient::new(spawn_traceability_server());
+        let client = P2mService::new(traceability);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
@@ -633,8 +583,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_scenario_file_read() -> Result<(), Box<dyn std::error::Error>> {
-        let sender = init_traceability_server();
-        let client = P2mService::new(sender);
+        let traceability = TraceabilityClient::new(spawn_traceability_server());
+        let client = P2mService::new(traceability);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
@@ -672,8 +622,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_scenario_stream_read() -> Result<(), Box<dyn std::error::Error>> {
-        let sender = init_traceability_server();
-        let client = P2mService::new(sender);
+        let traceability = TraceabilityClient::new(spawn_traceability_server());
+        let client = P2mService::new(traceability);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 

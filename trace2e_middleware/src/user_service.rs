@@ -1,7 +1,8 @@
 //! User gRPC Service.
-use crate::traceability::TraceabilityRequest;
-use crate::user_service::user::{user_server::User, Ack, Req, Resource};
-use tokio::sync::{mpsc, oneshot};
+use crate::{
+    traceability::TraceabilityClient,
+    user_service::user::{user_server::User, Ack, Req, Resource},
+};
 use tonic::{Request, Response, Status};
 
 pub mod user {
@@ -10,11 +11,11 @@ pub mod user {
 }
 
 pub struct UserService {
-    traceability: mpsc::Sender<TraceabilityRequest>,
+    traceability: TraceabilityClient,
 }
 
 impl UserService {
-    pub fn new(traceability: mpsc::Sender<TraceabilityRequest>) -> Self {
+    pub fn new(traceability: TraceabilityClient) -> Self {
         UserService { traceability }
     }
 }
@@ -22,11 +23,10 @@ impl UserService {
 #[tonic::async_trait]
 impl User for UserService {
     async fn print_db(&self, _request: Request<Req>) -> Result<Response<Ack>, Status> {
-        let _ = self
-            .traceability
-            .send(TraceabilityRequest::PrintProvenance)
-            .await;
-        Ok(Response::new(Ack {}))
+        match self.traceability.print_provenance().await {
+            Ok(_) => Ok(Response::new(Ack {})),
+            Err(e) => Err(Status::from_error(Box::new(e))),
+        }
     }
 
     async fn enable_local_confidentiality(
@@ -35,19 +35,10 @@ impl User for UserService {
     ) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .traceability
-            .send(TraceabilityRequest::SetComplianceLabel(
-                r.into(),
-                Some(true),
-                None,
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
-
-        Ok(Response::new(Ack {}))
+        match self.traceability.set_compliance_label(r.into(), Some(true), None).await {
+            Ok(_) => Ok(Response::new(Ack {})),
+            Err(e) => Err(Status::from_error(Box::new(e))),
+        }
     }
 
     async fn enable_local_integrity(
@@ -56,19 +47,10 @@ impl User for UserService {
     ) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .traceability
-            .send(TraceabilityRequest::SetComplianceLabel(
-                r.into(),
-                None,
-                Some(true),
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
-
-        Ok(Response::new(Ack {}))
+        match self.traceability.set_compliance_label(r.into(), None, Some(true)).await {
+            Ok(_) => Ok(Response::new(Ack {})),
+            Err(e) => Err(Status::from_error(Box::new(e))),
+        }
     }
 
     async fn disable_local_confidentiality(
@@ -77,19 +59,10 @@ impl User for UserService {
     ) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .traceability
-            .send(TraceabilityRequest::SetComplianceLabel(
-                r.into(),
-                Some(false),
-                None,
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
-
-        Ok(Response::new(Ack {}))
+        match self.traceability.set_compliance_label(r.into(), Some(false), None).await {
+            Ok(_) => Ok(Response::new(Ack {})),
+            Err(e) => Err(Status::from_error(Box::new(e))),
+        }
     }
 
     async fn disable_local_integrity(
@@ -98,18 +71,9 @@ impl User for UserService {
     ) -> Result<Response<Ack>, Status> {
         let r = request.into_inner();
 
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .traceability
-            .send(TraceabilityRequest::SetComplianceLabel(
-                r.into(),
-                None,
-                Some(false),
-                tx,
-            ))
-            .await;
-        rx.await.unwrap();
-
-        Ok(Response::new(Ack {}))
+        match self.traceability.set_compliance_label(r.into(), None, Some(false)).await {
+            Ok(_) => Ok(Response::new(Ack {})),
+            Err(e) => Err(Status::from_error(Box::new(e))),
+        }
     }
 }

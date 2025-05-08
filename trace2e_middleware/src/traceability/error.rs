@@ -21,6 +21,10 @@ pub enum TraceabilityError {
     MissingRegistrationRemote(SocketAddr, SocketAddr),
     /// Communication failed with the remote middleware
     NonCompliantRemote(SocketAddr),
+    /// Channel error
+    ChannelError,
+    /// Invalid response
+    InvalidResponse,
 }
 
 impl std::fmt::Display for TraceabilityError {
@@ -82,6 +86,12 @@ impl std::fmt::Display for TraceabilityError {
                     "Traceability error: Communication failed with the remote middleware ({}).",
                     s.ip()
                 )
+            }
+            TraceabilityError::ChannelError => {
+                write!(f, "Traceability error: Internal channel error.")
+            }
+            TraceabilityError::InvalidResponse => {
+                write!(f, "Traceability error: Internal invalid response.")
             }
         }
     }

@@ -11,7 +11,7 @@ use trace2e_middleware::{
         p2m::{p2m_server::P2mServer, P2M_DESCRIPTOR_SET},
         P2mService,
     },
-    traceability::init_traceability_server,
+    traceability::{spawn_traceability_server, TraceabilityClient},
     user_service::{
         user::{user_server::UserServer, USER_DESCRIPTOR_SET},
         UserService,
@@ -43,9 +43,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .to_lowercase()
     });
 
-    let sender = init_traceability_server();
+    let traceability = TraceabilityClient::new(spawn_traceability_server());
 
-    let p2m_dbus = P2mDbus::new(sender.clone());
+    let p2m_dbus = P2mDbus::new(traceability.clone());
     let _conn = connection::Builder::session()?
         .name("org.trace2e.P2m")?
         .serve_at("/org/trace2e/P2m", p2m_dbus)?
@@ -53,9 +53,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
 
     let address = "[::]:8080".parse().unwrap();
-    let p2m_service = P2mService::new(sender.clone());
-    let m2m_service = M2mService::new(sender.clone());
-    let user_service = UserService::new(sender.clone());
+    let p2m_service = P2mService::new(traceability.clone());
+    let m2m_service = M2mService::new(traceability.clone());
+    let user_service = UserService::new(traceability.clone());
 
     let reflection_service = Builder::configure()
         .register_encoded_file_descriptor_set(P2M_DESCRIPTOR_SET)
