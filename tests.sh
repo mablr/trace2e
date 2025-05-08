@@ -17,5 +17,8 @@ cargo test integration_sync -- --test-threads 1
 # Async integration tests
 cargo test integration_async_mp
 
+# Client integration tests
+cargo test integration_client
+
 # Stop Middleware
 kill ${TRACE2E_PID}

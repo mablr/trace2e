@@ -10,7 +10,7 @@ async fn integration_client_enable_local_confidentiality() -> Result<(), Box<dyn
     // User request
     let resource = tonic::Request::new(Resource {
         variant: Some(Variant::File(File {
-            path: "/home/dan/sources/hyper/examples/send_file_index.html".to_string(),
+            path: "/dev/null".to_string(),
         })),
     });
     let compliance_action = client
@@ -30,7 +30,7 @@ async fn integration_client_disable_local_confidentiality() -> Result<(), Box<dy
     // User request
     let resource = tonic::Request::new(Resource {
         variant: Some(Variant::File(File {
-            path: "/home/dan/sources/hyper/examples/send_file_index.html".to_string(),
+            path: "/dev/null".to_string(),
         })),
     });
     let compliance_action = client

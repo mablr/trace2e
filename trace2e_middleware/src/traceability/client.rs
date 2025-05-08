@@ -53,7 +53,7 @@ impl TraceabilityClient {
             .map_err(|_| TraceabilityError::ChannelError)?;
 
         match response_rx.await {
-            Ok(TraceabilityResponse::Recorded) => Ok(()),
+            Ok(TraceabilityResponse::Registered(_)) => Ok(()),
             Ok(TraceabilityResponse::Error(e)) => Err(e),
             _ => Err(TraceabilityError::InvalidResponse),
         }
