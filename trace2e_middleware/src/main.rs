@@ -1,4 +1,3 @@
-use tokio::sync::mpsc;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
 use trace2e_middleware::{
@@ -12,7 +11,7 @@ use trace2e_middleware::{
         p2m::{p2m_server::P2mServer, P2M_DESCRIPTOR_SET},
         P2mService,
     },
-    traceability::traceability_server,
+    traceability::init_traceability_server,
     user_service::{
         user::{user_server::UserServer, USER_DESCRIPTOR_SET},
         UserService,
@@ -44,9 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .to_lowercase()
     });
 
-    let (sender, receiver) = mpsc::channel(32);
-
-    tokio::spawn(traceability_server(receiver));
+    let sender = init_traceability_server();
 
     let p2m_dbus = P2mDbus::new(sender.clone());
     let _conn = connection::Builder::session()?

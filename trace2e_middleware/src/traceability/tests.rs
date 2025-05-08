@@ -1,10 +1,6 @@
 use std::{process::Command, time::Duration};
-
 use procfs::process::Process;
-use tokio::{
-    sync::{mpsc, oneshot},
-    time::timeout,
-};
+use tokio::{sync::oneshot, time::timeout};
 
 use crate::identifier::Identifier;
 
@@ -12,9 +8,7 @@ use super::*;
 
 #[tokio::test]
 async fn unit_traceability_server_declare_flow() -> Result<(), Box<dyn std::error::Error>> {
-    let (sender, receiver) = mpsc::channel(32);
-
-    tokio::spawn(traceability_server(receiver));
+    let sender = init_traceability_server();
 
     let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
@@ -51,9 +45,7 @@ async fn unit_traceability_server_declare_flow() -> Result<(), Box<dyn std::erro
 #[tokio::test]
 async fn unit_traceability_server_declare_missing_container(
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let (sender, receiver) = mpsc::channel(32);
-
-    tokio::spawn(traceability_server(receiver));
+    let sender = init_traceability_server();
 
     let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_process(2, 1, String::new());
@@ -115,9 +107,7 @@ async fn unit_traceability_server_declare_missing_container(
 
 #[tokio::test]
 async fn unit_traceability_server_declare_invalid_flow() -> Result<(), Box<dyn std::error::Error>> {
-    let (sender, receiver) = mpsc::channel(32);
-
-    tokio::spawn(traceability_server(receiver));
+    let sender = init_traceability_server();
 
     let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
@@ -191,9 +181,7 @@ async fn unit_traceability_server_declare_invalid_flow() -> Result<(), Box<dyn s
 
 #[tokio::test]
 async fn unit_traceability_server_record() -> Result<(), Box<dyn std::error::Error>> {
-    let (sender, receiver) = mpsc::channel(32);
-
-    tokio::spawn(traceability_server(receiver));
+    let sender = init_traceability_server();
 
     let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
@@ -238,9 +226,7 @@ async fn unit_traceability_server_record() -> Result<(), Box<dyn std::error::Err
 
 #[tokio::test]
 async fn unit_traceability_server_record_failure() -> Result<(), Box<dyn std::error::Error>> {
-    let (sender, receiver) = mpsc::channel(32);
-
-    tokio::spawn(traceability_server(receiver));
+    let sender = init_traceability_server();
 
     let (tx, rx) = oneshot::channel();
     sender.send(TraceabilityRequest::RecordFlow(0, tx)).await?;
@@ -258,9 +244,7 @@ async fn unit_traceability_server_record_failure() -> Result<(), Box<dyn std::er
 
 #[tokio::test]
 async fn unit_traceability_server_declare_flow_delayed() -> Result<(), Box<dyn std::error::Error>> {
-    let (sender, receiver) = mpsc::channel(32);
-
-    tokio::spawn(traceability_server(receiver));
+    let sender = init_traceability_server();
 
     let id1 = Identifier::new_process(1, 1, String::new());
     let id2 = Identifier::new_file("/path/to/file1.txt".to_string());
@@ -315,8 +299,7 @@ async fn unit_traceability_server_declare_flow_delayed() -> Result<(), Box<dyn s
 
 #[tokio::test]
 async fn unit_traceability_server_forced_release() -> Result<(), Box<dyn std::error::Error>> {
-    let (sender, receiver) = mpsc::channel(32);
-    tokio::spawn(traceability_server(receiver));
+    let sender = init_traceability_server();
 
     let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;

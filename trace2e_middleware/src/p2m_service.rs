@@ -384,14 +384,13 @@ impl P2m for P2mService {
 mod tests {
     use std::process::Command;
 
-    use crate::traceability::traceability_server;
+    use crate::traceability::init_traceability_server;
 
     use super::*;
 
     #[tokio::test]
     async fn unit_p2m_enroll_failure() -> Result<(), Box<dyn std::error::Error>> {
-        let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(traceability_server(receiver));
+        let sender = init_traceability_server();
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -468,8 +467,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_io_request_dead_process() -> Result<(), Box<dyn std::error::Error>> {
-        let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(traceability_server(receiver));
+        let sender = init_traceability_server();
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -503,8 +501,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_io_request_unsupported_flow_type() -> Result<(), Box<dyn std::error::Error>> {
-        let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(traceability_server(receiver));
+        let sender = init_traceability_server();
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -532,8 +529,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_io_request_not_enrolled() -> Result<(), Box<dyn std::error::Error>> {
-        let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(traceability_server(receiver));
+        let sender = init_traceability_server();
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -565,8 +561,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_io_report_not_enrolled() -> Result<(), Box<dyn std::error::Error>> {
-        let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(traceability_server(receiver));
+        let sender = init_traceability_server();
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -599,8 +594,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_scenario_file_write() -> Result<(), Box<dyn std::error::Error>> {
-        let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(traceability_server(receiver));
+        let sender = init_traceability_server();
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -639,8 +633,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_scenario_file_read() -> Result<(), Box<dyn std::error::Error>> {
-        let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(traceability_server(receiver));
+        let sender = init_traceability_server();
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
@@ -679,8 +672,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_p2m_scenario_stream_read() -> Result<(), Box<dyn std::error::Error>> {
-        let (sender, receiver) = mpsc::channel(32);
-        tokio::spawn(traceability_server(receiver));
+        let sender = init_traceability_server();
         let client = P2mService::new(sender);
         let mut process = Command::new("tail").arg("-f").arg("/dev/null").spawn()?;
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
