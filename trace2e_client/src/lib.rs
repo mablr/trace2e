@@ -195,7 +195,7 @@ mod dbus {
             Ok(grant_id) => Ok(grant_id),
             Err(_) => Err(Box::new(std::io::Error::from(
                 std::io::ErrorKind::PermissionDenied,
-            ))) as Box<dyn std::error::Error>
+            ))),
         }
     }
 
