@@ -62,17 +62,26 @@ Follow the instructions in [demo/hyper/README.md](demo/hyper/README.md) to run t
    cd trace2e
    ```
 
-2. Build the full project:
+2. Build the middleware in release mode to enable optimizations:
    ```bash
-   cargo build
+   cargo build -r
+   ./target/release/trace2e_middleware
    ```
-
-3. Start only the middleware service:
-   ```bash
-   cargo run --bin trace2e_middleware
-   ```
-
 The middleware will listen on `[::]:8080` by default.
+
+### Benchmarking
+
+To benchmark the middleware internal traceability server, run the following command:
+```bash
+cargo bench -p trace2e_middleware
+```
+
+To benchmark the gRPC service and the standard library wrapper, run the following commands:
+```bash
+./target/release/trace2e_middleware &
+cargo bench -p trace2e_client
+cargo bench -p stde2e
+```
 
 ## Project Structure
 
