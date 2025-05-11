@@ -76,11 +76,16 @@ To benchmark the middleware internal traceability server, run the following comm
 cargo bench -p trace2e_middleware
 ```
 
-To benchmark the gRPC service and the standard library wrapper, run the following commands:
+To benchmark the `trace2e_client` and the `stde2e` wrapper, run the following commands:
 ```bash
 ./target/release/trace2e_middleware &
 cargo bench -p trace2e_client
 cargo bench -p stde2e
+```
+
+By default `trace2e_client` will use the gRPC protocol to communicate with the middleware. If you want to use the `dbus` protocol, you can run the following command:
+```bash
+cargo bench -p trace2e_client --features dbus
 ```
 
 ## Project Structure
