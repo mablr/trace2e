@@ -448,13 +448,6 @@ fn validate_flow(
     containers: &ContainersMap,
 ) -> Result<(u32, Arc<RwLock<Labels>>, Arc<RwLock<Labels>>), TraceabilityError> {
     if let Some(pid) = id1.is_process().filter(|_| id2.is_process().is_none()) {
-        // if let (Some(id1_container), Some(id2_container)) =
-        //     (containers.get(&id1).cloned(), containers.get(&id2).cloned())
-        // {
-        //     Ok((pid, id1_container, id2_container))
-        // } else {
-        //     Err(TraceabilityError::MissingRegistration(id1, id2))
-        // }
         let id1_container = containers.get(&id1).cloned();
         let id2_container = containers.get(&id2).cloned();
         if let (Some(id1_container), Some(id2_container)) =
@@ -462,18 +455,13 @@ fn validate_flow(
         {
             Ok((pid, id1_container, id2_container))
         } else {
-            Err(TraceabilityError::MissingRegistration(
-                if id1_container.is_none() {
-                    Some(id1)
-                } else {
-                    None
-                },
-                if id2_container.is_none() {
-                    Some(id2)
-                } else {
-                    None
-                },
-            ))
+            if id1_container.is_some() {
+                Err(TraceabilityError::MissingRegistration(id2))
+            } else if id2_container.is_some() {
+                Err(TraceabilityError::MissingRegistration(id1))
+            } else {
+                Err(TraceabilityError::MissingRegistrations(id1, id2))
+            }
         }
     } else {
         Err(TraceabilityError::InvalidFlow(id1, id2))

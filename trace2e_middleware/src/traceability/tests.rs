@@ -93,7 +93,7 @@ async fn unit_traceability_server_declare_missing_container(
             assert_eq!(
                 format!("{}", e),
                 format!(
-                    "Traceability error: ({:?} || {:?}) are not registered.",
+                    "Traceability error: {:?} and {:?} are not registered.",
                     id2.clone(),
                     id3.clone()
                 )
