@@ -1,10 +1,10 @@
-use trace2e_middleware::p2m_service::p2m::{
-    p2m_client::P2mClient, Ack, Flow, IoInfo, IoResult, LocalCt,
+use trace2e_middleware::grpc_proto::{
+    trace2e_client::Trace2eClient, Ack, Flow, IoInfo, IoResult, LocalCt,
 };
 
 #[tokio::test]
 async fn integration_async_1p_mf_write1() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = P2mClient::connect("http://[::1]:8080").await?;
+    let mut client = Trace2eClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
@@ -12,7 +12,7 @@ async fn integration_async_1p_mf_write1() -> Result<(), Box<dyn std::error::Erro
         file_descriptor: 3,
         path: "bar0.txt".to_string(),
     });
-    let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+    let result_file_creation = client.p2m_local_enroll(file_creation).await?.into_inner();
     assert_eq!(result_file_creation, Ack {});
 
     // Write event
@@ -21,7 +21,7 @@ async fn integration_async_1p_mf_write1() -> Result<(), Box<dyn std::error::Erro
         file_descriptor: 3,
         flow: Flow::Output.into(),
     });
-    let result_write_request = client.io_request(write_request).await?;
+    let result_write_request = client.p2m_io_request(write_request).await?;
     let grant_id = result_write_request.into_inner().id;
 
     // Write done
@@ -31,14 +31,14 @@ async fn integration_async_1p_mf_write1() -> Result<(), Box<dyn std::error::Erro
         grant_id,
         result: true,
     });
-    let result_write_done = client.io_report(write_done).await?.into_inner();
+    let result_write_done = client.p2m_io_report(write_done).await?.into_inner();
     assert_eq!(result_write_done, Ack {});
     Ok(())
 }
 
 #[tokio::test]
 async fn integration_async_1p_mf_write2() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = P2mClient::connect("http://[::1]:8080").await?;
+    let mut client = Trace2eClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
@@ -46,7 +46,7 @@ async fn integration_async_1p_mf_write2() -> Result<(), Box<dyn std::error::Erro
         file_descriptor: 4,
         path: "bar1.txt".to_string(),
     });
-    let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+    let result_file_creation = client.p2m_local_enroll(file_creation).await?.into_inner();
     assert_eq!(result_file_creation, Ack {});
 
     // Write event
@@ -55,7 +55,7 @@ async fn integration_async_1p_mf_write2() -> Result<(), Box<dyn std::error::Erro
         file_descriptor: 4,
         flow: Flow::Output.into(),
     });
-    let result_write_request = client.io_request(write_request).await?;
+    let result_write_request = client.p2m_io_request(write_request).await?;
     let grant_id = result_write_request.into_inner().id;
 
     // Write done
@@ -65,14 +65,14 @@ async fn integration_async_1p_mf_write2() -> Result<(), Box<dyn std::error::Erro
         grant_id,
         result: true,
     });
-    let result_write_done = client.io_report(write_done).await?.into_inner();
+    let result_write_done = client.p2m_io_report(write_done).await?.into_inner();
     assert_eq!(result_write_done, Ack {});
     Ok(())
 }
 
 #[tokio::test]
 async fn integration_async_1p_mf_write3() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = P2mClient::connect("http://[::1]:8080").await?;
+    let mut client = Trace2eClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
@@ -80,7 +80,7 @@ async fn integration_async_1p_mf_write3() -> Result<(), Box<dyn std::error::Erro
         file_descriptor: 5,
         path: "bar2.txt".to_string(),
     });
-    let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+    let result_file_creation = client.p2m_local_enroll(file_creation).await?.into_inner();
     assert_eq!(result_file_creation, Ack {});
 
     // Write event
@@ -89,7 +89,7 @@ async fn integration_async_1p_mf_write3() -> Result<(), Box<dyn std::error::Erro
         file_descriptor: 5,
         flow: Flow::Output.into(),
     });
-    let result_write_request = client.io_request(write_request).await?;
+    let result_write_request = client.p2m_io_request(write_request).await?;
     let grant_id = result_write_request.into_inner().id;
 
     // Write done
@@ -99,14 +99,14 @@ async fn integration_async_1p_mf_write3() -> Result<(), Box<dyn std::error::Erro
         grant_id,
         result: true,
     });
-    let result_write_done = client.io_report(write_done).await?.into_inner();
+    let result_write_done = client.p2m_io_report(write_done).await?.into_inner();
     assert_eq!(result_write_done, Ack {});
     Ok(())
 }
 
 #[tokio::test]
 async fn integration_async_1p_mf_read1() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = P2mClient::connect("http://[::1]:8080").await?;
+    let mut client = Trace2eClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
@@ -114,7 +114,7 @@ async fn integration_async_1p_mf_read1() -> Result<(), Box<dyn std::error::Error
         file_descriptor: 6,
         path: "bar3.txt".to_string(),
     });
-    let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+    let result_file_creation = client.p2m_local_enroll(file_creation).await?.into_inner();
     assert_eq!(result_file_creation, Ack {});
 
     // Read event
@@ -123,7 +123,7 @@ async fn integration_async_1p_mf_read1() -> Result<(), Box<dyn std::error::Error
         file_descriptor: 6,
         flow: Flow::Input.into(),
     });
-    let result_read_request = client.io_request(read_request).await?;
+    let result_read_request = client.p2m_io_request(read_request).await?;
     let grant_id = result_read_request.into_inner().id;
 
     // Read done
@@ -133,14 +133,14 @@ async fn integration_async_1p_mf_read1() -> Result<(), Box<dyn std::error::Error
         grant_id,
         result: true,
     });
-    let result_read_done = client.io_report(read_done).await?.into_inner();
+    let result_read_done = client.p2m_io_report(read_done).await?.into_inner();
     assert_eq!(result_read_done, Ack {});
     Ok(())
 }
 
 #[tokio::test]
 async fn integration_async_1p_mf_read2() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = P2mClient::connect("http://[::1]:8080").await?;
+    let mut client = Trace2eClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
@@ -148,7 +148,7 @@ async fn integration_async_1p_mf_read2() -> Result<(), Box<dyn std::error::Error
         file_descriptor: 7,
         path: "bar4.txt".to_string(),
     });
-    let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+    let result_file_creation = client.p2m_local_enroll(file_creation).await?.into_inner();
     assert_eq!(result_file_creation, Ack {});
 
     // Read event
@@ -157,7 +157,7 @@ async fn integration_async_1p_mf_read2() -> Result<(), Box<dyn std::error::Error
         file_descriptor: 7,
         flow: Flow::Input.into(),
     });
-    let result_read_request = client.io_request(read_request).await?;
+    let result_read_request = client.p2m_io_request(read_request).await?;
     let grant_id = result_read_request.into_inner().id;
 
     // Read done
@@ -167,14 +167,14 @@ async fn integration_async_1p_mf_read2() -> Result<(), Box<dyn std::error::Error
         grant_id,
         result: true,
     });
-    let result_read_done = client.io_report(read_done).await?.into_inner();
+    let result_read_done = client.p2m_io_report(read_done).await?.into_inner();
     assert_eq!(result_read_done, Ack {});
     Ok(())
 }
 
 #[tokio::test]
 async fn integration_async_1p_mf_read3() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = P2mClient::connect("http://[::1]:8080").await?;
+    let mut client = Trace2eClient::connect("http://[::1]:8080").await?;
 
     // CT declaration
     let file_creation = tonic::Request::new(LocalCt {
@@ -182,7 +182,7 @@ async fn integration_async_1p_mf_read3() -> Result<(), Box<dyn std::error::Error
         file_descriptor: 8,
         path: "bar5.txt".to_string(),
     });
-    let result_file_creation = client.local_enroll(file_creation).await?.into_inner();
+    let result_file_creation = client.p2m_local_enroll(file_creation).await?.into_inner();
     assert_eq!(result_file_creation, Ack {});
 
     // Read event
@@ -191,7 +191,7 @@ async fn integration_async_1p_mf_read3() -> Result<(), Box<dyn std::error::Error
         file_descriptor: 8,
         flow: Flow::Input.into(),
     });
-    let result_read_request = client.io_request(read_request).await?;
+    let result_read_request = client.p2m_io_request(read_request).await?;
     let grant_id = result_read_request.into_inner().id;
 
     // Read done
@@ -201,7 +201,7 @@ async fn integration_async_1p_mf_read3() -> Result<(), Box<dyn std::error::Error
         grant_id,
         result: true,
     });
-    let result_read_done = client.io_report(read_done).await?.into_inner();
+    let result_read_done = client.p2m_io_report(read_done).await?.into_inner();
     assert_eq!(result_read_done, Ack {});
     Ok(())
 }

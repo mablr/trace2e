@@ -12,7 +12,7 @@ use tracing::{debug, info};
 use crate::{
     identifier::Identifier,
     labels::{Compliance, ComplianceSettings, Labels, Provenance},
-    m2m_service::m2m::{self, m2m_client::M2mClient},
+    grpc_proto::{trace2e_client::Trace2eClient, Stream, StreamProv, ComplianceLabel},
 };
 
 use super::{TraceabilityError, TraceabilityRequest, TraceabilityResponse};
@@ -306,7 +306,7 @@ async fn handle_flow(
                             // Release remote stream
                             // Todo make specific rpc
                             let _ = client
-                                .sync_provenance(Request::new(m2m::StreamProv {
+                                .m2m_sync_provenance(Request::new(StreamProv {
                                     local_socket: local_socket.to_string(),
                                     peer_socket: peer_socket.to_string(),
                                     provenance: Vec::new(), // empty provenance to skip update and release remote stream
@@ -329,13 +329,13 @@ async fn handle_flow(
                                 local_socket, peer_socket
                             );
                             let _ = client
-                                .sync_provenance(Request::new(m2m::StreamProv {
+                                .m2m_sync_provenance(Request::new(StreamProv {
                                     local_socket: local_socket.to_string(),
                                     peer_socket: peer_socket.to_string(),
                                     provenance: source_labels
                                         .get_all_labels()
                                         .into_iter()
-                                        .map(m2m::ComplianceLabel::from)
+                                        .map(ComplianceLabel::from)
                                         .collect(),
                                 }))
                                 .await; // Todo Sync failure management
@@ -358,7 +358,7 @@ async fn handle_flow(
                     // Release remote stream
                     // Todo make specific rpc
                     let _ = client
-                        .sync_provenance(Request::new(m2m::StreamProv {
+                        .m2m_sync_provenance(Request::new(StreamProv {
                             local_socket: local_socket.to_string(),
                             peer_socket: peer_socket.to_string(),
                             provenance: Vec::new(), // empty provenance to skip update and release remote stream
@@ -492,15 +492,15 @@ async fn reserve_remote_flow<'a>(
     id_container: &'a Arc<RwLock<Labels>>,
     local_socket: SocketAddr,
     peer_socket: SocketAddr,
-) -> Result<(RwLockReadGuard<'a, Labels>, Labels, M2mClient<Channel>), TraceabilityError> {
+) -> Result<(RwLockReadGuard<'a, Labels>, Labels, Trace2eClient<Channel>), TraceabilityError> {
     info!(
         "[M2M] LM-> reserve (Stream: [{}-{}])",
         local_socket, peer_socket
     );
-    if let Ok(mut client) = M2mClient::connect(format!("http://{}:8080", peer_socket.ip())).await {
+    if let Ok(mut client) = Trace2eClient::connect(format!("http://{}:8080", peer_socket.ip())).await {
         let source_labels = id_container.read().await;
         match client
-            .reserve(Request::new(m2m::Stream {
+            .m2m_reserve(Request::new(Stream {
                 local_socket: local_socket.to_string(),
                 peer_socket: peer_socket.to_string(),
             }))

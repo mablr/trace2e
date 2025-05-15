@@ -1,6 +1,6 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use tokio::runtime::Runtime;
-use trace2e_middleware::{identifier::Identifier, p2m_service::{p2m::{p2m_server::P2m, Flow, IoInfo, IoResult, LocalCt}, P2mService}, traceability::{spawn_traceability_server, TraceabilityClient}};
+use trace2e_middleware::{identifier::Identifier, Trace2eService, grpc_proto::{trace2e_server::Trace2e, Flow, IoInfo, IoResult, LocalCt}, traceability::{spawn_traceability_server, TraceabilityClient}};
 
 fn bench_traceability_server(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
@@ -29,10 +29,10 @@ fn bench_grpc_service(c: &mut Criterion) {
     let traceability = rt.block_on(async {
         TraceabilityClient::new(spawn_traceability_server())
     });
-    let client = P2mService::new(traceability);
+    let client = Trace2eService::new(traceability);
 
     rt.block_on(async {
-        client.local_enroll(tonic::Request::new(LocalCt {
+        client.p2m_local_enroll(tonic::Request::new(LocalCt {
             process_id: 1,
             file_descriptor: 3,
             path: "/dev/null".to_string(),
@@ -41,12 +41,12 @@ fn bench_grpc_service(c: &mut Criterion) {
 
     c.bench_function("grpc_service", |b| {
         b.iter(|| black_box(rt.block_on(async {
-            let grant_id = client.io_request(tonic::Request::new(IoInfo {
+            let grant_id = client.p2m_io_request(tonic::Request::new(IoInfo {
                 process_id: 1,
                 file_descriptor: 3,
                 flow: Flow::Output.into(),
             })).await.unwrap().into_inner().id;
-            client.io_report(tonic::Request::new(IoResult {
+            client.p2m_io_report(tonic::Request::new(IoResult {
                 process_id: 1,
                 file_descriptor: 3,
                 grant_id,

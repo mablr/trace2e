@@ -82,12 +82,6 @@ To benchmark the `trace2e_client` and the `stde2e` wrapper, run the following co
 cargo bench -p trace2e_client
 cargo bench -p stde2e
 ```
-
-By default `trace2e_client` will use the gRPC protocol to communicate with the middleware. If you want to use the `dbus` protocol, you can run the following command:
-```bash
-cargo bench -p trace2e_client --features dbus
-```
-
 ## Project Structure
 
 - **/proto**: Protocol buffer definitions for communication between components

@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package trace2e;
+
+// Single service that handles all middleware operations
+service Trace2e {
+    // Process to Middleware operations
+    rpc P2MLocalEnroll(LocalCt) returns (Ack);
+    rpc P2MRemoteEnroll(RemoteCt) returns (Ack);
+    rpc P2MIoRequest(IoInfo) returns (Grant);
+    rpc P2MIoReport(IoResult) returns (Ack);
+
+    // Middleware to Middleware operations
+    rpc M2MReserve(Stream) returns (Labels);
+    rpc M2MSyncProvenance(StreamProv) returns (Ack);
+
+    // User operations
+    rpc UserPrintDB(Req) returns (Ack);
+    rpc UserEnableLocalConfidentiality(Resource) returns (Ack);
+    rpc UserEnableLocalIntegrity(Resource) returns (Ack);
+    rpc UserDisableLocalConfidentiality(Resource) returns (Ack);
+    rpc UserDisableLocalIntegrity(Resource) returns (Ack);
+}
+
+// Common Messages
+message Ack {}
+
+message Req {}
+
+message Resource {
+    oneof variant {
+        File file = 1;
+        Stream stream = 2;
+        Process process = 3;
+    }
+}
+
+message File {
+    string path = 1;
+}
+
+message Stream {
+    string local_socket = 1;
+    string peer_socket = 2;
+}
+
+message Process {
+    uint32 pid = 1;
+    uint64 starttime = 2;
+    string exe_path = 3;
+}
+
+// P2M specific messages
+message LocalCt {
+    uint32 process_id = 1;
+    int32 file_descriptor = 2;
+    string path = 3;
+}
+
+message RemoteCt {
+    uint32 process_id = 1;
+    int32 file_descriptor = 2;
+    string local_socket = 3;
+    string peer_socket = 4;
+}
+
+enum Flow {
+    FLOW_INPUT = 0;
+    FLOW_OUTPUT = 1;
+    FLOW_NONE = 2;
+}
+
+message IoInfo {
+    uint32 process_id = 1;
+    int32 file_descriptor = 2;
+    Flow flow = 3;
+}
+
+message IoResult {
+    uint32 process_id = 1;
+    int32 file_descriptor = 2;
+    uint64 grant_id = 3;
+    bool result = 4;
+}
+
+message Grant {
+    uint64 id = 1;
+}
+
+// M2M specific messages
+message Labels {
+    ComplianceLabel compliance = 1;
+    repeated ComplianceLabel provenance = 2;
+}
+
+message StreamProv {
+    string local_socket = 1;
+    string peer_socket = 2;
+    repeated ComplianceLabel provenance = 3;
+}
+
+message ComplianceLabel {
+    Id identifier = 1;
+    bool local_confidentiality = 2;
+    bool local_integrity = 3;
+}
+
+message Id {
+    string node = 1;
+    Resource resource = 2;
+} 

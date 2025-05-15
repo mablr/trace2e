@@ -5,16 +5,11 @@ edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[features]
-default = []
-dbus = ["zbus"]
-
 [dependencies]
 prost = "0.12.4"
 tokio = { version = "1.37.0", features = ["macros", "rt-multi-thread"] }
 tonic = "0.11.0"
 once_cell = "1.20.1"
-zbus = { version = "5.5", optional = true }
 
 [build-dependencies]
 tonic-build = "0.11.0"

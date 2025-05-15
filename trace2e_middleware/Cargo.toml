@@ -16,6 +16,7 @@ tracing = "0.1.40"
 tracing-subscriber = { version = " 0.3.18", features = ["env-filter", "fmt", "std"] }
 zbus = "5.5"
 thiserror = "2"
+tower = "0.5"
 
 [build-dependencies]
 tonic-build = "0.11.0"

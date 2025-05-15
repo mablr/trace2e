@@ -5,8 +5,7 @@ use std::net::SocketAddr;
 
 use std::sync::OnceLock;
 
-use crate::m2m_service::m2m;
-use crate::user_service::user;
+use crate::grpc_proto;
 
 pub static MIDDLEWARE_ID: OnceLock<String> = OnceLock::new();
 
@@ -82,18 +81,18 @@ impl Identifier {
     }
 }
 
-impl From<m2m::Id> for Identifier {
-    fn from(id: m2m::Id) -> Self {
+impl From<grpc_proto::Id> for Identifier {
+    fn from(id: grpc_proto::Id) -> Self {
         Identifier {
             node: id.node,
             // Assuming the resource field is always for a file.
             resource: match id.resource.unwrap().variant.unwrap() {
-                m2m::resource::Variant::File(file) => Resource::File(file.path),
-                m2m::resource::Variant::Stream(stream) => Resource::Stream(
+                grpc_proto::resource::Variant::File(file) => Resource::File(file.path),
+                grpc_proto::resource::Variant::Stream(stream) => Resource::Stream(
                     stream.local_socket.parse().unwrap(),
                     stream.peer_socket.parse().unwrap(),
                 ),
-                m2m::resource::Variant::Process(process) => {
+                grpc_proto::resource::Variant::Process(process) => {
                     Resource::Process(process.pid, process.starttime, process.exe_path)
                 }
             },
@@ -101,20 +100,20 @@ impl From<m2m::Id> for Identifier {
     }
 }
 
-impl From<user::Resource> for Identifier {
-    fn from(resource: user::Resource) -> Self {
+impl From<grpc_proto::Resource> for Identifier {
+    fn from(resource: grpc_proto::Resource) -> Self {
         Identifier {
             node: MIDDLEWARE_ID
                 .get_or_init(|| "localhost".to_string())
                 .clone(),
             // Assuming the resource field is always for a file.
             resource: match resource.variant.unwrap() {
-                user::resource::Variant::File(file) => Resource::File(file.path),
-                user::resource::Variant::Stream(stream) => Resource::Stream(
+                grpc_proto::resource::Variant::File(file) => Resource::File(file.path),
+                grpc_proto::resource::Variant::Stream(stream) => Resource::Stream(
                     stream.local_socket.parse().unwrap(),
                     stream.peer_socket.parse().unwrap(),
                 ),
-                user::resource::Variant::Process(process) => {
+                grpc_proto::resource::Variant::Process(process) => {
                     Resource::Process(process.pid, process.starttime, process.exe_path)
                 }
             },
@@ -122,21 +121,21 @@ impl From<user::Resource> for Identifier {
     }
 }
 
-impl From<Identifier> for m2m::Id {
+impl From<Identifier> for grpc_proto::Id {
     fn from(identifier_internal: Identifier) -> Self {
-        m2m::Id {
+        grpc_proto::Id {
             node: identifier_internal.node,
-            resource: Some(m2m::Resource {
+            resource: Some(grpc_proto::Resource {
                 variant: Some(match identifier_internal.resource {
-                    Resource::File(path) => m2m::resource::Variant::File(m2m::File { path }),
+                    Resource::File(path) => grpc_proto::resource::Variant::File(grpc_proto::File { path }),
                     Resource::Stream(local_socket, peer_socket) => {
-                        m2m::resource::Variant::Stream(m2m::Stream {
+                        grpc_proto::resource::Variant::Stream(grpc_proto::Stream {
                             local_socket: local_socket.to_string(),
                             peer_socket: peer_socket.to_string(),
                         })
                     }
                     Resource::Process(pid, starttime, exe_path) => {
-                        m2m::resource::Variant::Process(m2m::Process {
+                        grpc_proto::resource::Variant::Process(grpc_proto::Process {
                             pid,
                             starttime,
                             exe_path,

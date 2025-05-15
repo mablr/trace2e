@@ -3,7 +3,6 @@ mod proto {
     tonic::include_proto!("p2m_api");
 }
 
-#[cfg(not(feature = "dbus"))]
 mod grpc {
     use super::*;
     use once_cell::sync::Lazy;
@@ -149,69 +148,7 @@ mod grpc {
     }
 }
 
-#[cfg(feature = "dbus")]
-mod dbus {
-    use super::*;
-    use once_cell::sync::Lazy;
-    use zbus::proxy;
-
-    #[proxy(
-        interface = "org.trace2e.P2m",
-        default_service = "org.trace2e.P2m",
-        default_path = "/org/trace2e/P2m"
-    )]
-    trait P2m {
-        async fn local_enroll(&self, process_id: u32, file_descriptor: i32, path: String) -> zbus::Result<()>;
-        async fn remote_enroll(&self, process_id: u32, file_descriptor: i32, local_socket: String, peer_socket: String) -> zbus::Result<()>;
-        async fn io_request(&self, process_id: u32, file_descriptor: i32, flow: i32) -> zbus::Result<u64>;
-        async fn io_report(&self, process_id: u32, file_descriptor: i32, grant_id: u64, result: bool) -> zbus::Result<()>;
-    }
-
-    static DBUS_CONNECTION: Lazy<zbus::blocking::Connection> = Lazy::new(|| {
-        zbus::blocking::Connection::session().unwrap()
-    });
-
-    static DBUS_PROXY: Lazy<P2mProxyBlocking> = Lazy::new(|| {
-        P2mProxyBlocking::new(&*DBUS_CONNECTION).unwrap()
-    });
-
-    pub fn local_enroll(path: impl AsRef<Path>, fd: i32) {
-        let path = canonicalize(path.as_ref())
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
-        let process_id = id();
-        let _ = DBUS_PROXY.local_enroll(process_id, fd, path.clone());
-    }
-
-    pub fn remote_enroll(fd: i32, local_socket: String, peer_socket: String) {
-        let process_id = id();
-        let _ = DBUS_PROXY.remote_enroll(process_id, fd, local_socket, peer_socket);
-    }
-
-    pub fn io_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Error>> {
-        match DBUS_PROXY.io_request(id(), fd, flow) {
-            Ok(grant_id) => Ok(grant_id),
-            Err(_) => Err(Box::new(std::io::Error::from(
-                std::io::ErrorKind::PermissionDenied,
-            ))),
-        }
-    }
-
-    pub fn io_report(fd: i32, grant_id: u64, result: bool) -> std::io::Result<()> {
-        match DBUS_PROXY.io_report(id(), fd, grant_id, result) {
-            Ok(_) => Ok(()),
-            Err(_) => Err(std::io::Error::from(std::io::ErrorKind::Other)),
-        }
-    }
-}
-
 
 pub use proto::Flow;
 
-#[cfg(not(feature = "dbus"))]
 pub use grpc::{local_enroll, remote_enroll, io_request, io_report};
-
-#[cfg(feature = "dbus")]
-pub use dbus::{local_enroll, remote_enroll, io_request, io_report};

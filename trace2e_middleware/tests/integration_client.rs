@@ -1,11 +1,11 @@
-use trace2e_middleware::user_service::user::{
-    resource::Variant, user_client::UserClient, Ack, File, Req, Resource,
+use trace2e_middleware::grpc_proto::{
+    resource::Variant, trace2e_client::Trace2eClient, Ack, File, Req, Resource,
 };
 
 #[tokio::test]
 async fn integration_client_enable_local_confidentiality() -> Result<(), Box<dyn std::error::Error>>
 {
-    let mut client = UserClient::connect("http://[::1]:8080").await?;
+    let mut client = Trace2eClient::connect("http://[::1]:8080").await?;
 
     // User request
     let resource = tonic::Request::new(Resource {
@@ -14,7 +14,7 @@ async fn integration_client_enable_local_confidentiality() -> Result<(), Box<dyn
         })),
     });
     let compliance_action = client
-        .enable_local_confidentiality(resource)
+        .user_enable_local_confidentiality(resource)
         .await?
         .into_inner();
     assert_eq!(compliance_action, Ack {});
@@ -25,7 +25,7 @@ async fn integration_client_enable_local_confidentiality() -> Result<(), Box<dyn
 #[tokio::test]
 async fn integration_client_disable_local_confidentiality() -> Result<(), Box<dyn std::error::Error>>
 {
-    let mut client = UserClient::connect("http://[::1]:8080").await?;
+    let mut client = Trace2eClient::connect("http://[::1]:8080").await?;
 
     // User request
     let resource = tonic::Request::new(Resource {
@@ -34,7 +34,7 @@ async fn integration_client_disable_local_confidentiality() -> Result<(), Box<dy
         })),
     });
     let compliance_action = client
-        .disable_local_confidentiality(resource)
+        .user_disable_local_confidentiality(resource)
         .await?
         .into_inner();
     assert_eq!(compliance_action, Ack {});
@@ -44,11 +44,11 @@ async fn integration_client_disable_local_confidentiality() -> Result<(), Box<dy
 
 #[tokio::test]
 async fn integration_client_print_db() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = UserClient::connect("http://[::1]:8080").await?;
+    let mut client = Trace2eClient::connect("http://[::1]:8080").await?;
 
     // User request
     let req = tonic::Request::new(Req {});
-    let print_db = client.print_db(req).await?.into_inner();
+    let print_db = client.user_print_db(req).await?.into_inner();
     assert_eq!(print_db, Ack {});
 
     Ok(())

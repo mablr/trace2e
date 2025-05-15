@@ -1,5 +1,5 @@
 use super::Labels;
-use crate::{identifier::Identifier, m2m_service::m2m};
+use crate::{identifier::Identifier, grpc_proto};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComplianceLabel {
@@ -18,8 +18,8 @@ impl ComplianceLabel {
     }
 }
 
-impl From<m2m::ComplianceLabel> for ComplianceLabel {
-    fn from(cl: m2m::ComplianceLabel) -> Self {
+impl From<grpc_proto::ComplianceLabel> for ComplianceLabel {
+    fn from(cl: grpc_proto::ComplianceLabel) -> Self {
         ComplianceLabel {
             identifier: cl.identifier.unwrap().into(),
             local_confidentiality: cl.local_confidentiality,
@@ -28,9 +28,9 @@ impl From<m2m::ComplianceLabel> for ComplianceLabel {
     }
 }
 
-impl From<ComplianceLabel> for m2m::ComplianceLabel {
+impl From<ComplianceLabel> for grpc_proto::ComplianceLabel {
     fn from(cl: ComplianceLabel) -> Self {
-        m2m::ComplianceLabel {
+        grpc_proto::ComplianceLabel {
             identifier: Some(cl.identifier.into()),
             local_confidentiality: cl.local_confidentiality,
             local_integrity: cl.local_confidentiality,

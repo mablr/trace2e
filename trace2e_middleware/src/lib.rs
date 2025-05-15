@@ -15,8 +15,8 @@
 
 pub mod identifier;
 pub mod labels;
-pub mod m2m_service;
-pub mod p2m_dbus;
-pub mod p2m_service;
 pub mod traceability;
-pub mod user_service;
+
+mod grpc_service;
+pub use grpc_service::proto as grpc_proto;
+pub use grpc_service::Trace2eService;
