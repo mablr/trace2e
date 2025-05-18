@@ -14,7 +14,6 @@ tonic = "0.12.2"
 tonic-reflection = "0.12.2"
 tracing = "0.1.40"
 tracing-subscriber = { version = " 0.3.18", features = ["env-filter", "fmt", "std"] }
-zbus = "5.5"
 thiserror = "2"
 tower = "0.5"
 
