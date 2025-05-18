@@ -12,11 +12,3 @@
 //! gRPC framework
 //!
 //! [`tonic`]: https://docs.rs/tonic
-
-pub mod identifier;
-pub mod labels;
-pub mod traceability;
-
-mod grpc_service;
-pub use grpc_service::proto as grpc_proto;
-pub use grpc_service::Trace2eService;
