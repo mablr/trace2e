@@ -127,7 +127,9 @@ impl From<Identifier> for grpc_proto::Id {
             node: identifier_internal.node,
             resource: Some(grpc_proto::Resource {
                 variant: Some(match identifier_internal.resource {
-                    Resource::File(path) => grpc_proto::resource::Variant::File(grpc_proto::File { path }),
+                    Resource::File(path) => {
+                        grpc_proto::resource::Variant::File(grpc_proto::File { path })
+                    }
                     Resource::Stream(local_socket, peer_socket) => {
                         grpc_proto::resource::Variant::Stream(grpc_proto::Stream {
                             local_socket: local_socket.to_string(),

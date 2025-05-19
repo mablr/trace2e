@@ -12,3 +12,7 @@
 //! gRPC framework
 //!
 //! [`tonic`]: https://docs.rs/tonic
+
+mod grpc_service;
+pub mod identifier;
+pub use grpc_service::{proto as grpc_proto, Trace2eService};
