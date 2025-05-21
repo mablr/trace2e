@@ -2,13 +2,10 @@
 set -eux -o pipefail
 
 # Compile Middleware
-cargo build
-
-# Unit tests
-cargo test unit
+cargo build --release
 
 # Launch Middleware
-./target/debug/trace2e_middleware &
+./target/release/trace2e_middleware &
 TRACE2E_PID=$!
 
 # Synchronous integration tests

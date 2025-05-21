@@ -20,6 +20,9 @@ jobs:
       uses: taiki-e/install-action@v2
       with:
         tool: protoc@${{ env.PROTOC_VERSION }}
-    - name: Run tests
-      run: ./tests.sh
+    - name: Run unit tests
+      run: cargo test unit
+      shell: bash
+    - name: Run integration tests
+      run: ./integration_tests.sh
       shell: bash
