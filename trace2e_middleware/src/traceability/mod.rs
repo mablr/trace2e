@@ -1,12 +1,12 @@
 use procfs::process::Process as ProcfsProcess;
-use tokio::sync::RwLock;
 use std::{
-    net::SocketAddr, pin::Pin, sync::Arc, task::{Context, Poll}
+    net::SocketAddr,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
 };
-use tower::{
-    BoxError, Service,
-    filter::{Predicate},
-};
+use tokio::sync::RwLock;
+use tower::{BoxError, Service, filter::Predicate};
 
 mod error;
 use error::*;
@@ -14,9 +14,10 @@ use error::*;
 mod message;
 use message::*;
 
+mod reservation;
+
 #[cfg(test)]
 mod tests;
-
 
 #[derive(Debug, Clone)]
 struct ResourceService {
@@ -25,7 +26,9 @@ struct ResourceService {
 
 impl ResourceService {
     fn new(identifier: Identifier) -> Self {
-        Self { prov: Arc::new(RwLock::new(vec![identifier])) }
+        Self {
+            prov: Arc::new(RwLock::new(vec![identifier])),
+        }
     }
 
     async fn get_prov(&self) -> Vec<Identifier> {

@@ -1,4 +1,4 @@
-use tower::{filter::FilterLayer, ServiceBuilder};
+use tower::{ServiceBuilder, filter::FilterLayer};
 
 use super::*;
 
@@ -48,7 +48,11 @@ async fn unit_traceability_provenance_service_p2m_validator() {
 
     assert_eq!(
         provenance_service
-            .call(P2mRequest::IoRequest { pid: 1, fd: 1, flow_type: FlowType::Read })
+            .call(P2mRequest::IoRequest {
+                pid: 1,
+                fd: 1,
+                flow_type: FlowType::Read
+            })
             .await
             .unwrap(),
         P2mResponse::Enrolled
@@ -56,7 +60,12 @@ async fn unit_traceability_provenance_service_p2m_validator() {
 
     assert_eq!(
         provenance_service
-            .call(P2mRequest::IoReport { pid: 1, fd: 1, flow_id: 1, io_result: true })
+            .call(P2mRequest::IoReport {
+                pid: 1,
+                fd: 1,
+                flow_id: 1,
+                io_result: true
+            })
             .await
             .unwrap(),
         P2mResponse::Enrolled
@@ -64,20 +73,35 @@ async fn unit_traceability_provenance_service_p2m_validator() {
 
     assert!(
         provenance_service
-            .check(P2mRequest::LocalEnroll { pid: 0, fd: 1, path: "test".to_string() }).is_err(),
+            .check(P2mRequest::LocalEnroll {
+                pid: 0,
+                fd: 1,
+                path: "test".to_string()
+            })
+            .is_err(),
     );
 
     assert!(
         provenance_service
-            .call(P2mRequest::LocalEnroll { pid: 0, fd: 1, path: "test".to_string() }) // pid 0 is invalid
+            .call(P2mRequest::LocalEnroll {
+                pid: 0,
+                fd: 1,
+                path: "test".to_string()
+            }) // pid 0 is invalid
             .await
             .is_err(),
     );
 
     assert!(
         provenance_service
-            .call(P2mRequest::RemoteEnroll { pid: 1, local_socket: "bad_socket".to_string(), peer_socket: "bad_socket".to_string(), fd: 1 })
-            .await.is_err(),
+            .call(P2mRequest::RemoteEnroll {
+                pid: 1,
+                local_socket: "bad_socket".to_string(),
+                peer_socket: "bad_socket".to_string(),
+                fd: 1
+            })
+            .await
+            .is_err(),
     );
 }
 
@@ -108,13 +132,25 @@ async fn unit_traceability_resource_service() {
     };
 
     let mut file_service = ResourceService::new(file.clone());
-    assert_eq!(file_service.call(ResourceRequest::GetProv).await.unwrap(), ResourceResponse::Prov(vec![file]));
+    assert_eq!(
+        file_service.call(ResourceRequest::GetProv).await.unwrap(),
+        ResourceResponse::Prov(vec![file])
+    );
 
     let mut stream_service = ResourceService::new(stream.clone());
-    assert_eq!(stream_service.call(ResourceRequest::GetProv).await.unwrap(), ResourceResponse::Prov(vec![stream]));
+    assert_eq!(
+        stream_service.call(ResourceRequest::GetProv).await.unwrap(),
+        ResourceResponse::Prov(vec![stream])
+    );
 
     let mut process_service = ResourceService::new(process.clone());
-    assert_eq!(process_service.call(ResourceRequest::GetProv).await.unwrap(), ResourceResponse::Prov(vec![process]));
+    assert_eq!(
+        process_service
+            .call(ResourceRequest::GetProv)
+            .await
+            .unwrap(),
+        ResourceResponse::Prov(vec![process])
+    );
 }
 
 #[tokio::test]
@@ -142,30 +178,48 @@ async fn unit_traceability_resource_service_resource_validator() {
             exe_path: "/tmp/test".to_string(),
         }),
     };
-    
+
     let mut file_service = ResourceService::new(file.clone());
     let mut stream_service = ResourceService::new(stream.clone());
     let mut process_service = ResourceService::new(process.clone());
 
-
     let file_prov_response = file_service.call(ResourceRequest::GetProv).await.unwrap();
-    assert_eq!(file_prov_response, ResourceResponse::Prov(vec![file.clone()]));
+    assert_eq!(
+        file_prov_response,
+        ResourceResponse::Prov(vec![file.clone()])
+    );
 
     match file_prov_response {
         ResourceResponse::Prov(prov) => {
-            process_service.call(ResourceRequest::UpdateProv(prov)).await.unwrap();
-            let process_prov_response = process_service.call(ResourceRequest::GetProv).await.unwrap();
-            assert_eq!(process_prov_response, ResourceResponse::Prov(vec![process.clone(), file.clone()]));
+            process_service
+                .call(ResourceRequest::UpdateProv(prov))
+                .await
+                .unwrap();
+            let process_prov_response = process_service
+                .call(ResourceRequest::GetProv)
+                .await
+                .unwrap();
+            assert_eq!(
+                process_prov_response,
+                ResourceResponse::Prov(vec![process.clone(), file.clone()])
+            );
 
             match process_prov_response {
                 ResourceResponse::Prov(prov) => {
-                    stream_service.call(ResourceRequest::UpdateProv(prov)).await.unwrap();
-                    let stream_prov_response = stream_service.call(ResourceRequest::GetProv).await.unwrap();
-                    assert_eq!(stream_prov_response, ResourceResponse::Prov(vec![stream.clone(), process.clone(), file.clone()]));
+                    stream_service
+                        .call(ResourceRequest::UpdateProv(prov))
+                        .await
+                        .unwrap();
+                    let stream_prov_response =
+                        stream_service.call(ResourceRequest::GetProv).await.unwrap();
+                    assert_eq!(
+                        stream_prov_response,
+                        ResourceResponse::Prov(vec![stream.clone(), process.clone(), file.clone()])
+                    );
                 }
                 _ => panic!("Unexpected Prov response for process"),
             }
         }
         _ => panic!("Unexpected Prov response for file"),
-    }    
+    }
 }
