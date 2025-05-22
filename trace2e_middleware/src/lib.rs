@@ -14,5 +14,5 @@
 //! [`tonic`]: https://docs.rs/tonic
 
 mod grpc_service;
-pub mod identifier;
-pub use grpc_service::{proto as grpc_proto, Trace2eService};
+pub use grpc_service::{Trace2eService, proto as grpc_proto};
+pub mod traceability;

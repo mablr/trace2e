@@ -10,45 +10,45 @@ service Trace2e {
     rpc P2MIoRequest(IoInfo) returns (Grant);
     rpc P2MIoReport(IoResult) returns (Ack);
 
-    // Middleware to Middleware operations
-    rpc M2MReserve(Stream) returns (Labels);
-    rpc M2MSyncProvenance(StreamProv) returns (Ack);
+    // // Middleware to Middleware operations
+    // rpc M2MReserve(Stream) returns (Labels);
+    // rpc M2MSyncProvenance(StreamProv) returns (Ack);
 
-    // User operations
-    rpc UserPrintDB(Req) returns (Ack);
-    rpc UserEnableLocalConfidentiality(Resource) returns (Ack);
-    rpc UserEnableLocalIntegrity(Resource) returns (Ack);
-    rpc UserDisableLocalConfidentiality(Resource) returns (Ack);
-    rpc UserDisableLocalIntegrity(Resource) returns (Ack);
+    // // User operations
+    // rpc UserPrintDB(Req) returns (Ack);
+    // rpc UserEnableLocalConfidentiality(Resource) returns (Ack);
+    // rpc UserEnableLocalIntegrity(Resource) returns (Ack);
+    // rpc UserDisableLocalConfidentiality(Resource) returns (Ack);
+    // rpc UserDisableLocalIntegrity(Resource) returns (Ack);
 }
 
 // Common Messages
 message Ack {}
 
-message Req {}
+// message Req {}
 
-message Resource {
-    oneof variant {
-        File file = 1;
-        Stream stream = 2;
-        Process process = 3;
-    }
-}
+// message File {
+//     string path = 1;
+// }
 
-message File {
-    string path = 1;
-}
+// message Stream {
+//     string local_socket = 1;
+//     string peer_socket = 2;
+// }
 
-message Stream {
-    string local_socket = 1;
-    string peer_socket = 2;
-}
+// message Process {
+//     uint32 pid = 1;
+//     uint64 starttime = 2;
+//     string exe_path = 3;
+// }
 
-message Process {
-    uint32 pid = 1;
-    uint64 starttime = 2;
-    string exe_path = 3;
-}
+// message Resource {
+//     oneof variant {
+//         File file = 1;
+//         Stream stream = 2;
+//         Process process = 3;
+//     }
+// }
 
 // P2M specific messages
 message LocalCt {
@@ -87,25 +87,25 @@ message Grant {
     uint64 id = 1;
 }
 
-// M2M specific messages
-message Labels {
-    ComplianceLabel compliance = 1;
-    repeated ComplianceLabel provenance = 2;
-}
+// // M2M specific messages
+// message Labels {
+//     ComplianceLabel compliance = 1;
+//     repeated ComplianceLabel provenance = 2;
+// }
 
-message StreamProv {
-    string local_socket = 1;
-    string peer_socket = 2;
-    repeated ComplianceLabel provenance = 3;
-}
+// message StreamProv {
+//     string local_socket = 1;
+//     string peer_socket = 2;
+//     repeated ComplianceLabel provenance = 3;
+// }
 
-message ComplianceLabel {
-    Id identifier = 1;
-    bool local_confidentiality = 2;
-    bool local_integrity = 3;
-}
+// message Id {
+//     string node = 1;
+//     Resource resource = 2;
+// }
 
-message Id {
-    string node = 1;
-    Resource resource = 2;
-} 
+// message ComplianceLabel {
+//     Id identifier = 1;
+//     bool local_confidentiality = 2;
+//     bool local_integrity = 3;
+// }

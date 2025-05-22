@@ -1,18 +1,16 @@
 use tracing_subscriber::prelude::*;
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt};
 
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
 use trace2e_middleware::{
-    grpc_proto::{trace2e_server::Trace2eServer, MIDDLEWARE_DESCRIPTOR_SET},
-    identifier,
     Trace2eService,
+    grpc_proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_server::Trace2eServer},
 };
 
 #[cfg(not(tarpaulin_include))]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-
     let fmt_layer = fmt::layer().with_target(false);
     let filter_layer = EnvFilter::try_from_default_env()
         .or_else(|_| EnvFilter::try_new("off"))
@@ -22,15 +20,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(filter_layer)
         .with(fmt_layer)
         .init();
-
-    let _ = identifier::MIDDLEWARE_ID.get_or_init(|| {
-        rustix::system::uname()
-            .nodename()
-            .to_str()
-            .unwrap()
-            .to_string()
-            .to_lowercase()
-    });
 
     let address = "[::]:8080".parse().unwrap();
     let reflection_service = Builder::configure()
