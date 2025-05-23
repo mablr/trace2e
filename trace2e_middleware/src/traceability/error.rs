@@ -1,31 +1,19 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum P2mError {
-    #[error("P2M error occurred")]
-    DefaultError,
-
-    #[error("Invalid request")]
-    InvalidRequest,
-}
-
-#[derive(Debug, Error)]
-pub enum ResourceError {
-    #[error("Resource error occurred")]
-    DefaultError,
-}
-
-#[derive(Debug, Error)]
 pub enum ReservationError {
-    #[error("Reservation failed, failed to lock the reservation state")]
+    #[error("Reservation failure, failed to lock the reservation state")]
     ReservationLockError,
 
-    #[error("Reservation failed, waiting queue failure")]
+    #[error("Reservation failure, waiting queue failure")]
     ReservationWaitingQueueError,
 
-    #[error("Reservation failed, already reserved shared")]
+    #[error("Reservation failure, already reserved in shared mode")]
     AlreadyReservedShared,
 
-    #[error("Reservation failed, already reserved exclusive")]
+    #[error("Reservation failure, already reserved in exclusive mode")]
     AlreadyReservedExclusive,
+
+    #[error("Reservation failure, unauthorized release")]
+    UnauthorizedRelease,
 }

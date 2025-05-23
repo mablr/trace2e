@@ -7,7 +7,18 @@ use std::{
 use tokio::sync::oneshot;
 use tower::Service;
 
-use super::{error::ReservationError, message::{ReservationRequest, ReservationResponse}};
+use super::{
+    error::ReservationError,
+    message::{ReservationRequest, ReservationResponse},
+};
+
+#[derive(Default, Debug, Clone)]
+pub enum ReservationState {
+    #[default]
+    Available,
+    Shared(usize),
+    Exclusive,
+}
 
 #[derive(Default, Debug, Clone)]
 struct WaitingQueueService<S> {
@@ -43,7 +54,10 @@ impl<S> WaitingQueueService<S> {
 
 impl<S> Service<ReservationRequest> for WaitingQueueService<S>
 where
-    S: Service<ReservationRequest, Response = ReservationResponse, Error = ReservationError> + Clone + Send + 'static,
+    S: Service<ReservationRequest, Response = ReservationResponse, Error = ReservationError>
+        + Clone
+        + Send
+        + 'static,
     S::Future: Send,
 {
     type Response = S::Response;
@@ -62,28 +76,25 @@ where
             let result = inner.call(request).await;
             match result {
                 Ok(response) => {
-                    if let (ReservationState::Available, ReservationRequest::Release) = (response.get_state(), request) {
+                    if matches!(
+                        request,
+                        ReservationRequest::ReleaseShared | ReservationRequest::ReleaseExclusive
+                    ) && response == ReservationResponse::Released
+                    {
                         self_clone.notify_waiting_requests();
                     }
                     Ok(response)
                 }
-                Err(ReservationError::AlreadyReservedExclusive) | Err(ReservationError::AlreadyReservedShared) => {
+                Err(ReservationError::AlreadyReservedExclusive)
+                | Err(ReservationError::AlreadyReservedShared) => {
                     let rx = self_clone.add_to_waiting_queue()?;
                     let _ = rx.await;
                     inner.call(request).await
-                },
+                }
                 Err(e) => Err(e),
             }
         })
     }
-}
-
-#[derive(Default, Debug, Clone, Copy)]
-pub enum ReservationState {
-    #[default]
-    Available,
-    Shared(usize),
-    Exclusive,
 }
 
 #[derive(Default, Debug, Clone)]
@@ -105,43 +116,48 @@ impl Service<ReservationRequest> for ReservationService {
         Box::pin(async move {
             if let Ok(mut state) = state.lock() {
                 match request {
-                    ReservationRequest::Shared => match *state {
+                    ReservationRequest::GetShared => match *state {
                         ReservationState::Available => {
                             *state = ReservationState::Shared(1);
-                            Ok(ReservationResponse::new(*state))
+                            Ok(ReservationResponse::Reserved)
                         }
                         ReservationState::Shared(n) => {
                             *state = ReservationState::Shared(n + 1);
-                            Ok(ReservationResponse::new(*state))
+                            Ok(ReservationResponse::Reserved)
                         }
                         ReservationState::Exclusive => {
                             Err(ReservationError::AlreadyReservedExclusive)
                         }
                     },
-                    ReservationRequest::Exclusive => match *state {
+                    ReservationRequest::GetExclusive => match *state {
                         ReservationState::Available => {
                             *state = ReservationState::Exclusive;
-                            Ok(ReservationResponse::new(*state))
+                            Ok(ReservationResponse::Reserved)
                         }
                         ReservationState::Shared(_) => Err(ReservationError::AlreadyReservedShared),
                         ReservationState::Exclusive => {
                             Err(ReservationError::AlreadyReservedExclusive)
                         }
                     },
-                    ReservationRequest::Release => match *state {
-                        ReservationState::Available => Ok(ReservationResponse::new(*state)),
+                    ReservationRequest::ReleaseShared => match *state {
+                        ReservationState::Available => Ok(ReservationResponse::Released),
                         ReservationState::Shared(n) => {
                             if n > 1 {
                                 *state = ReservationState::Shared(n - 1);
-                                Ok(ReservationResponse::new(*state))
+                                Ok(ReservationResponse::Reserved)
                             } else {
                                 *state = ReservationState::Available;
-                                Ok(ReservationResponse::new(*state))
+                                Ok(ReservationResponse::Released)
                             }
                         }
+                        ReservationState::Exclusive => Err(ReservationError::UnauthorizedRelease),
+                    },
+                    ReservationRequest::ReleaseExclusive => match *state {
+                        ReservationState::Available => Ok(ReservationResponse::Released),
+                        ReservationState::Shared(_) => Err(ReservationError::UnauthorizedRelease),
                         ReservationState::Exclusive => {
                             *state = ReservationState::Available;
-                            Ok(ReservationResponse::new(*state))
+                            Ok(ReservationResponse::Released)
                         }
                     },
                 }
@@ -157,7 +173,7 @@ mod tests {
     use std::time::Duration;
 
     use tokio::time::sleep;
-    use tower::{layer::layer_fn, timeout::TimeoutLayer, ServiceBuilder};
+    use tower::{ServiceBuilder, layer::layer_fn, timeout::TimeoutLayer};
 
     use super::*;
 
@@ -168,9 +184,56 @@ mod tests {
         // Release on available
         assert!(
             reservation_service
-                .call(ReservationRequest::Release)
+                .call(ReservationRequest::ReleaseShared)
                 .await
                 .is_ok()
+        );
+
+        assert!(
+            reservation_service
+                .call(ReservationRequest::ReleaseExclusive)
+                .await
+                .is_ok()
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_traceability_reservation_service_release_exclusive_unauthorized() {
+        let mut reservation_service = ServiceBuilder::new().service(ReservationService::default());
+
+        // Release on available
+        assert!(
+            reservation_service
+                .call(ReservationRequest::GetShared)
+                .await
+                .is_ok()
+        );
+
+        assert!(
+            reservation_service
+                .call(ReservationRequest::ReleaseExclusive)
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_traceability_reservation_service_release_shared_unauthorized() {
+        let mut reservation_service = ServiceBuilder::new().service(ReservationService::default());
+
+        // Release on available
+        assert!(
+            reservation_service
+                .call(ReservationRequest::GetExclusive)
+                .await
+                .is_ok()
+        );
+
+        assert!(
+            reservation_service
+                .call(ReservationRequest::ReleaseShared)
+                .await
+                .is_err()
         );
     }
 
@@ -181,19 +244,19 @@ mod tests {
         // Exclusive reservation
         assert!(
             reservation_service
-                .call(ReservationRequest::Exclusive)
+                .call(ReservationRequest::GetExclusive)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::Exclusive)
+                .call(ReservationRequest::GetExclusive)
                 .await
                 .is_err()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::Shared)
+                .call(ReservationRequest::GetShared)
                 .await
                 .is_err()
         );
@@ -206,19 +269,19 @@ mod tests {
         // Exclusive reservation
         assert!(
             reservation_service
-                .call(ReservationRequest::Exclusive)
+                .call(ReservationRequest::GetExclusive)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::Release)
+                .call(ReservationRequest::ReleaseExclusive)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::Exclusive)
+                .call(ReservationRequest::GetExclusive)
                 .await
                 .is_ok()
         );
@@ -231,19 +294,19 @@ mod tests {
         // Shared reservation
         assert!(
             reservation_service
-                .call(ReservationRequest::Shared)
+                .call(ReservationRequest::GetShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::Shared)
+                .call(ReservationRequest::GetShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::Exclusive)
+                .call(ReservationRequest::GetExclusive)
                 .await
                 .is_err()
         );
@@ -256,37 +319,37 @@ mod tests {
         // Release after shared
         assert!(
             reservation_service
-                .call(ReservationRequest::Shared)
+                .call(ReservationRequest::GetShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::Shared)
+                .call(ReservationRequest::GetShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::Release)
+                .call(ReservationRequest::ReleaseShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::Exclusive)
+                .call(ReservationRequest::GetExclusive)
                 .await
                 .is_err()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::Release)
+                .call(ReservationRequest::ReleaseShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::Exclusive)
+                .call(ReservationRequest::GetExclusive)
                 .await
                 .is_ok()
         );
@@ -303,14 +366,14 @@ mod tests {
 
         assert!(
             reservation_service
-                .call(ReservationRequest::Shared)
+                .call(ReservationRequest::GetShared)
                 .await
                 .is_ok()
         );
 
         assert_eq!(
             reservation_service
-                .call(ReservationRequest::Exclusive)
+                .call(ReservationRequest::GetExclusive)
                 .await
                 .unwrap_err()
                 .to_string(),
@@ -329,14 +392,14 @@ mod tests {
 
         assert!(
             reservation_service
-                .call(ReservationRequest::Exclusive)
+                .call(ReservationRequest::GetExclusive)
                 .await
                 .is_ok()
         );
 
         assert_eq!(
             reservation_service
-                .call(ReservationRequest::Shared)
+                .call(ReservationRequest::GetShared)
                 .await
                 .unwrap_err()
                 .to_string(),
@@ -354,18 +417,21 @@ mod tests {
             .service(ReservationService::default());
         assert!(
             reservation_service
-                .call(ReservationRequest::Shared)
+                .call(ReservationRequest::GetShared)
                 .await
                 .is_ok()
         );
         let mut reservation_service_clone = reservation_service.clone();
         tokio::spawn(async move {
             sleep(Duration::from_micros(11)).await;
-            reservation_service_clone.call(ReservationRequest::Release).await.unwrap();
+            reservation_service_clone
+                .call(ReservationRequest::ReleaseShared)
+                .await
+                .unwrap();
         });
         assert_eq!(
             reservation_service
-                .call(ReservationRequest::Exclusive)
+                .call(ReservationRequest::GetExclusive)
                 .await
                 .unwrap_err()
                 .to_string(),
@@ -374,7 +440,7 @@ mod tests {
         sleep(Duration::from_micros(2)).await;
         assert!(
             reservation_service
-                .call(ReservationRequest::Exclusive)
+                .call(ReservationRequest::GetExclusive)
                 .await
                 .is_ok()
         );
