@@ -10,12 +10,12 @@ use tower::Service;
 use super::error::ReservationError;
 
 #[derive(Default, Debug, Clone)]
-struct WaitingQueueFIFOService<S> {
+struct WaitingQueueService<S> {
     reservation_service: S,
     waiting_queue: Arc<Mutex<VecDeque<oneshot::Sender<()>>>>,
 }
 
-impl<S> WaitingQueueFIFOService<S> {
+impl<S> WaitingQueueService<S> {
     fn new(inner: S) -> Self {
         Self {
             reservation_service: inner,
@@ -41,7 +41,7 @@ impl<S> WaitingQueueFIFOService<S> {
     }
 }
 
-impl<S> Service<ReservationRequest> for WaitingQueueFIFOService<S>
+impl<S> Service<ReservationRequest> for WaitingQueueService<S>
 where
     S: Service<ReservationRequest, Response = ReservationResponse, Error = ReservationError> + Clone + Send + 'static,
     S::Future: Send,
@@ -307,7 +307,7 @@ mod tests {
     #[tokio::test]
     async fn unit_traceability_reservation_service_waiting_queue_timeout_shared_exclusive() {
         let timeout_layer = TimeoutLayer::new(Duration::from_millis(1));
-        let waiting_queue_layer = layer_fn(|service| WaitingQueueFIFOService::new(service));
+        let waiting_queue_layer = layer_fn(|service| WaitingQueueService::new(service));
         let mut reservation_service = ServiceBuilder::new()
             .layer(timeout_layer)
             .layer(waiting_queue_layer)
@@ -333,7 +333,7 @@ mod tests {
     #[tokio::test]
     async fn unit_traceability_reservation_service_waiting_queue_timeout_exclusive_shared() {
         let timeout_layer = TimeoutLayer::new(Duration::from_millis(1));
-        let waiting_queue_layer = layer_fn(|service| WaitingQueueFIFOService::new(service));
+        let waiting_queue_layer = layer_fn(|service| WaitingQueueService::new(service));
         let mut reservation_service = ServiceBuilder::new()
             .layer(timeout_layer)
             .layer(waiting_queue_layer)
@@ -359,7 +359,7 @@ mod tests {
     #[tokio::test]
     async fn unit_traceability_reservation_service_waiting_queue_delayed_release() {
         let timeout_layer = TimeoutLayer::new(Duration::from_micros(10));
-        let waiting_queue_layer = layer_fn(|service| WaitingQueueFIFOService::new(service));
+        let waiting_queue_layer = layer_fn(|service| WaitingQueueService::new(service));
         let mut reservation_service = ServiceBuilder::new()
             .layer(timeout_layer)
             .layer(waiting_queue_layer)
