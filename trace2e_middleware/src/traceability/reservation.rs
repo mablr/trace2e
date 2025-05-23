@@ -7,7 +7,7 @@ use std::{
 use tokio::sync::oneshot;
 use tower::Service;
 
-use super::error::ReservationError;
+use super::{error::ReservationError, message::{ReservationRequest, ReservationResponse}};
 
 #[derive(Default, Debug, Clone)]
 struct WaitingQueueService<S> {
@@ -62,7 +62,7 @@ where
             let result = inner.call(request).await;
             match result {
                 Ok(response) => {
-                    if let (ReservationState::Available, ReservationRequest::Release) = (response.state, request) {
+                    if let (ReservationState::Available, ReservationRequest::Release) = (response.get_state(), request) {
                         self_clone.notify_waiting_requests();
                     }
                     Ok(response)
@@ -78,20 +78,8 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum ReservationRequest {
-    Shared,
-    Exclusive,
-    Release,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct ReservationResponse {
-    state: ReservationState,
-}
-
 #[derive(Default, Debug, Clone, Copy)]
-enum ReservationState {
+pub enum ReservationState {
     #[default]
     Available,
     Shared(usize),
@@ -120,11 +108,11 @@ impl Service<ReservationRequest> for ReservationService {
                     ReservationRequest::Shared => match *state {
                         ReservationState::Available => {
                             *state = ReservationState::Shared(1);
-                            Ok(ReservationResponse { state: *state })
+                            Ok(ReservationResponse::new(*state))
                         }
                         ReservationState::Shared(n) => {
                             *state = ReservationState::Shared(n + 1);
-                            Ok(ReservationResponse { state: *state })
+                            Ok(ReservationResponse::new(*state))
                         }
                         ReservationState::Exclusive => {
                             Err(ReservationError::AlreadyReservedExclusive)
@@ -133,7 +121,7 @@ impl Service<ReservationRequest> for ReservationService {
                     ReservationRequest::Exclusive => match *state {
                         ReservationState::Available => {
                             *state = ReservationState::Exclusive;
-                            Ok(ReservationResponse { state: *state })
+                            Ok(ReservationResponse::new(*state))
                         }
                         ReservationState::Shared(_) => Err(ReservationError::AlreadyReservedShared),
                         ReservationState::Exclusive => {
@@ -141,19 +129,19 @@ impl Service<ReservationRequest> for ReservationService {
                         }
                     },
                     ReservationRequest::Release => match *state {
-                        ReservationState::Available => Ok(ReservationResponse { state: *state }),
+                        ReservationState::Available => Ok(ReservationResponse::new(*state)),
                         ReservationState::Shared(n) => {
                             if n > 1 {
                                 *state = ReservationState::Shared(n - 1);
-                                Ok(ReservationResponse { state: *state })
+                                Ok(ReservationResponse::new(*state))
                             } else {
                                 *state = ReservationState::Available;
-                                Ok(ReservationResponse { state: *state })
+                                Ok(ReservationResponse::new(*state))
                             }
                         }
                         ReservationState::Exclusive => {
                             *state = ReservationState::Available;
-                            Ok(ReservationResponse { state: *state })
+                            Ok(ReservationResponse::new(*state))
                         }
                     },
                 }

@@ -85,3 +85,25 @@ pub enum ResourceResponse {
     Prov(Vec<Identifier>),
     ProvUpdated,
 }
+
+#[derive(Debug, Clone, Copy)]
+pub enum ReservationRequest {
+    Shared,
+    Exclusive,
+    Release,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ReservationResponse {
+    state: super::reservation::ReservationState,
+}
+
+impl ReservationResponse {
+    pub fn new(state: super::reservation::ReservationState) -> Self {
+        Self { state }
+    }
+
+    pub fn get_state(&self) -> super::reservation::ReservationState {
+        self.state
+    }
+}
