@@ -9,7 +9,7 @@ use tower::Service;
 
 use super::{
     error::ReservationError,
-    message::{ReservationRequest, ReservationResponse},
+    message::{TraceabilityRequest, TraceabilityResponse},
 };
 
 #[derive(Default, Debug, Clone)]
@@ -52,9 +52,9 @@ impl<S> WaitingQueueService<S> {
     }
 }
 
-impl<S> Service<ReservationRequest> for WaitingQueueService<S>
+impl<S> Service<TraceabilityRequest> for WaitingQueueService<S>
 where
-    S: Service<ReservationRequest, Response = ReservationResponse, Error = ReservationError>
+    S: Service<TraceabilityRequest, Response = TraceabilityResponse, Error = ReservationError>
         + Clone
         + Send
         + 'static,
@@ -68,7 +68,7 @@ where
         self.reservation_service.poll_ready(ctx)
     }
 
-    fn call(&mut self, request: ReservationRequest) -> Self::Future {
+    fn call(&mut self, request: TraceabilityRequest) -> Self::Future {
         let reservation_service_clone = self.reservation_service.clone();
         let mut inner = std::mem::replace(&mut self.reservation_service, reservation_service_clone);
         let self_clone = self.clone();
@@ -78,8 +78,8 @@ where
                 Ok(response) => {
                     if matches!(
                         request,
-                        ReservationRequest::ReleaseShared | ReservationRequest::ReleaseExclusive
-                    ) && response == ReservationResponse::Released
+                        TraceabilityRequest::ReleaseShared | TraceabilityRequest::ReleaseExclusive
+                    ) && response == TraceabilityResponse::Released
                     {
                         self_clone.notify_waiting_requests();
                     }
@@ -102,8 +102,8 @@ struct ReservationService {
     state: Arc<Mutex<ReservationState>>,
 }
 
-impl Service<ReservationRequest> for ReservationService {
-    type Response = ReservationResponse;
+impl Service<TraceabilityRequest> for ReservationService {
+    type Response = TraceabilityResponse;
     type Error = ReservationError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
@@ -111,53 +111,53 @@ impl Service<ReservationRequest> for ReservationService {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, request: ReservationRequest) -> Self::Future {
+    fn call(&mut self, request: TraceabilityRequest) -> Self::Future {
         let state = self.state.clone();
         Box::pin(async move {
             if let Ok(mut state) = state.lock() {
                 match request {
-                    ReservationRequest::GetShared => match *state {
+                    TraceabilityRequest::ReserveShared => match *state {
                         ReservationState::Available => {
                             *state = ReservationState::Shared(1);
-                            Ok(ReservationResponse::Reserved)
+                            Ok(TraceabilityResponse::Reserved)
                         }
                         ReservationState::Shared(n) => {
                             *state = ReservationState::Shared(n + 1);
-                            Ok(ReservationResponse::Reserved)
+                            Ok(TraceabilityResponse::Reserved)
                         }
                         ReservationState::Exclusive => {
                             Err(ReservationError::AlreadyReservedExclusive)
                         }
                     },
-                    ReservationRequest::GetExclusive => match *state {
+                    TraceabilityRequest::ReserveExclusive => match *state {
                         ReservationState::Available => {
                             *state = ReservationState::Exclusive;
-                            Ok(ReservationResponse::Reserved)
+                            Ok(TraceabilityResponse::Reserved)
                         }
                         ReservationState::Shared(_) => Err(ReservationError::AlreadyReservedShared),
                         ReservationState::Exclusive => {
                             Err(ReservationError::AlreadyReservedExclusive)
                         }
                     },
-                    ReservationRequest::ReleaseShared => match *state {
-                        ReservationState::Available => Ok(ReservationResponse::Released),
+                    TraceabilityRequest::ReleaseShared => match *state {
+                        ReservationState::Available => Ok(TraceabilityResponse::Released),
                         ReservationState::Shared(n) => {
                             if n > 1 {
                                 *state = ReservationState::Shared(n - 1);
-                                Ok(ReservationResponse::Reserved)
+                                Ok(TraceabilityResponse::Reserved)
                             } else {
                                 *state = ReservationState::Available;
-                                Ok(ReservationResponse::Released)
+                                Ok(TraceabilityResponse::Released)
                             }
                         }
                         ReservationState::Exclusive => Err(ReservationError::UnauthorizedRelease),
                     },
-                    ReservationRequest::ReleaseExclusive => match *state {
-                        ReservationState::Available => Ok(ReservationResponse::Released),
+                    TraceabilityRequest::ReleaseExclusive => match *state {
+                        ReservationState::Available => Ok(TraceabilityResponse::Released),
                         ReservationState::Shared(_) => Err(ReservationError::UnauthorizedRelease),
                         ReservationState::Exclusive => {
                             *state = ReservationState::Available;
-                            Ok(ReservationResponse::Released)
+                            Ok(TraceabilityResponse::Released)
                         }
                     },
                 }
@@ -184,14 +184,14 @@ mod tests {
         // Release on available
         assert!(
             reservation_service
-                .call(ReservationRequest::ReleaseShared)
+                .call(TraceabilityRequest::ReleaseShared)
                 .await
                 .is_ok()
         );
 
         assert!(
             reservation_service
-                .call(ReservationRequest::ReleaseExclusive)
+                .call(TraceabilityRequest::ReleaseExclusive)
                 .await
                 .is_ok()
         );
@@ -204,14 +204,14 @@ mod tests {
         // Release on available
         assert!(
             reservation_service
-                .call(ReservationRequest::GetShared)
+                .call(TraceabilityRequest::ReserveShared)
                 .await
                 .is_ok()
         );
 
         assert!(
             reservation_service
-                .call(ReservationRequest::ReleaseExclusive)
+                .call(TraceabilityRequest::ReleaseExclusive)
                 .await
                 .is_err()
         );
@@ -224,14 +224,14 @@ mod tests {
         // Release on available
         assert!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .is_ok()
         );
 
         assert!(
             reservation_service
-                .call(ReservationRequest::ReleaseShared)
+                .call(TraceabilityRequest::ReleaseShared)
                 .await
                 .is_err()
         );
@@ -244,19 +244,19 @@ mod tests {
         // Exclusive reservation
         assert!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .is_err()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::GetShared)
+                .call(TraceabilityRequest::ReserveShared)
                 .await
                 .is_err()
         );
@@ -269,19 +269,19 @@ mod tests {
         // Exclusive reservation
         assert!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::ReleaseExclusive)
+                .call(TraceabilityRequest::ReleaseExclusive)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .is_ok()
         );
@@ -294,19 +294,19 @@ mod tests {
         // Shared reservation
         assert!(
             reservation_service
-                .call(ReservationRequest::GetShared)
+                .call(TraceabilityRequest::ReserveShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::GetShared)
+                .call(TraceabilityRequest::ReserveShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .is_err()
         );
@@ -319,37 +319,37 @@ mod tests {
         // Release after shared
         assert!(
             reservation_service
-                .call(ReservationRequest::GetShared)
+                .call(TraceabilityRequest::ReserveShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::GetShared)
+                .call(TraceabilityRequest::ReserveShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::ReleaseShared)
+                .call(TraceabilityRequest::ReleaseShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .is_err()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::ReleaseShared)
+                .call(TraceabilityRequest::ReleaseShared)
                 .await
                 .is_ok()
         );
         assert!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .is_ok()
         );
@@ -366,14 +366,14 @@ mod tests {
 
         assert!(
             reservation_service
-                .call(ReservationRequest::GetShared)
+                .call(TraceabilityRequest::ReserveShared)
                 .await
                 .is_ok()
         );
 
         assert_eq!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .unwrap_err()
                 .to_string(),
@@ -392,14 +392,14 @@ mod tests {
 
         assert!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .is_ok()
         );
 
         assert_eq!(
             reservation_service
-                .call(ReservationRequest::GetShared)
+                .call(TraceabilityRequest::ReserveShared)
                 .await
                 .unwrap_err()
                 .to_string(),
@@ -417,7 +417,7 @@ mod tests {
             .service(ReservationService::default());
         assert!(
             reservation_service
-                .call(ReservationRequest::GetShared)
+                .call(TraceabilityRequest::ReserveShared)
                 .await
                 .is_ok()
         );
@@ -425,13 +425,13 @@ mod tests {
         tokio::spawn(async move {
             sleep(Duration::from_micros(11)).await;
             reservation_service_clone
-                .call(ReservationRequest::ReleaseShared)
+                .call(TraceabilityRequest::ReleaseShared)
                 .await
                 .unwrap();
         });
         assert_eq!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .unwrap_err()
                 .to_string(),
@@ -440,7 +440,7 @@ mod tests {
         sleep(Duration::from_micros(2)).await;
         assert!(
             reservation_service
-                .call(ReservationRequest::GetExclusive)
+                .call(TraceabilityRequest::ReserveExclusive)
                 .await
                 .is_ok()
         );
