@@ -1,13 +1,13 @@
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum TraceabilityRequest {
-    ReserveShared,
-    ReserveExclusive,
+pub enum ReservationRequest {
+    GetShared,
+    GetExclusive,
     ReleaseShared,
     ReleaseExclusive,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum TraceabilityResponse {
+pub enum ReservationResponse {
     Reserved,
     Released,
 }
