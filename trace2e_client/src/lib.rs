@@ -30,10 +30,10 @@ mod grpc {
         if Handle::try_current().is_ok() {
             // We're already in a Tokio runtime, use thread-local client for this runtime
             thread_local! {
-                static RUNTIME_CLIENT: once_cell::unsync::OnceCell<proto::trace2e_client::Trace2eClient<Channel>> = 
+                static RUNTIME_CLIENT: once_cell::unsync::OnceCell<proto::trace2e_client::Trace2eClient<Channel>> =
                     once_cell::unsync::OnceCell::new();
             }
-            
+
             RUNTIME_CLIENT.with(|cell| {
                 cell.get_or_init(|| {
                     task::block_in_place(|| {
@@ -143,12 +143,11 @@ mod grpc {
                 Err(_) => Err(std::io::Error::from(std::io::ErrorKind::Other)),
             }
         };
-            
+
         result
     }
 }
 
-
 pub use proto::Flow;
 
-pub use grpc::{local_enroll, remote_enroll, io_request, io_report};
+pub use grpc::{io_report, io_request, local_enroll, remote_enroll};

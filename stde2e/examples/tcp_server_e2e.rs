@@ -1,12 +1,11 @@
-use stde2e::{io::Read, net::TcpListener};
 use clap::Parser;
+use stde2e::{io::Read, net::TcpListener};
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Sleep time in milliseconds
     #[arg(short, long)]
     sleep: Option<u64>,
-
 }
 
 fn main() -> std::io::Result<()> {

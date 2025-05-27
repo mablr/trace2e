@@ -33,7 +33,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let content = if let Some(path) = args.input {
         let mut buffer = Vec::new();
         let mut file = File::open(path)?;
-        std::thread::sleep(std::time::Duration::from_millis(args.read_sleep.unwrap_or(0)));
+        std::thread::sleep(std::time::Duration::from_millis(
+            args.read_sleep.unwrap_or(0),
+        ));
         file.read_to_end(&mut buffer)?;
         buffer
     } else {
@@ -43,7 +45,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Write to output file if provided
     if let Some(path) = args.output {
         let mut file = File::create(path)?;
-        std::thread::sleep(std::time::Duration::from_millis(args.write_sleep.unwrap_or(0)));
+        std::thread::sleep(std::time::Duration::from_millis(
+            args.write_sleep.unwrap_or(0),
+        ));
         file.write_all(&content)?;
     } else {
         return Err("No output file provided".into());

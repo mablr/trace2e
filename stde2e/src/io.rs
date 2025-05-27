@@ -1,4 +1,4 @@
-use trace2e_client::{io_report, io_request, Flow};
+use trace2e_client::{Flow, io_report, io_request};
 
 pub struct BufReader<R>(std::io::BufReader<R>);
 

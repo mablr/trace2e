@@ -1,4 +1,4 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 fn bench_file_read_e2e(c: &mut Criterion) {
     let mut small_file = std::fs::File::create("read_small.txt").unwrap();
@@ -90,7 +90,7 @@ fn bench_tcp_stream_write_e2e(c: &mut Criterion) {
     // Start server in a separate thread
     let server = stde2e::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = server.local_addr().unwrap();
-    
+
     let server_thread = std::thread::spawn(move || {
         let (mut stream, _) = server.accept().unwrap();
         loop {
@@ -121,7 +121,7 @@ fn bench_tcp_stream_write_std(c: &mut Criterion) {
     // Start server in a separate thread
     let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = server.local_addr().unwrap();
-    
+
     let server_thread = std::thread::spawn(move || {
         let (mut stream, _) = server.accept().unwrap();
         loop {

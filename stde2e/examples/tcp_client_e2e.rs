@@ -1,5 +1,5 @@
-use stde2e::{io::Write, net::TcpStream};
 use clap::Parser;
+use stde2e::{io::Write, net::TcpStream};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]

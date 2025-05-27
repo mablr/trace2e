@@ -521,8 +521,7 @@ mod tests {
                 ResourceRequest::WriteReport => ResourceResponse::Ack,
             })
         });
-        let mut resource_service =
-            GuardedResource::new(resource_mock_service, reservation_service);
+        let mut resource_service = GuardedResource::new(resource_mock_service, reservation_service);
         assert!(
             resource_service
                 .call(ResourceRequest::ReadRequest)
@@ -577,6 +576,5 @@ mod tests {
                 .await
                 .is_ok()
         );
-
     }
 }
