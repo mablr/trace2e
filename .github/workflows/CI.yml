@@ -20,6 +20,9 @@ jobs:
       uses: taiki-e/install-action@v2
       with:
         tool: protoc@${{ env.PROTOC_VERSION }}
+    - name: Code formatting check
+      run: cargo fmt --check
+      shell: bash
     - name: Run unit tests
       run: cargo test unit
       shell: bash
