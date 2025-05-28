@@ -118,8 +118,8 @@ where
     type Error = S::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, ctx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.reservation_service.poll_ready(ctx)
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.reservation_service.poll_ready(cx)
     }
 
     fn call(&mut self, request: ReservationRequest) -> Self::Future {
