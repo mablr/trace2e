@@ -1,0 +1,173 @@
+use std::net::SocketAddr;
+
+use procfs::process::Process as ProcfsProcess;
+use tower::{BoxError, filter::Predicate};
+
+use super::{error::TraceabilityError, message::TraceabilityRequest};
+
+#[derive(Default, Debug, Clone)]
+pub struct ResourceValidator;
+
+impl ResourceValidator {
+    fn is_valid_process(&self, pid: i32) -> bool {
+        if let Ok(process) = ProcfsProcess::new(pid) {
+            process.stat().is_ok()
+        } else {
+            false
+        }
+    }
+
+    fn is_valid_stream(&self, local_socket: &String, peer_socket: &String) -> bool {
+        match (
+            local_socket.parse::<SocketAddr>(),
+            peer_socket.parse::<SocketAddr>(),
+        ) {
+            (Ok(local_socket), Ok(peer_socket)) => {
+                (local_socket.is_ipv4() && peer_socket.is_ipv4())
+                    || (local_socket.is_ipv6() && peer_socket.is_ipv6())
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Predicate<TraceabilityRequest> for ResourceValidator {
+    type Request = TraceabilityRequest;
+
+    fn check(&mut self, request: Self::Request) -> Result<Self::Request, BoxError> {
+        match request.clone() {
+            TraceabilityRequest::RemoteEnroll {
+                pid,
+                local_socket,
+                peer_socket,
+                ..
+            } => {
+                if self.is_valid_process(pid) {
+                    if self.is_valid_stream(&local_socket, &peer_socket) {
+                        Ok(request)
+                    } else {
+                        Err(Box::new(TraceabilityError::InvalidStream(
+                            local_socket,
+                            peer_socket,
+                        )))
+                    }
+                } else {
+                    Err(Box::new(TraceabilityError::InvalidProcess(pid)))
+                }
+            }
+            TraceabilityRequest::LocalEnroll { pid, .. }
+            | TraceabilityRequest::IoRequest { pid, .. } => {
+                if self.is_valid_process(pid) {
+                    Ok(request)
+                } else {
+                    Err(Box::new(TraceabilityError::InvalidProcess(pid)))
+                }
+            }
+            TraceabilityRequest::IoReport { .. } => Ok(request),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use tower::{Service, ServiceBuilder, filter::FilterLayer};
+
+    use crate::traceability::{api::TraceabilityApiService, message::TraceabilityResponse};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn unit_traceability_provenance_service_p2m_validator() {
+        let validator = ResourceValidator::default();
+        let mut provenance_service = ServiceBuilder::new()
+            .layer(FilterLayer::new(validator))
+            .service(TraceabilityApiService::default());
+
+        assert_eq!(
+            provenance_service
+                .call(TraceabilityRequest::LocalEnroll {
+                    pid: 1,
+                    fd: 1,
+                    path: "test".to_string()
+                })
+                .await
+                .unwrap(),
+            TraceabilityResponse::Ack
+        );
+
+        assert_eq!(
+            provenance_service
+                .call(TraceabilityRequest::RemoteEnroll {
+                    pid: 1,
+                    local_socket: "127.0.0.1:8080".to_string(),
+                    peer_socket: "127.0.0.1:8081".to_string(),
+                    fd: 1
+                })
+                .await
+                .unwrap(),
+            TraceabilityResponse::Ack
+        );
+
+        assert_eq!(
+            provenance_service
+                .call(TraceabilityRequest::IoRequest {
+                    pid: 1,
+                    fd: 1,
+                    output: true
+                })
+                .await
+                .unwrap(),
+            TraceabilityResponse::Grant(0)
+        );
+
+        assert_eq!(
+            provenance_service
+                .call(TraceabilityRequest::IoReport {
+                    id: 0,
+                    success: true
+                })
+                .await
+                .unwrap(),
+            TraceabilityResponse::Ack
+        );
+
+        assert_eq!(
+            provenance_service
+                .check(TraceabilityRequest::LocalEnroll {
+                    pid: 0,
+                    fd: 1,
+                    path: "test".to_string()
+                })
+                .unwrap_err()
+                .to_string(),
+            "Traceability error, process not found (pid: 0)"
+        );
+
+        assert_eq!(
+            provenance_service
+                .call(TraceabilityRequest::LocalEnroll {
+                    pid: 0,
+                    fd: 1,
+                    path: "test".to_string()
+                }) // pid 0 is invalid
+                .await
+                .unwrap_err()
+                .to_string(),
+            "Traceability error, process not found (pid: 0)"
+        );
+
+        assert_eq!(
+            provenance_service
+                .call(TraceabilityRequest::RemoteEnroll {
+                    pid: 1,
+                    local_socket: "bad_socket".to_string(),
+                    peer_socket: "bad_socket".to_string(),
+                    fd: 1
+                })
+                .await
+                .unwrap_err()
+                .to_string(),
+            "Traceability error, invalid stream (local_socket: bad_socket, peer_socket: bad_socket)"
+        );
+    }
+}

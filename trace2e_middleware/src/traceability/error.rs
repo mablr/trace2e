@@ -6,10 +6,10 @@ pub enum TraceabilityError {
     UndeclaredResource(i32, i32),
 
     #[error("Traceability error, process not found (pid: {0})")]
-    NotFoundProcess(i32),
+    InvalidProcess(i32),
 
-    #[error("Traceability error, failed to gather process info (pid: {0})")]
-    InconsistentProcess(i32),
+    #[error("Traceability error, invalid stream (local_socket: {0}, peer_socket: {1})")]
+    InvalidStream(String, String),
 
     #[error("Traceability error, flow not found (id: {0})")]
     NotFoundFlow(usize),

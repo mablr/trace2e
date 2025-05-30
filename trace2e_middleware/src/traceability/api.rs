@@ -17,7 +17,7 @@ struct Flow {
 }
 
 impl Flow {
-    pub fn new(process: Identifier, fd: Identifier, output: bool) -> Self {
+    fn new(process: Identifier, fd: Identifier, output: bool) -> Self {
         Self {
             process,
             fd,
@@ -26,29 +26,19 @@ impl Flow {
     }
 }
 
-fn instantiate_process_resource(
-    pid: i32,
-    strict_mode: bool,
-) -> Result<Resource, TraceabilityError> {
-    if strict_mode {
-        match ProcfsProcess::new(pid) {
-            Ok(procfs_process) => {
-                let starttime = procfs_process
-                    .stat()
-                    .map_err(|_| TraceabilityError::InconsistentProcess(pid))?
-                    .starttime;
-                let exe_path = procfs_process
-                    .exe()
-                    .map_err(|_| TraceabilityError::InconsistentProcess(pid))?
-                    .to_str()
-                    .unwrap_or_default()
-                    .to_string();
-                Ok(Resource::new_process(pid, starttime, exe_path))
-            }
-            Err(_) => Err(TraceabilityError::NotFoundProcess(pid)),
+fn process(pid: i32) -> Resource {
+    match ProcfsProcess::new(pid) {
+        Ok(procfs_process) => {
+            let starttime = procfs_process
+                .stat()
+                .map_or_else(|_| Default::default(), |stat| stat.starttime);
+            let exe_path = procfs_process.exe().map_or_else(
+                |_| Default::default(),
+                |exe| exe.to_str().unwrap_or_default().to_string(),
+            );
+            Resource::new_process(pid, starttime, exe_path)
         }
-    } else {
-        Ok(Resource::new_process(pid, 0, String::default()))
+        Err(_) => Resource::new_process(pid, 0, String::default()),
     }
 }
 
@@ -59,7 +49,6 @@ pub struct TraceabilityApiService {
     process_map: Arc<Mutex<HashMap<i32, Resource>>>,
     flow_id_counter: Arc<Mutex<usize>>,
     flow_map: Arc<Mutex<HashMap<usize, Flow>>>,
-    strict_mode: bool,
 }
 
 impl Default for TraceabilityApiService {
@@ -83,13 +72,7 @@ impl TraceabilityApiService {
             process_map: Arc::new(Mutex::new(HashMap::new())),
             flow_id_counter: Arc::new(Mutex::new(0)),
             flow_map: Arc::new(Mutex::new(HashMap::new())),
-            strict_mode: false,
         }
-    }
-
-    pub fn set_strict_mode(mut self) -> Self {
-        self.strict_mode = true;
-        self
     }
 }
 
@@ -110,10 +93,11 @@ impl Service<TraceabilityRequest> for TraceabilityApiService {
         Box::pin(async move {
             match request {
                 TraceabilityRequest::LocalEnroll { pid, fd, path } => {
-                    self_clone.process_map.lock().await.insert(
-                        pid,
-                        instantiate_process_resource(pid, self_clone.strict_mode)?,
-                    );
+                    self_clone
+                        .process_map
+                        .lock()
+                        .await
+                        .insert(pid, process(pid));
                     self_clone
                         .fd_map
                         .lock()
@@ -127,10 +111,11 @@ impl Service<TraceabilityRequest> for TraceabilityApiService {
                     local_socket,
                     peer_socket,
                 } => {
-                    self_clone.process_map.lock().await.insert(
-                        pid,
-                        instantiate_process_resource(pid, self_clone.strict_mode)?,
-                    );
+                    self_clone
+                        .process_map
+                        .lock()
+                        .await
+                        .insert(pid, process(pid));
                     self_clone
                         .fd_map
                         .lock()
@@ -181,7 +166,9 @@ impl Service<TraceabilityRequest> for TraceabilityApiService {
 
 #[cfg(test)]
 mod tests {
-    use tower::ServiceBuilder;
+    use tower::{ServiceBuilder, filter::FilterLayer};
+
+    use crate::traceability::validation::ResourceValidator;
 
     use super::*;
 
@@ -260,12 +247,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unit_traceability_api_strict_mode() {
-        let traceability_api =
-            TraceabilityApiService::new_with_node_id("test".to_string()).set_strict_mode();
-        let mut traceability_api_service = ServiceBuilder::new().service(traceability_api);
+    async fn unit_traceability_api_validated_resources() {
+        let traceability_api = TraceabilityApiService::new_with_node_id("test".to_string());
+        let mut traceability_api_service = ServiceBuilder::new()
+            .layer(FilterLayer::new(ResourceValidator::default()))
+            .service(traceability_api);
 
-        // Test not found process
+        // Test with invalid process
+        // This request is supposed to be filtered out by the validator
         assert_eq!(
             traceability_api_service
                 .call(TraceabilityRequest::LocalEnroll {
@@ -274,24 +263,12 @@ mod tests {
                     path: "/tmp/test.txt".to_string()
                 })
                 .await
-                .unwrap_err(),
-            TraceabilityError::NotFoundProcess(0)
+                .unwrap_err()
+                .to_string(),
+            "Traceability error, process not found (pid: 0)"
         );
 
-        // Test inconsistent process
-        assert_eq!(
-            traceability_api_service
-                .call(TraceabilityRequest::LocalEnroll {
-                    pid: 1,
-                    fd: 3,
-                    path: "/tmp/test.txt".to_string()
-                })
-                .await
-                .unwrap_err(),
-            TraceabilityError::InconsistentProcess(1)
-        );
-
-        // Test successful process instantiation with strict mode
+        // Test successful process instantiation with validation
         assert_eq!(
             traceability_api_service
                 .call(TraceabilityRequest::LocalEnroll {
