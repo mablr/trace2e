@@ -2,9 +2,6 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ReservationError {
-    #[error("Reservation failure, failed to lock the reservation state")]
-    ReservationLockError,
-
     #[error("Reservation failure, waiting queue failure")]
     ReservationWaitingQueueError,
 
