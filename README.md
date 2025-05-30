@@ -41,18 +41,6 @@ The system works through three main components:
 
 - Rust
 - Protocol Buffers compiler
-- Docker and Docker Compose (for running demos)
-
-### Quick Demo
-
-The easiest way to see TracE2E in action is to run the Hyper.rs demo in the [demo/hyper](demo/hyper) directory. This demo showcases:
-
-- A web server with TracE2E integration
-- File traceability
-- Confidentiality enforcement
-- Integrity enforcement
-
-Follow the instructions in [demo/hyper/README.md](demo/hyper/README.md) to run the demo.
 
 ### Building from Source
 
@@ -88,7 +76,6 @@ cargo bench -p stde2e
 - **/trace2e_middleware**: Core middleware implementation
 - **/trace2e_client**: Middleware client communication library implementation
 - **/stde2e**: Standard library wrapper providing TracE2E integration using `trace2e_client`
-- **/demo**: Example applications showcasing TracE2E usage
 - **/patches**: TracE2E integration patches for various frameworks
 
 
