@@ -2,9 +2,6 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum ReservationError {
-    #[error("Reservation failure, waiting queue failure")]
-    ReservationWaitingQueueError,
-
     #[error("Reservation failure, already reserved in shared mode")]
     AlreadyReservedShared,
 
