@@ -1,10 +1,10 @@
 use std::{
     collections::VecDeque,
     pin::Pin,
-    sync::{Arc, Mutex},
+    sync::Arc,
     task::{Context, Poll},
 };
-use tokio::sync::oneshot;
+use tokio::sync::{Mutex, oneshot};
 use tower::Service;
 
 use super::{
@@ -88,21 +88,16 @@ impl<S> WaitingQueueService<S> {
         }
     }
 
-    fn add_to_waiting_queue(&self) -> Result<oneshot::Receiver<()>, ReservationError> {
+    async fn add_to_waiting_queue(&self) -> Result<oneshot::Receiver<()>, ReservationError> {
         let (tx, rx) = oneshot::channel();
-        self.waiting_queue
-            .lock()
-            .map_err(|_| ReservationError::ReservationWaitingQueueError)?
-            .push_back(tx); // TODO: make waiting queue specific error ?
+        self.waiting_queue.lock().await.push_back(tx);
         Ok(rx)
     }
-
-    fn notify_waiting_requests(&self) {
-        if let Ok(mut waiting_queue) = self.waiting_queue.lock() {
-            if let Some(request) = waiting_queue.pop_front() {
-                let _ = request.send(());
-            }
-        } // Mutex and Channel errors are ignored
+    async fn notify_waiting_requests(&self) {
+        let mut waiting_queue = self.waiting_queue.lock().await;
+        if let Some(request) = waiting_queue.pop_front() {
+            let _ = request.send(());
+        }
     }
 }
 
@@ -111,6 +106,7 @@ where
     S: Service<ReservationRequest, Response = ReservationResponse, Error = ReservationError>
         + Clone
         + Send
+        + Sync
         + 'static,
     S::Future: Send,
 {
@@ -135,13 +131,13 @@ where
                         ReservationRequest::ReleaseShared | ReservationRequest::ReleaseExclusive
                     ) && response == ReservationResponse::Released
                     {
-                        self_clone.notify_waiting_requests();
+                        self_clone.notify_waiting_requests().await;
                     }
                     Ok(response)
                 }
                 Err(ReservationError::AlreadyReservedExclusive)
                 | Err(ReservationError::AlreadyReservedShared) => {
-                    let rx = self_clone.add_to_waiting_queue()?;
+                    let rx = self_clone.add_to_waiting_queue().await?;
                     let _ = rx.await;
                     inner.call(request).await
                 }
@@ -176,55 +172,48 @@ impl Service<ReservationRequest> for ReservationService {
     fn call(&mut self, request: ReservationRequest) -> Self::Future {
         let state = self.state.clone();
         Box::pin(async move {
-            if let Ok(mut state) = state.lock() {
-                match request {
-                    ReservationRequest::GetShared => match *state {
-                        ReservationState::Available => {
-                            *state = ReservationState::Shared(1);
+            let mut state = state.lock().await;
+            match request {
+                ReservationRequest::GetShared => match *state {
+                    ReservationState::Available => {
+                        *state = ReservationState::Shared(1);
+                        Ok(ReservationResponse::Reserved)
+                    }
+                    ReservationState::Shared(n) => {
+                        *state = ReservationState::Shared(n + 1);
+                        Ok(ReservationResponse::Reserved)
+                    }
+                    ReservationState::Exclusive => Err(ReservationError::AlreadyReservedExclusive),
+                },
+                ReservationRequest::GetExclusive => match *state {
+                    ReservationState::Available => {
+                        *state = ReservationState::Exclusive;
+                        Ok(ReservationResponse::Reserved)
+                    }
+                    ReservationState::Shared(_) => Err(ReservationError::AlreadyReservedShared),
+                    ReservationState::Exclusive => Err(ReservationError::AlreadyReservedExclusive),
+                },
+                ReservationRequest::ReleaseShared => match *state {
+                    ReservationState::Available => Ok(ReservationResponse::Released),
+                    ReservationState::Shared(n) => {
+                        if n > 1 {
+                            *state = ReservationState::Shared(n - 1);
                             Ok(ReservationResponse::Reserved)
-                        }
-                        ReservationState::Shared(n) => {
-                            *state = ReservationState::Shared(n + 1);
-                            Ok(ReservationResponse::Reserved)
-                        }
-                        ReservationState::Exclusive => {
-                            Err(ReservationError::AlreadyReservedExclusive)
-                        }
-                    },
-                    ReservationRequest::GetExclusive => match *state {
-                        ReservationState::Available => {
-                            *state = ReservationState::Exclusive;
-                            Ok(ReservationResponse::Reserved)
-                        }
-                        ReservationState::Shared(_) => Err(ReservationError::AlreadyReservedShared),
-                        ReservationState::Exclusive => {
-                            Err(ReservationError::AlreadyReservedExclusive)
-                        }
-                    },
-                    ReservationRequest::ReleaseShared => match *state {
-                        ReservationState::Available => Ok(ReservationResponse::Released),
-                        ReservationState::Shared(n) => {
-                            if n > 1 {
-                                *state = ReservationState::Shared(n - 1);
-                                Ok(ReservationResponse::Reserved)
-                            } else {
-                                *state = ReservationState::Available;
-                                Ok(ReservationResponse::Released)
-                            }
-                        }
-                        ReservationState::Exclusive => Err(ReservationError::UnauthorizedRelease),
-                    },
-                    ReservationRequest::ReleaseExclusive => match *state {
-                        ReservationState::Available => Ok(ReservationResponse::Released),
-                        ReservationState::Shared(_) => Err(ReservationError::UnauthorizedRelease),
-                        ReservationState::Exclusive => {
+                        } else {
                             *state = ReservationState::Available;
                             Ok(ReservationResponse::Released)
                         }
-                    },
-                }
-            } else {
-                Err(ReservationError::ReservationLockError)
+                    }
+                    ReservationState::Exclusive => Err(ReservationError::UnauthorizedRelease),
+                },
+                ReservationRequest::ReleaseExclusive => match *state {
+                    ReservationState::Available => Ok(ReservationResponse::Released),
+                    ReservationState::Shared(_) => Err(ReservationError::UnauthorizedRelease),
+                    ReservationState::Exclusive => {
+                        *state = ReservationState::Available;
+                        Ok(ReservationResponse::Released)
+                    }
+                },
             }
         })
     }
