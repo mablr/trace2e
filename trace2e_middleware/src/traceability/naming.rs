@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 
+use procfs::process;
+
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct File {
     pub path: String,
@@ -42,12 +44,28 @@ impl Resource {
         }))
     }
 
-    pub fn new_process(pid: i32, starttime: u64, exe_path: String) -> Self {
-        Self::Process(Process {
-            pid,
-            starttime,
-            exe_path,
-        })
+    pub fn new_process(pid: i32) -> Self {
+        match process::Process::new(pid) {
+            Ok(procfs_process) => {
+                let starttime = procfs_process
+                    .stat()
+                    .map_or_else(|_| Default::default(), |stat| stat.starttime);
+                let exe_path = procfs_process.exe().map_or_else(
+                    |_| Default::default(),
+                    |exe| exe.to_str().unwrap_or_default().to_string(),
+                );
+                Self::Process(Process {
+                    pid,
+                    starttime,
+                    exe_path,
+                })
+            }
+            Err(_) => Self::Process(Process {
+                pid,
+                starttime: 0,
+                exe_path: String::default(),
+            }),
+        }
     }
 }
 

@@ -1,54 +1,18 @@
 use crate::traceability::{
     error::TraceabilityError,
-    message::{TraceabilityRequest, TraceabilityResponse},
+    message::{P2mRequest, TraceabilityResponse},
 };
-use procfs::process::Process as ProcfsProcess;
 use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll};
 use tokio::sync::Mutex;
 use tower::Service;
 
-use super::types::{Identifier, Resource};
-
-#[derive(Debug, Clone)]
-struct Flow {
-    process: Identifier,
-    fd: Identifier,
-    output: bool,
-}
-
-impl Flow {
-    fn new(process: Identifier, fd: Identifier, output: bool) -> Self {
-        Self {
-            process,
-            fd,
-            output,
-        }
-    }
-}
-
-fn process(pid: i32) -> Resource {
-    match ProcfsProcess::new(pid) {
-        Ok(procfs_process) => {
-            let starttime = procfs_process
-                .stat()
-                .map_or_else(|_| Default::default(), |stat| stat.starttime);
-            let exe_path = procfs_process.exe().map_or_else(
-                |_| Default::default(),
-                |exe| exe.to_str().unwrap_or_default().to_string(),
-            );
-            Resource::new_process(pid, starttime, exe_path)
-        }
-        Err(_) => Resource::new_process(pid, 0, String::default()),
-    }
-}
+use super::{naming::{Identifier, Resource}};
 
 #[derive(Debug, Clone)]
 pub struct TraceabilityApiService {
     node_id: String,
     fd_map: Arc<Mutex<HashMap<(i32, i32), Resource>>>, // Resource to be replaced by Identifier later
     process_map: Arc<Mutex<HashMap<i32, Resource>>>,
-    flow_id_counter: Arc<Mutex<usize>>,
-    flow_map: Arc<Mutex<HashMap<usize, Flow>>>,
 }
 
 impl Default for TraceabilityApiService {
@@ -70,13 +34,11 @@ impl TraceabilityApiService {
             node_id,
             fd_map: Arc::new(Mutex::new(HashMap::new())),
             process_map: Arc::new(Mutex::new(HashMap::new())),
-            flow_id_counter: Arc::new(Mutex::new(0)),
-            flow_map: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
 
-impl Service<TraceabilityRequest> for TraceabilityApiService {
+impl Service<P2mRequest> for TraceabilityApiService {
     type Response = TraceabilityResponse;
     type Error = TraceabilityError;
     type Future = Pin<Box<dyn Future<Output = Result<TraceabilityResponse, TraceabilityError>>>>;
@@ -88,76 +50,77 @@ impl Service<TraceabilityRequest> for TraceabilityApiService {
         Poll::Ready(Ok(())) // TODO: Implement readiness check
     }
 
-    fn call(&mut self, request: TraceabilityRequest) -> Self::Future {
-        let self_clone = self.clone();
+    fn call(&mut self, request: P2mRequest) -> Self::Future {
+        let this = self.clone();
         Box::pin(async move {
             match request {
-                TraceabilityRequest::LocalEnroll { pid, fd, path } => {
-                    self_clone
+                P2mRequest::LocalEnroll { pid, fd, path } => {
+                    this
                         .process_map
                         .lock()
                         .await
-                        .insert(pid, process(pid));
-                    self_clone
+                        .insert(pid, Resource::new_process(pid));
+                    this
                         .fd_map
                         .lock()
                         .await
                         .insert((pid, fd), Resource::new_file(path));
                     Ok(TraceabilityResponse::Ack)
                 }
-                TraceabilityRequest::RemoteEnroll {
+                P2mRequest::RemoteEnroll {
                     pid,
                     fd,
                     local_socket,
                     peer_socket,
                 } => {
-                    self_clone
+                    this
                         .process_map
                         .lock()
                         .await
-                        .insert(pid, process(pid));
-                    self_clone
+                        .insert(pid, Resource::new_process(pid));
+                    this
                         .fd_map
                         .lock()
                         .await
                         .insert((pid, fd), Resource::new_stream(local_socket, peer_socket));
                     Ok(TraceabilityResponse::Ack)
                 }
-                TraceabilityRequest::IoRequest { pid, fd, output } => {
+                P2mRequest::IoRequest { pid, fd, output } => {
                     // Dummy implementation for now
                     if let (Some(process), Some(fd)) = (
-                        self_clone.process_map.lock().await.get(&pid),
-                        self_clone.fd_map.lock().await.get(&(pid, fd)),
+                        this.process_map.lock().await.get(&pid),
+                        this.fd_map.lock().await.get(&(pid, fd)),
                     ) {
-                        let flow = Flow::new(
-                            Identifier {
-                                node: self_clone.node_id.clone(),
-                                resource: process.clone(),
-                            },
-                            Identifier {
-                                node: self_clone.node_id.clone(),
-                                resource: fd.clone(),
-                            },
-                            output,
-                        );
-                        let mut flow_map = self_clone.flow_map.lock().await;
-                        let mut flow_id_counter = self_clone.flow_id_counter.lock().await;
-                        let flow_id = *flow_id_counter;
-                        *flow_id_counter += 1;
-                        flow_map.insert(flow_id, flow);
-                        Ok(TraceabilityResponse::Grant(flow_id))
+                        // let flow = Flow::new(
+                        //     Identifier {
+                        //         node: this.node_id.clone(),
+                        //         resource: process.clone(),
+                        //     },
+                        //     Identifier {
+                        //         node: this.node_id.clone(),
+                        //         resource: fd.clone(),
+                        //     },
+                        //     output,
+                        // );
+                        // let mut flow_map = this.flow_map.lock().await;
+                        // let mut flow_id_counter = this.flow_id_counter.lock().await;
+                        // let flow_id = *flow_id_counter;
+                        // *flow_id_counter += 1;
+                        // flow_map.insert(flow_id, flow);
+                        Ok(TraceabilityResponse::Grant(0))
                     } else {
                         Err(TraceabilityError::UndeclaredResource(pid, fd))
                     }
                 }
-                TraceabilityRequest::IoReport { id, success: _ } => {
+                P2mRequest::IoReport { id, success: _ } => {
                     // Dummy implementation for now
-                    let mut flow_map = self_clone.flow_map.lock().await;
-                    if flow_map.remove(&id).is_some() {
-                        Ok(TraceabilityResponse::Ack)
-                    } else {
-                        Err(TraceabilityError::NotFoundFlow(id))
-                    }
+                    // let mut flow_map = this.flow_map.lock().await;
+                    // if flow_map.remove(&id).is_some() {
+                    //     Ok(TraceabilityResponse::Ack)
+                    // } else {
+                    //     Err(TraceabilityError::NotFoundFlow(id))
+                    // }
+                    todo!()
                 }
             }
         })
@@ -179,7 +142,7 @@ mod tests {
 
         assert_eq!(
             traceability_api_service
-                .call(TraceabilityRequest::LocalEnroll {
+                .call(P2mRequest::LocalEnroll {
                     pid: 1,
                     fd: 3,
                     path: "/tmp/test.txt".to_string()
@@ -190,7 +153,7 @@ mod tests {
         );
         assert_eq!(
             traceability_api_service
-                .call(TraceabilityRequest::RemoteEnroll {
+                .call(P2mRequest::RemoteEnroll {
                     pid: 1,
                     fd: 3,
                     local_socket: "127.0.0.1:8080".to_string(),
@@ -203,7 +166,7 @@ mod tests {
 
         assert_eq!(
             traceability_api_service
-                .call(TraceabilityRequest::IoRequest {
+                .call(P2mRequest::IoRequest {
                     pid: 1,
                     fd: 3,
                     output: true
@@ -214,7 +177,7 @@ mod tests {
         );
         assert_eq!(
             traceability_api_service
-                .call(TraceabilityRequest::IoReport {
+                .call(P2mRequest::IoReport {
                     id: 0,
                     success: true
                 })
@@ -225,7 +188,7 @@ mod tests {
 
         assert_eq!(
             traceability_api_service
-                .call(TraceabilityRequest::IoRequest {
+                .call(P2mRequest::IoRequest {
                     pid: 1,
                     fd: 3,
                     output: false
@@ -236,7 +199,7 @@ mod tests {
         );
         assert_eq!(
             traceability_api_service
-                .call(TraceabilityRequest::IoReport {
+                .call(P2mRequest::IoReport {
                     id: 1,
                     success: true
                 })
@@ -257,7 +220,7 @@ mod tests {
         // This request is supposed to be filtered out by the validator
         assert_eq!(
             traceability_api_service
-                .call(TraceabilityRequest::LocalEnroll {
+                .call(P2mRequest::LocalEnroll {
                     pid: 0,
                     fd: 3,
                     path: "/tmp/test.txt".to_string()
@@ -271,7 +234,7 @@ mod tests {
         // Test successful process instantiation with validation
         assert_eq!(
             traceability_api_service
-                .call(TraceabilityRequest::LocalEnroll {
+                .call(P2mRequest::LocalEnroll {
                     pid: std::process::id() as i32,
                     fd: 3,
                     path: "/tmp/test.txt".to_string()
@@ -290,7 +253,7 @@ mod tests {
         // Neither process nor fd are enrolled
         assert_eq!(
             traceability_api_service
-                .call(TraceabilityRequest::IoRequest {
+                .call(P2mRequest::IoRequest {
                     pid: std::process::id() as i32,
                     fd: 3,
                     output: true,
@@ -301,7 +264,7 @@ mod tests {
         );
 
         traceability_api_service
-            .call(TraceabilityRequest::LocalEnroll {
+            .call(P2mRequest::LocalEnroll {
                 pid: std::process::id() as i32,
                 fd: 4,
                 path: "/tmp/test.txt".to_string(),
@@ -312,7 +275,7 @@ mod tests {
         // Only process is enrolled
         assert_eq!(
             traceability_api_service
-                .call(TraceabilityRequest::IoRequest {
+                .call(P2mRequest::IoRequest {
                     pid: std::process::id() as i32,
                     fd: 3,
                     output: true,
@@ -331,7 +294,7 @@ mod tests {
         // Invalid grant id
         assert_eq!(
             traceability_api_service
-                .call(TraceabilityRequest::IoReport {
+                .call(P2mRequest::IoReport {
                     id: 0,
                     success: true,
                 })

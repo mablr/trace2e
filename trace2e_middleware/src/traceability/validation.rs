@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use procfs::process::Process as ProcfsProcess;
 use tower::{BoxError, filter::Predicate};
 
-use super::{error::TraceabilityError, message::TraceabilityRequest};
+use super::{error::TraceabilityError, message::P2mRequest};
 
 #[derive(Default, Debug, Clone)]
 pub struct ResourceValidator;
@@ -31,12 +31,12 @@ impl ResourceValidator {
     }
 }
 
-impl Predicate<TraceabilityRequest> for ResourceValidator {
-    type Request = TraceabilityRequest;
+impl Predicate<P2mRequest> for ResourceValidator {
+    type Request = P2mRequest;
 
     fn check(&mut self, request: Self::Request) -> Result<Self::Request, BoxError> {
         match request.clone() {
-            TraceabilityRequest::RemoteEnroll {
+            P2mRequest::RemoteEnroll {
                 pid,
                 local_socket,
                 peer_socket,
@@ -55,15 +55,14 @@ impl Predicate<TraceabilityRequest> for ResourceValidator {
                     Err(Box::new(TraceabilityError::InvalidProcess(pid)))
                 }
             }
-            TraceabilityRequest::LocalEnroll { pid, .. }
-            | TraceabilityRequest::IoRequest { pid, .. } => {
+            P2mRequest::LocalEnroll { pid, .. } | P2mRequest::IoRequest { pid, .. } => {
                 if self.is_valid_process(pid) {
                     Ok(request)
                 } else {
                     Err(Box::new(TraceabilityError::InvalidProcess(pid)))
                 }
             }
-            TraceabilityRequest::IoReport { .. } => Ok(request),
+            P2mRequest::IoReport { .. } => Ok(request),
         }
     }
 }
@@ -85,7 +84,7 @@ mod tests {
 
         assert_eq!(
             provenance_service
-                .call(TraceabilityRequest::LocalEnroll {
+                .call(P2mRequest::LocalEnroll {
                     pid: 1,
                     fd: 1,
                     path: "test".to_string()
@@ -97,7 +96,7 @@ mod tests {
 
         assert_eq!(
             provenance_service
-                .call(TraceabilityRequest::RemoteEnroll {
+                .call(P2mRequest::RemoteEnroll {
                     pid: 1,
                     local_socket: "127.0.0.1:8080".to_string(),
                     peer_socket: "127.0.0.1:8081".to_string(),
@@ -110,7 +109,7 @@ mod tests {
 
         assert_eq!(
             provenance_service
-                .call(TraceabilityRequest::IoRequest {
+                .call(P2mRequest::IoRequest {
                     pid: 1,
                     fd: 1,
                     output: true
@@ -122,7 +121,7 @@ mod tests {
 
         assert_eq!(
             provenance_service
-                .call(TraceabilityRequest::IoReport {
+                .call(P2mRequest::IoReport {
                     id: 0,
                     success: true
                 })
@@ -133,7 +132,7 @@ mod tests {
 
         assert_eq!(
             provenance_service
-                .check(TraceabilityRequest::LocalEnroll {
+                .check(P2mRequest::LocalEnroll {
                     pid: 0,
                     fd: 1,
                     path: "test".to_string()
@@ -145,7 +144,7 @@ mod tests {
 
         assert_eq!(
             provenance_service
-                .call(TraceabilityRequest::LocalEnroll {
+                .call(P2mRequest::LocalEnroll {
                     pid: 0,
                     fd: 1,
                     path: "test".to_string()
@@ -158,7 +157,7 @@ mod tests {
 
         assert_eq!(
             provenance_service
-                .call(TraceabilityRequest::RemoteEnroll {
+                .call(P2mRequest::RemoteEnroll {
                     pid: 1,
                     local_socket: "bad_socket".to_string(),
                     peer_socket: "bad_socket".to_string(),

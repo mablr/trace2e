@@ -1,5 +1,7 @@
+use super::naming::Identifier;
+
 #[derive(Debug, Clone)]
-pub enum TraceabilityRequest {
+pub enum P2mRequest {
     LocalEnroll {
         pid: i32,
         fd: i32,
@@ -28,6 +30,21 @@ pub enum TraceabilityResponse {
     Ack,
 }
 
+#[derive(Debug, Clone)]
+pub enum FlowRequest {
+    Request {
+        process: Identifier,
+        fd: Identifier,
+        output: bool,
+    },
+    Report {
+        id: usize,
+        success: bool,
+    },
+}
+
+/// The requests are expecting compliance labels as response
+/// The reports may lead to an update of the compliance labels
 pub enum ResourceRequest {
     ReadRequest,
     WriteRequest,
@@ -35,7 +52,7 @@ pub enum ResourceRequest {
     WriteReport,
 }
 
-pub enum ResourceResponse {
+pub enum ResourceResponse { // TODO : Refactor this to convey Compliance Labels
     Grant,
     Ack,
 }
