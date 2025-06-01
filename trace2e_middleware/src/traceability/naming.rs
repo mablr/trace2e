@@ -2,31 +2,31 @@ use std::fmt::Debug;
 
 use procfs::process;
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct File {
     pub path: String,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Stream {
     pub local_socket: String,
     pub peer_socket: String,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Fd {
     File(File),
     Stream(Stream),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Process {
     pub pid: i32,
     pub starttime: u64,
     pub exe_path: String,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Resource {
     Fd(Fd),
     Process(Process),
@@ -69,8 +69,14 @@ impl Resource {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Identifier {
     pub node: String,
     pub resource: Resource,
+}
+
+impl Identifier {
+    pub fn new(node: String, resource: Resource) -> Self {
+        Self { node, resource }
+    }
 }
