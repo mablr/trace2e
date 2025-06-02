@@ -25,22 +25,33 @@ pub enum P2mRequest {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum TraceabilityResponse {
-    Grant(usize),
-    Ack,
+pub enum P2mResponse {
+    Grant(usize), // <- P2mRequest::IoRequest
+    Ack,          // <- P2mRequest::{LocalEnroll, RemoteEnroll, Report}
 }
 
 #[derive(Debug, Clone)]
-pub enum FlowRequest {
+pub enum TraceabilityRequest {
+    InitResource(Identifier), // -> TraceabilityResponse::Ack
     Request {
+        // -> TraceabilityResponse::Grant
         process: Identifier,
         fd: Identifier,
         output: bool,
     },
     Report {
-        id: usize,
+        // -> TraceabilityResponse::Ack
+        process: Identifier,
+        fd: Identifier,
+        output: bool,
         success: bool,
     },
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum TraceabilityResponse {
+    Grant, // <- TraceabilityRequest::Request
+    Ack,   // <- TraceabilityRequest::{InitResource, Report}
 }
 
 /// The requests are expecting compliance labels as response
@@ -52,8 +63,8 @@ pub enum ResourceRequest {
     WriteReport,
 }
 
-pub enum ResourceResponse { // TODO : Refactor this to convey Compliance Labels
-    Grant,
+pub enum ResourceResponse {
+    // TODO : Refactor this to convey Compliance Labels
     Ack,
 }
 
