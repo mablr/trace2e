@@ -71,7 +71,7 @@ impl Predicate<P2mRequest> for ResourceValidator {
 mod tests {
     use tower::{Service, ServiceBuilder, filter::FilterLayer};
 
-    use crate::traceability::{api::TraceabilityApiService, message::TraceabilityResponse};
+    use crate::traceability::{api::TraceabilityApiService, message::P2mResponse};
 
     use super::*;
 
@@ -91,7 +91,7 @@ mod tests {
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            P2mResponse::Ack
         );
 
         assert_eq!(
@@ -104,7 +104,7 @@ mod tests {
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            P2mResponse::Ack
         );
 
         assert_eq!(
@@ -116,7 +116,7 @@ mod tests {
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant(0)
+            P2mResponse::Grant(0)
         );
 
         assert_eq!(
@@ -127,7 +127,7 @@ mod tests {
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            P2mResponse::Ack
         );
 
         assert_eq!(
