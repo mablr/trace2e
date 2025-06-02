@@ -13,6 +13,9 @@ pub enum TraceabilityError {
 
     #[error("Traceability error, flow not found (id: {0})")]
     NotFoundFlow(usize),
+
+    #[error("Traceability error, due to: {0}")]
+    ReservationError(#[from] ReservationError),
 }
 
 #[derive(Debug, Error, PartialEq)]

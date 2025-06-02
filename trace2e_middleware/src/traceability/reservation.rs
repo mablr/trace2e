@@ -12,6 +12,7 @@ use super::{
     message::{ReservationRequest, ReservationResponse, ResourceRequest, ResourceResponse},
 };
 
+#[derive(Debug, Clone)]
 pub struct GuardedResource<S, R> {
     inner: S,
     reservation: R,
@@ -75,13 +76,13 @@ where
 }
 
 #[derive(Default, Debug, Clone)]
-struct WaitingQueueService<S> {
+pub struct WaitingQueueService<S> {
     reservation_service: S,
     waiting_queue: Arc<Mutex<VecDeque<oneshot::Sender<()>>>>,
 }
 
 impl<S> WaitingQueueService<S> {
-    fn new(inner: S) -> Self {
+    pub fn new(inner: S) -> Self {
         Self {
             reservation_service: inner,
             waiting_queue: Arc::new(Mutex::new(VecDeque::new())),
@@ -504,8 +505,8 @@ mod tests {
             .service(ReservationService::default());
         let resource_mock_service = service_fn(|req: ResourceRequest| async move {
             Ok::<ResourceResponse, ReservationError>(match req {
-                ResourceRequest::ReadRequest => ResourceResponse::Grant,
-                ResourceRequest::WriteRequest => ResourceResponse::Grant,
+                ResourceRequest::ReadRequest => ResourceResponse::Ack,
+                ResourceRequest::WriteRequest => ResourceResponse::Ack,
                 ResourceRequest::ReadReport => ResourceResponse::Ack,
                 ResourceRequest::WriteReport => ResourceResponse::Ack,
             })
