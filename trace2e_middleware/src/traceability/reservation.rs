@@ -9,71 +9,8 @@ use tower::Service;
 
 use super::{
     error::ReservationError,
-    message::{ReservationRequest, ReservationResponse, ResourceRequest, ResourceResponse},
+    message::{ReservationRequest, ReservationResponse},
 };
-
-#[derive(Debug, Clone)]
-pub struct GuardedResource<S, R> {
-    inner: S,
-    reservation: R,
-}
-
-impl<S, R> GuardedResource<S, R> {
-    pub fn new(inner: S, reservation: R) -> Self {
-        Self { inner, reservation }
-    }
-}
-
-impl<S, R> Service<ResourceRequest> for GuardedResource<S, R>
-where
-    S: Service<ResourceRequest, Response = ResourceResponse> + Clone + Send + 'static,
-    S::Error: From<ReservationError> + From<R::Error> + Send + 'static,
-    S::Future: Send + 'static,
-    R: Service<ReservationRequest, Response = ReservationResponse> + Clone + Send + 'static,
-    R::Error: From<ReservationError> + Send + 'static,
-    R::Future: Send + 'static,
-{
-    type Response = S::Response;
-    type Error = S::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx)
-    }
-
-    fn call(&mut self, req: ResourceRequest) -> Self::Future {
-        let mut inner = self.inner.clone(); // Assuming S: Clone
-        let mut reservation = self.reservation.clone();
-
-        Box::pin(async move {
-            match req {
-                ResourceRequest::ReadRequest => {
-                    reservation.call(ReservationRequest::GetShared).await?;
-                    inner.call(ResourceRequest::ReadRequest).await
-                }
-
-                ResourceRequest::WriteRequest => {
-                    reservation.call(ReservationRequest::GetExclusive).await?;
-                    inner.call(ResourceRequest::WriteRequest).await
-                }
-
-                ResourceRequest::ReadReport => {
-                    let res = inner.call(ResourceRequest::ReadReport).await?;
-                    reservation.call(ReservationRequest::ReleaseShared).await?;
-                    Ok(res)
-                }
-
-                ResourceRequest::WriteReport => {
-                    let res = inner.call(ResourceRequest::WriteReport).await?;
-                    reservation
-                        .call(ReservationRequest::ReleaseExclusive)
-                        .await?;
-                    Ok(res)
-                }
-            }
-        })
-    }
-}
 
 #[derive(Default, Debug, Clone)]
 pub struct WaitingQueueService<S> {
@@ -493,76 +430,6 @@ mod tests {
         assert!(
             reservation_service
                 .call(ReservationRequest::GetExclusive)
-                .await
-                .is_ok()
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_traceability_reservation_middleware() {
-        let reservation_service = ServiceBuilder::new()
-            .layer(layer_fn(|service| WaitingQueueService::new(service)))
-            .service(ReservationService::default());
-        let resource_mock_service = service_fn(|req: ResourceRequest| async move {
-            Ok::<ResourceResponse, ReservationError>(match req {
-                ResourceRequest::ReadRequest => ResourceResponse::Ack,
-                ResourceRequest::WriteRequest => ResourceResponse::Ack,
-                ResourceRequest::ReadReport => ResourceResponse::Ack,
-                ResourceRequest::WriteReport => ResourceResponse::Ack,
-            })
-        });
-        let mut resource_service = GuardedResource::new(resource_mock_service, reservation_service);
-        assert!(
-            resource_service
-                .call(ResourceRequest::ReadRequest)
-                .await
-                .is_ok()
-        );
-        assert!(
-            resource_service
-                .call(ResourceRequest::ReadRequest)
-                .await
-                .is_ok()
-        );
-
-        // It will wait for the exclusive reservation (already taken by the first read requests)
-        assert!(
-            timeout(
-                Duration::from_millis(1),
-                resource_service.call(ResourceRequest::WriteRequest)
-            )
-            .await
-            .is_err()
-        );
-
-        assert!(
-            resource_service
-                .call(ResourceRequest::ReadReport)
-                .await
-                .is_ok()
-        );
-
-        // It will wait for the exclusive reservation (not all read requests are done)
-        assert!(
-            timeout(
-                Duration::from_millis(1),
-                resource_service.call(ResourceRequest::WriteRequest)
-            )
-            .await
-            .is_err()
-        );
-
-        assert!(
-            resource_service
-                .call(ResourceRequest::ReadReport)
-                .await
-                .is_ok()
-        );
-
-        // Now the exclusive reservation can be taken, write request will be granted
-        assert!(
-            resource_service
-                .call(ResourceRequest::WriteRequest)
                 .await
                 .is_ok()
         );

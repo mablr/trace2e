@@ -57,6 +57,8 @@ pub enum TraceabilityResponse {
 /// The requests are expecting compliance labels as response
 /// The reports may lead to an update of the compliance labels
 pub enum ResourceRequest {
+    ReleaseShared,
+    ReleaseExclusive,
     ReadRequest,
     WriteRequest,
     ReadReport,
