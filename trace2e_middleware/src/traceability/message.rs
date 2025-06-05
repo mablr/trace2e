@@ -19,15 +19,15 @@ pub enum P2mRequest {
         output: bool,
     },
     IoReport {
-        id: usize,
+        id: u128,
         success: bool,
     },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum P2mResponse {
-    Grant(usize), // <- P2mRequest::IoRequest
-    Ack,          // <- P2mRequest::{LocalEnroll, RemoteEnroll, Report}
+    Grant(u128), // <- P2mRequest::IoRequest
+    Ack,         // <- P2mRequest::{LocalEnroll, RemoteEnroll, Report}
 }
 
 #[derive(Debug, Clone)]
@@ -50,36 +50,6 @@ pub enum TraceabilityRequest {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TraceabilityResponse {
-    Grant, // <- TraceabilityRequest::Request
-    Ack,   // <- TraceabilityRequest::{InitResource, Report}
-}
-
-/// The requests are expecting compliance labels as response
-/// The reports may lead to an update of the compliance labels
-pub enum ResourceRequest {
-    ReleaseShared,
-    ReleaseExclusive,
-    ReadRequest,
-    WriteRequest,
-    ReadReport,
-    WriteReport,
-}
-
-pub enum ResourceResponse {
-    // TODO : Refactor this to convey Compliance Labels
+    Grant,
     Ack,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum ReservationRequest {
-    GetShared,
-    GetExclusive,
-    ReleaseShared,
-    ReleaseExclusive,
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum ReservationResponse {
-    Reserved,
-    Released,
 }

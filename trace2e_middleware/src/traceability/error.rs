@@ -11,21 +11,9 @@ pub enum TraceabilityError {
     #[error("Traceability error, invalid stream (local_socket: {0}, peer_socket: {1})")]
     InvalidStream(String, String),
 
+    #[error("Traceability error, failed to instantiate flow due to system time error")]
+    SystemTimeError,
+
     #[error("Traceability error, flow not found (id: {0})")]
-    NotFoundFlow(usize),
-
-    #[error("Traceability error, due to: {0}")]
-    ReservationError(#[from] ReservationError),
-}
-
-#[derive(Debug, Error, PartialEq)]
-pub enum ReservationError {
-    #[error("Reservation failure, already reserved in shared mode")]
-    AlreadyReservedShared,
-
-    #[error("Reservation failure, already reserved in exclusive mode")]
-    AlreadyReservedExclusive,
-
-    #[error("Reservation failure, unauthorized release")]
-    UnauthorizedRelease,
+    NotFoundFlow(u128),
 }

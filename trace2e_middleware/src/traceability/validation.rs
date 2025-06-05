@@ -107,22 +107,21 @@ mod tests {
             P2mResponse::Ack
         );
 
-        assert_eq!(
-            provenance_service
-                .call(P2mRequest::IoRequest {
-                    pid: 1,
-                    fd: 1,
-                    output: true
-                })
-                .await
-                .unwrap(),
-            P2mResponse::Grant(0)
-        );
-
+        let P2mResponse::Grant(flow_id) = provenance_service
+            .call(P2mRequest::IoRequest {
+                pid: 1,
+                fd: 1,
+                output: true,
+            })
+            .await
+            .unwrap()
+        else {
+            panic!("Expected P2mResponse::Grant");
+        };
         assert_eq!(
             provenance_service
                 .call(P2mRequest::IoReport {
-                    id: 0,
+                    id: flow_id,
                     success: true
                 })
                 .await
