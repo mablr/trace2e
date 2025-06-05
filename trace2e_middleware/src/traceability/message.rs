@@ -35,15 +35,13 @@ pub enum TraceabilityRequest {
     InitResource(Identifier), // -> TraceabilityResponse::Ack
     Request {
         // -> TraceabilityResponse::Grant
-        process: Identifier,
-        fd: Identifier,
-        output: bool,
+        source: Identifier,
+        destination: Identifier,
     },
     Report {
         // -> TraceabilityResponse::Ack
-        process: Identifier,
-        fd: Identifier,
-        output: bool,
+        source: Identifier,
+        destination: Identifier,
         success: bool,
     },
 }

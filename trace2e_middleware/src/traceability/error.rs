@@ -16,4 +16,7 @@ pub enum TraceabilityError {
 
     #[error("Traceability error, flow not found (id: {0})")]
     NotFoundFlow(u128),
+
+    #[error("Traceability error, inconsistent flow")]
+    InconsistentFlow,
 }

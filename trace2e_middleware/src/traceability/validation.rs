@@ -69,9 +69,11 @@ impl Predicate<P2mRequest> for ResourceValidator {
 
 #[cfg(test)]
 mod tests {
-    use tower::{Service, ServiceBuilder, filter::FilterLayer};
+    use tower::{Service, ServiceBuilder, filter::FilterLayer, layer::layer_fn};
 
-    use crate::traceability::{api::Trace2eService, message::P2mResponse};
+    use crate::traceability::{
+        api::Trace2eService, layers::mock::TraceabilityMockService, message::P2mResponse,
+    };
 
     use super::*;
 
@@ -80,7 +82,8 @@ mod tests {
         let validator = ResourceValidator::default();
         let mut provenance_service = ServiceBuilder::new()
             .layer(FilterLayer::new(validator))
-            .service(Trace2eService::default());
+            .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .service(TraceabilityMockService::default());
 
         assert_eq!(
             provenance_service

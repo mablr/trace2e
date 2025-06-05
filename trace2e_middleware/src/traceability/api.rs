@@ -1,4 +1,7 @@
-use crate::traceability::{error::TraceabilityError, message::P2mRequest};
+use crate::traceability::{
+    error::TraceabilityError,
+    message::{P2mRequest, TraceabilityRequest, TraceabilityResponse},
+};
 use std::{
     collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll, time::SystemTime,
 };
@@ -11,14 +14,15 @@ use super::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Trace2eService {
+pub struct Trace2eService<T> {
     node_id: String,
     resource_map: Arc<Mutex<HashMap<(i32, i32), (Identifier, Identifier)>>>,
     flow_map: Arc<Mutex<HashMap<u128, (Identifier, Identifier, bool)>>>,
+    inner: T,
 }
 
-impl Default for Trace2eService {
-    fn default() -> Self {
+impl<T> Trace2eService<T> {
+    pub fn new(inner: T) -> Self {
         Self::new_with_node_id(
             rustix::system::uname()
                 .nodename()
@@ -26,45 +30,60 @@ impl Default for Trace2eService {
                 .unwrap()
                 .to_string()
                 .to_lowercase(),
+            inner,
         )
     }
-}
 
-impl Trace2eService {
-    pub fn new_with_node_id(node_id: String) -> Self {
+    pub fn new_with_node_id(node_id: String, inner: T) -> Self {
         Self {
             node_id,
             resource_map: Arc::new(Mutex::new(HashMap::new())),
             flow_map: Arc::new(Mutex::new(HashMap::new())),
+            inner,
         }
     }
 }
 
-impl Service<P2mRequest> for Trace2eService {
+impl<T> Service<P2mRequest> for Trace2eService<T>
+where
+    T: Service<TraceabilityRequest, Response = TraceabilityResponse, Error = TraceabilityError>
+        + Clone
+        + 'static,
+{
     type Response = P2mResponse;
-    type Error = TraceabilityError;
+    type Error = T::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
     fn poll_ready(
         &mut self,
-        _: &mut std::task::Context<'_>,
+        cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
+        self.inner.poll_ready(cx)
     }
 
     fn call(&mut self, request: P2mRequest) -> Self::Future {
         let this = self.clone();
+        let mut inner = std::mem::replace(&mut self.inner, this.inner.clone());
         Box::pin(async move {
-            match request {
+            match request.clone() {
                 P2mRequest::LocalEnroll { pid, fd, path } => {
-                    this.resource_map.lock().await.insert(
-                        (pid, fd),
-                        (
-                            Identifier::new(this.node_id.clone(), Resource::new_process(pid)),
-                            Identifier::new(this.node_id.clone(), Resource::new_file(path)),
-                        ),
-                    );
-                    Ok(P2mResponse::Ack)
+                    let process = Identifier::new(this.node_id.clone(), Resource::new_process(pid));
+                    let file = Identifier::new(this.node_id.clone(), Resource::new_file(path));
+                    this.resource_map
+                        .lock()
+                        .await
+                        .insert((pid, fd), (process.clone(), file.clone()));
+                    match inner.call(TraceabilityRequest::InitResource(process)).await {
+                        Ok(TraceabilityResponse::Ack) => {
+                            match inner.call(TraceabilityRequest::InitResource(file)).await {
+                                Ok(TraceabilityResponse::Ack) => Ok(P2mResponse::Ack),
+                                Err(e) => Err(e),
+                                _ => unreachable!(),
+                            }
+                        }
+                        Err(e) => Err(e),
+                        _ => unreachable!(),
+                    }
                 }
                 P2mRequest::RemoteEnroll {
                     pid,
@@ -72,37 +91,77 @@ impl Service<P2mRequest> for Trace2eService {
                     local_socket,
                     peer_socket,
                 } => {
-                    this.resource_map.lock().await.insert(
-                        (pid, fd),
-                        (
-                            Identifier::new(this.node_id.clone(), Resource::new_process(pid)),
-                            Identifier::new(
-                                this.node_id.clone(),
-                                Resource::new_stream(local_socket, peer_socket),
-                            ),
-                        ),
+                    let process = Identifier::new(this.node_id.clone(), Resource::new_process(pid));
+                    let stream = Identifier::new(
+                        this.node_id.clone(),
+                        Resource::new_stream(local_socket, peer_socket),
                     );
-                    Ok(P2mResponse::Ack)
+                    this.resource_map
+                        .lock()
+                        .await
+                        .insert((pid, fd), (process.clone(), stream.clone()));
+                    match inner.call(TraceabilityRequest::InitResource(process)).await {
+                        Ok(TraceabilityResponse::Ack) => {
+                            match inner.call(TraceabilityRequest::InitResource(stream)).await {
+                                Ok(TraceabilityResponse::Ack) => Ok(P2mResponse::Ack),
+                                Err(e) => Err(e),
+                                _ => unreachable!(),
+                            }
+                        }
+                        Err(e) => Err(e),
+                        _ => unreachable!(),
+                    }
                 }
                 P2mRequest::IoRequest { pid, fd, output } => {
                     if let Some((process, fd)) = this.resource_map.lock().await.get(&(pid, fd)) {
                         let mut flow_map = this.flow_map.lock().await;
-
                         let flow_id = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
                         {
                             Ok(n) => n.as_nanos(),
                             Err(_) => return Err(TraceabilityError::SystemTimeError),
                         };
                         flow_map.insert(flow_id, (process.clone(), fd.clone(), output));
-                        Ok(P2mResponse::Grant(flow_id))
+
+                        let (source, destination) = if output {
+                            (process.clone(), fd.clone())
+                        } else {
+                            (fd.clone(), process.clone())
+                        };
+                        match inner
+                            .call(TraceabilityRequest::Request {
+                                source,
+                                destination,
+                            })
+                            .await
+                        {
+                            Ok(TraceabilityResponse::Grant) => Ok(P2mResponse::Grant(flow_id)),
+                            Err(e) => Err(e),
+                            _ => unreachable!(),
+                        }
                     } else {
                         Err(TraceabilityError::UndeclaredResource(pid, fd))
                     }
                 }
-                P2mRequest::IoReport { id, success } => {
+                P2mRequest::IoReport { id, .. } => {
                     let mut flow_map = this.flow_map.lock().await;
                     if let Some((process, fd, output)) = flow_map.remove(&id) {
-                        Ok(P2mResponse::Ack)
+                        let (source, destination) = if output {
+                            (process.clone(), fd.clone())
+                        } else {
+                            (fd.clone(), process.clone())
+                        };
+                        match inner
+                            .call(TraceabilityRequest::Report {
+                                source,
+                                destination,
+                                success: true,
+                            })
+                            .await
+                        {
+                            Ok(TraceabilityResponse::Ack) => Ok(P2mResponse::Ack),
+                            Err(e) => Err(e),
+                            _ => unreachable!(),
+                        }
                     } else {
                         Err(TraceabilityError::NotFoundFlow(id))
                     }
@@ -114,19 +173,24 @@ impl Service<P2mRequest> for Trace2eService {
 
 #[cfg(test)]
 mod tests {
-    use tower::{ServiceBuilder, filter::FilterLayer};
+    use tower::{Service, ServiceBuilder, filter::FilterLayer, layer::layer_fn};
 
-    use crate::traceability::validation::ResourceValidator;
+    use crate::traceability::{
+        layers::{mock::TraceabilityMockService, sequencer::SequencerService},
+        validation::ResourceValidator,
+    };
 
     use super::*;
 
     #[tokio::test]
-    async fn unit_traceability_api_request_response() {
-        let traceability_api = Trace2eService::new_with_node_id("test".to_string());
-        let mut traceability_api_service = ServiceBuilder::new().service(traceability_api);
+    async fn unit_trace2e_service_request_response() {
+        let mut trace2e_service = ServiceBuilder::new()
+            .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .layer(layer_fn(|inner| SequencerService::new(inner, None)))
+            .service(TraceabilityMockService::default());
 
         assert_eq!(
-            traceability_api_service
+            trace2e_service
                 .call(P2mRequest::LocalEnroll {
                     pid: 1,
                     fd: 3,
@@ -137,7 +201,7 @@ mod tests {
             P2mResponse::Ack
         );
         assert_eq!(
-            traceability_api_service
+            trace2e_service
                 .call(P2mRequest::RemoteEnroll {
                     pid: 1,
                     fd: 3,
@@ -149,7 +213,7 @@ mod tests {
             P2mResponse::Ack
         );
 
-        let P2mResponse::Grant(flow_id) = traceability_api_service
+        let P2mResponse::Grant(flow_id) = trace2e_service
             .call(P2mRequest::IoRequest {
                 pid: 1,
                 fd: 3,
@@ -161,7 +225,7 @@ mod tests {
             panic!("Expected P2mResponse::Grant");
         };
         assert_eq!(
-            traceability_api_service
+            trace2e_service
                 .call(P2mRequest::IoReport {
                     id: flow_id,
                     success: true
@@ -171,7 +235,7 @@ mod tests {
             P2mResponse::Ack
         );
 
-        let P2mResponse::Grant(flow_id) = traceability_api_service
+        let P2mResponse::Grant(flow_id) = trace2e_service
             .call(P2mRequest::IoRequest {
                 pid: 1,
                 fd: 3,
@@ -183,7 +247,7 @@ mod tests {
             panic!("Expected P2mResponse::Grant");
         };
         assert_eq!(
-            traceability_api_service
+            trace2e_service
                 .call(P2mRequest::IoReport {
                     id: flow_id,
                     success: true
@@ -195,16 +259,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unit_traceability_api_validated_resources() {
-        let traceability_api = Trace2eService::new_with_node_id("test".to_string());
-        let mut traceability_api_service = ServiceBuilder::new()
+    async fn unit_trace2e_service_validated_resources() {
+        let mut trace2e_service = ServiceBuilder::new()
             .layer(FilterLayer::new(ResourceValidator::default()))
-            .service(traceability_api);
+            .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .layer(layer_fn(|inner| SequencerService::new(inner, None)))
+            .service(TraceabilityMockService::default());
 
         // Test with invalid process
         // This request is supposed to be filtered out by the validator
         assert_eq!(
-            traceability_api_service
+            trace2e_service
                 .call(P2mRequest::LocalEnroll {
                     pid: 0,
                     fd: 3,
@@ -218,7 +283,7 @@ mod tests {
 
         // Test successful process instantiation with validation
         assert_eq!(
-            traceability_api_service
+            trace2e_service
                 .call(P2mRequest::LocalEnroll {
                     pid: std::process::id() as i32,
                     fd: 3,
@@ -231,13 +296,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unit_traceability_api_io_invalid_request() {
-        let traceability_api = Trace2eService::new_with_node_id("test".to_string());
-        let mut traceability_api_service = ServiceBuilder::new().service(traceability_api);
+    async fn unit_trace2e_service_io_invalid_request() {
+        let mut trace2e_service = ServiceBuilder::new()
+            .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .service(TraceabilityMockService::default());
 
         // Neither process nor fd are enrolled
         assert_eq!(
-            traceability_api_service
+            trace2e_service
                 .call(P2mRequest::IoRequest {
                     pid: std::process::id() as i32,
                     fd: 3,
@@ -248,7 +314,7 @@ mod tests {
             TraceabilityError::UndeclaredResource(std::process::id() as i32, 3)
         );
 
-        traceability_api_service
+        trace2e_service
             .call(P2mRequest::LocalEnroll {
                 pid: std::process::id() as i32,
                 fd: 4,
@@ -259,7 +325,7 @@ mod tests {
 
         // Only process is enrolled
         assert_eq!(
-            traceability_api_service
+            trace2e_service
                 .call(P2mRequest::IoRequest {
                     pid: std::process::id() as i32,
                     fd: 3,
@@ -272,13 +338,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unit_traceability_api_io_invalid_report() {
-        let traceability_api = Trace2eService::new_with_node_id("test".to_string());
-        let mut traceability_api_service = ServiceBuilder::new().service(traceability_api);
+    async fn unit_trace2e_service_io_invalid_report() {
+        let mut trace2e_service = ServiceBuilder::new()
+            .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .service(TraceabilityMockService::default());
 
         // Invalid grant id
         assert_eq!(
-            traceability_api_service
+            trace2e_service
                 .call(P2mRequest::IoReport {
                     id: 0,
                     success: true,

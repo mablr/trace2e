@@ -30,6 +30,7 @@ pub struct Process {
 pub enum Resource {
     Fd(Fd),
     Process(Process),
+    None,
 }
 
 impl Resource {
@@ -78,5 +79,12 @@ pub struct Identifier {
 impl Identifier {
     pub fn new(node: String, resource: Resource) -> Self {
         Self { node, resource }
+    }
+
+    pub fn new_none() -> Self {
+        Self {
+            node: String::default(),
+            resource: Resource::None,
+        }
     }
 }
