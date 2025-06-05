@@ -1,7 +1,4 @@
-use crate::traceability::{
-    error::TraceabilityError,
-    message::{P2mRequest, TraceabilityResponse},
-};
+use crate::traceability::{error::TraceabilityError, message::P2mRequest};
 use std::{
     collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll, time::SystemTime,
 };
@@ -9,18 +6,18 @@ use tokio::sync::Mutex;
 use tower::Service;
 
 use super::{
-    message::{P2mResponse, TraceabilityRequest},
+    message::P2mResponse,
     naming::{Identifier, Resource},
 };
 
 #[derive(Debug, Clone)]
-pub struct TraceabilityApiService {
+pub struct Trace2eService {
     node_id: String,
     resource_map: Arc<Mutex<HashMap<(i32, i32), (Identifier, Identifier)>>>,
     flow_map: Arc<Mutex<HashMap<u128, (Identifier, Identifier, bool)>>>,
 }
 
-impl Default for TraceabilityApiService {
+impl Default for Trace2eService {
     fn default() -> Self {
         Self::new_with_node_id(
             rustix::system::uname()
@@ -33,7 +30,7 @@ impl Default for TraceabilityApiService {
     }
 }
 
-impl TraceabilityApiService {
+impl Trace2eService {
     pub fn new_with_node_id(node_id: String) -> Self {
         Self {
             node_id,
@@ -43,7 +40,7 @@ impl TraceabilityApiService {
     }
 }
 
-impl Service<P2mRequest> for TraceabilityApiService {
+impl Service<P2mRequest> for Trace2eService {
     type Response = P2mResponse;
     type Error = TraceabilityError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
@@ -125,7 +122,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_traceability_api_request_response() {
-        let traceability_api = TraceabilityApiService::new_with_node_id("test".to_string());
+        let traceability_api = Trace2eService::new_with_node_id("test".to_string());
         let mut traceability_api_service = ServiceBuilder::new().service(traceability_api);
 
         assert_eq!(
@@ -199,7 +196,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_traceability_api_validated_resources() {
-        let traceability_api = TraceabilityApiService::new_with_node_id("test".to_string());
+        let traceability_api = Trace2eService::new_with_node_id("test".to_string());
         let mut traceability_api_service = ServiceBuilder::new()
             .layer(FilterLayer::new(ResourceValidator::default()))
             .service(traceability_api);
@@ -235,7 +232,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_traceability_api_io_invalid_request() {
-        let traceability_api = TraceabilityApiService::new_with_node_id("test".to_string());
+        let traceability_api = Trace2eService::new_with_node_id("test".to_string());
         let mut traceability_api_service = ServiceBuilder::new().service(traceability_api);
 
         // Neither process nor fd are enrolled
@@ -276,7 +273,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_traceability_api_io_invalid_report() {
-        let traceability_api = TraceabilityApiService::new_with_node_id("test".to_string());
+        let traceability_api = Trace2eService::new_with_node_id("test".to_string());
         let mut traceability_api_service = ServiceBuilder::new().service(traceability_api);
 
         // Invalid grant id

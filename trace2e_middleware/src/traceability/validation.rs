@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 use procfs::process::Process as ProcfsProcess;
 use tower::{BoxError, filter::Predicate};
 
-use super::{error::TraceabilityError, message::P2mRequest};
+use crate::traceability::{error::TraceabilityError, message::P2mRequest};
 
 #[derive(Default, Debug, Clone)]
 pub struct ResourceValidator;
@@ -71,7 +71,7 @@ impl Predicate<P2mRequest> for ResourceValidator {
 mod tests {
     use tower::{Service, ServiceBuilder, filter::FilterLayer};
 
-    use crate::traceability::{api::TraceabilityApiService, message::P2mResponse};
+    use crate::traceability::{api::Trace2eService, message::P2mResponse};
 
     use super::*;
 
@@ -80,7 +80,7 @@ mod tests {
         let validator = ResourceValidator::default();
         let mut provenance_service = ServiceBuilder::new()
             .layer(FilterLayer::new(validator))
-            .service(TraceabilityApiService::default());
+            .service(Trace2eService::default());
 
         assert_eq!(
             provenance_service

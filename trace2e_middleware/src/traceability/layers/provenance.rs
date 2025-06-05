@@ -1,4 +1,4 @@
-use super::naming::Identifier;
+use crate::traceability::naming::Identifier;
 use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Default, Clone)]
