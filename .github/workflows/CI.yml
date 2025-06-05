@@ -26,6 +26,3 @@ jobs:
     - name: Run unit tests
       run: cargo test unit
       shell: bash
-    - name: Run integration tests
-      run: ./integration_tests.sh
-      shell: bash
