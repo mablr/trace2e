@@ -5,7 +5,10 @@ use std::{
     task::Poll,
 };
 
-use tokio::{join, sync::{oneshot, Mutex}};
+use tokio::{
+    join,
+    sync::{Mutex, oneshot},
+};
 use tower::Service;
 
 use crate::traceability::{
@@ -84,7 +87,10 @@ where
                     (true, true) => inner.call(req).await,
                     (true, false) => Err(TraceabilityError::UnavailableDestination(destination)),
                     (false, true) => Err(TraceabilityError::UnavailableSource(source)),
-                    (false, false) => Err(TraceabilityError::UnavailableSourceAndDestination(source, destination)),
+                    (false, false) => Err(TraceabilityError::UnavailableSourceAndDestination(
+                        source,
+                        destination,
+                    )),
                 },
                 TraceabilityRequest::Report {
                     source,
@@ -171,24 +177,27 @@ where
             for _ in 0..max_tries {
                 match inner.call(req.clone()).await {
                     Ok(TraceabilityResponse::Grant) => return Ok(TraceabilityResponse::Grant),
-                    Ok(TraceabilityResponse::Ack) => {
-                        match req.clone() {
-                            TraceabilityRequest::Report { source, destination, .. } => {
-                                join!(this.notify_waiting_queue(source), this.notify_waiting_queue(destination));
-                                return Ok(TraceabilityResponse::Ack);
-                            }
-                            _ => unreachable!(),
+                    Ok(TraceabilityResponse::Ack) => match req.clone() {
+                        TraceabilityRequest::Report {
+                            source,
+                            destination,
+                            ..
+                        } => {
+                            join!(
+                                this.notify_waiting_queue(source),
+                                this.notify_waiting_queue(destination)
+                            );
+                            return Ok(TraceabilityResponse::Ack);
                         }
-                    }
-                    Ok(TraceabilityResponse::Wait) => {
-                        match req.clone() {
-                            TraceabilityRequest::Report { destination, .. } => {
-                                this.notify_waiting_queue(destination).await;
-                                return Ok(TraceabilityResponse::Ack);
-                            }
-                            _ => unreachable!(),
+                        _ => unreachable!(),
+                    },
+                    Ok(TraceabilityResponse::Wait) => match req.clone() {
+                        TraceabilityRequest::Report { destination, .. } => {
+                            this.notify_waiting_queue(destination).await;
+                            return Ok(TraceabilityResponse::Ack);
                         }
-                    }
+                        _ => unreachable!(),
+                    },
                     Err(TraceabilityError::UnavailableSource(id)) => {
                         let rx = this.join_waiting_queue(id).await;
                         let _ = rx.await;
