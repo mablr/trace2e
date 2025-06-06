@@ -186,7 +186,7 @@ mod tests {
     async fn unit_trace2e_service_request_response() {
         let mut trace2e_service = ServiceBuilder::new()
             .layer(layer_fn(|inner| Trace2eService::new(inner)))
-            .layer(layer_fn(|inner| SequencerService::new(inner, None)))
+            .layer(layer_fn(|inner| SequencerService::new(inner)))
             .service(TraceabilityMockService::default());
 
         assert_eq!(
@@ -263,7 +263,7 @@ mod tests {
         let mut trace2e_service = ServiceBuilder::new()
             .layer(FilterLayer::new(ResourceValidator::default()))
             .layer(layer_fn(|inner| Trace2eService::new(inner)))
-            .layer(layer_fn(|inner| SequencerService::new(inner, None)))
+            .layer(layer_fn(|inner| SequencerService::new(inner)))
             .service(TraceabilityMockService::default());
 
         // Test with invalid process

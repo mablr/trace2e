@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::traceability::naming::Identifier;
+
 #[derive(Debug, Error, PartialEq)]
 pub enum TraceabilityError {
     #[error("Traceability error, undeclared resource (pid: {0}, fd: {1})")]
@@ -17,6 +19,15 @@ pub enum TraceabilityError {
     #[error("Traceability error, flow not found (id: {0})")]
     NotFoundFlow(u128),
 
-    #[error("Traceability error, inconsistent flow")]
-    InconsistentFlow,
+    #[error("Traceability error, destination unavailable")]
+    UnavailableDestination(Identifier),
+
+    #[error("Traceability error, source unavailable")]
+    UnavailableSource(Identifier),
+
+    #[error("Traceability error, source and destination unavailable")]
+    UnavailableSourceAndDestination(Identifier, Identifier),
+
+    #[error("Traceability error, reached max retries waiting queue")]
+    ReachedMaxRetriesWaitingQueue,
 }

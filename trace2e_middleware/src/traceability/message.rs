@@ -50,4 +50,5 @@ pub enum TraceabilityRequest {
 pub enum TraceabilityResponse {
     Grant,
     Ack,
+    Wait, // Only produced by SequencerService and mapped to Ack by WaitingQueueService
 }
