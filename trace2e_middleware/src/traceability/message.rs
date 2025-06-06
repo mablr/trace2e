@@ -32,7 +32,6 @@ pub enum P2mResponse {
 
 #[derive(Debug, Clone)]
 pub enum TraceabilityRequest {
-    InitResource(Identifier), // -> TraceabilityResponse::Ack
     Request {
         // -> TraceabilityResponse::Grant
         source: Identifier,

@@ -54,10 +54,7 @@ where
     type Error = T::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
 
-    fn poll_ready(
-        &mut self,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
     }
 
@@ -73,17 +70,7 @@ where
                         .lock()
                         .await
                         .insert((pid, fd), (process.clone(), file.clone()));
-                    match inner.call(TraceabilityRequest::InitResource(process)).await {
-                        Ok(TraceabilityResponse::Ack) => {
-                            match inner.call(TraceabilityRequest::InitResource(file)).await {
-                                Ok(TraceabilityResponse::Ack) => Ok(P2mResponse::Ack),
-                                Err(e) => Err(e),
-                                _ => unreachable!(),
-                            }
-                        }
-                        Err(e) => Err(e),
-                        _ => unreachable!(),
-                    }
+                    Ok(P2mResponse::Ack)
                 }
                 P2mRequest::RemoteEnroll {
                     pid,
@@ -100,17 +87,7 @@ where
                         .lock()
                         .await
                         .insert((pid, fd), (process.clone(), stream.clone()));
-                    match inner.call(TraceabilityRequest::InitResource(process)).await {
-                        Ok(TraceabilityResponse::Ack) => {
-                            match inner.call(TraceabilityRequest::InitResource(stream)).await {
-                                Ok(TraceabilityResponse::Ack) => Ok(P2mResponse::Ack),
-                                Err(e) => Err(e),
-                                _ => unreachable!(),
-                            }
-                        }
-                        Err(e) => Err(e),
-                        _ => unreachable!(),
-                    }
+                    Ok(P2mResponse::Ack)
                 }
                 P2mRequest::IoRequest { pid, fd, output } => {
                     if let Some((process, fd)) = this.resource_map.lock().await.get(&(pid, fd)) {

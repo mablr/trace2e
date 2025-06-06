@@ -22,7 +22,6 @@ impl Service<TraceabilityRequest> for TraceabilityMockService {
     fn call(&mut self, req: TraceabilityRequest) -> Self::Future {
         Box::pin(async move {
             match req.clone() {
-                TraceabilityRequest::InitResource { .. } => Ok(TraceabilityResponse::Ack),
                 TraceabilityRequest::Request { .. } => Ok(TraceabilityResponse::Grant),
                 TraceabilityRequest::Report { .. } => Ok(TraceabilityResponse::Ack),
             }
