@@ -153,7 +153,11 @@ mod tests {
     use tower::{Service, ServiceBuilder, filter::FilterLayer, layer::layer_fn};
 
     use crate::traceability::{
-        layers::{mock::TraceabilityMockService, sequencer::SequencerService},
+        layers::{
+            mock::TraceabilityMockService,
+            provenance::ProvenanceService,
+            sequencer::{SequencerService, WaitingQueueService},
+        },
         validation::ResourceValidator,
     };
 
@@ -163,7 +167,9 @@ mod tests {
     async fn unit_trace2e_service_request_response() {
         let mut trace2e_service = ServiceBuilder::new()
             .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
             .layer(layer_fn(|inner| SequencerService::new(inner)))
+            .layer(layer_fn(|inner| ProvenanceService::new(inner)))
             .service(TraceabilityMockService::default());
 
         assert_eq!(
@@ -240,7 +246,9 @@ mod tests {
         let mut trace2e_service = ServiceBuilder::new()
             .layer(FilterLayer::new(ResourceValidator::default()))
             .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
             .layer(layer_fn(|inner| SequencerService::new(inner)))
+            .layer(layer_fn(|inner| ProvenanceService::new(inner)))
             .service(TraceabilityMockService::default());
 
         // Test with invalid process
@@ -276,6 +284,9 @@ mod tests {
     async fn unit_trace2e_service_io_invalid_request() {
         let mut trace2e_service = ServiceBuilder::new()
             .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
+            .layer(layer_fn(|inner| SequencerService::new(inner)))
+            .layer(layer_fn(|inner| ProvenanceService::new(inner)))
             .service(TraceabilityMockService::default());
 
         // Neither process nor fd are enrolled
@@ -318,6 +329,9 @@ mod tests {
     async fn unit_trace2e_service_io_invalid_report() {
         let mut trace2e_service = ServiceBuilder::new()
             .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
+            .layer(layer_fn(|inner| SequencerService::new(inner)))
+            .layer(layer_fn(|inner| ProvenanceService::new(inner)))
             .service(TraceabilityMockService::default());
 
         // Invalid grant id
