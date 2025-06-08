@@ -35,6 +35,10 @@ The system works through three main components:
    - Request authorization for I/O operations
    - Report operation results
 
+3. **I/O Library Wrapper and Patches**: to provide TracE2E integration using `trace2e_client`:
+   - `stde2e`: Standard library wrapper
+   - `tokioe2e`: Patch for `tokio` library
+
 ## Getting Started
 
 ### Prerequisites
