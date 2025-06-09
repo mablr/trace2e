@@ -107,7 +107,6 @@ where
                     Err(e) => Err(e),
                     Ok(_) => unreachable!(),
                 },
-                _ => inner.call(req).await,
             }
         })
     }
