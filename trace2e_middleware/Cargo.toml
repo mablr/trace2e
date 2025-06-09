@@ -6,8 +6,8 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-procfs.workspace = true
 prost.workspace = true
+libproc = { workspace = true }
 rustix = { workspace = true, features = ["system"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tonic.workspace = true

@@ -1,6 +1,5 @@
+use libproc::proc_pid::pidpath;
 use std::net::SocketAddr;
-
-use procfs::process::Process as ProcfsProcess;
 use tower::{BoxError, filter::Predicate};
 
 use crate::traceability::{error::TraceabilityError, message::P2mRequest};
@@ -10,11 +9,7 @@ pub struct ResourceValidator;
 
 impl ResourceValidator {
     fn is_valid_process(&self, pid: i32) -> bool {
-        if let Ok(process) = ProcfsProcess::new(pid) {
-            process.stat().is_ok()
-        } else {
-            false
-        }
+        pidpath(pid).is_ok()
     }
 
     fn is_valid_stream(&self, local_socket: &String, peer_socket: &String) -> bool {

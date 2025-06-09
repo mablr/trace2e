@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use procfs::process;
+use libproc::proc_pid::pidpath;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct File {
@@ -22,7 +22,6 @@ pub enum Fd {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Process {
     pub pid: i32,
-    pub starttime: u64,
     pub exe_path: String,
 }
 
@@ -46,27 +45,9 @@ impl Resource {
     }
 
     pub fn new_process(pid: i32) -> Self {
-        match process::Process::new(pid) {
-            Ok(procfs_process) => {
-                let starttime = procfs_process
-                    .stat()
-                    .map_or_else(|_| Default::default(), |stat| stat.starttime);
-                let exe_path = procfs_process.exe().map_or_else(
-                    |_| Default::default(),
-                    |exe| exe.to_str().unwrap_or_default().to_string(),
-                );
-                Self::Process(Process {
-                    pid,
-                    starttime,
-                    exe_path,
-                })
-            }
-            Err(_) => Self::Process(Process {
-                pid,
-                starttime: 0,
-                exe_path: String::default(),
-            }),
-        }
+        let starttime = 0;
+        let exe_path = pidpath(pid).unwrap_or_default();
+        Self::Process(Process { pid, exe_path })
     }
 }
 
@@ -86,5 +67,15 @@ impl Identifier {
             node: String::default(),
             resource: Resource::None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_new_process() {
+        println!("{:?}", Resource::new_process(1));
     }
 }
