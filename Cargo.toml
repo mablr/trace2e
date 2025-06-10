@@ -15,7 +15,7 @@ members = [
 [workspace.dependencies]
 clap = "4"
 criterion = "0.5"
-libproc = "0.14"
+sysinfo = "0.30"
 once_cell = "1"
 prost = "0.13"
 rustix = "1"

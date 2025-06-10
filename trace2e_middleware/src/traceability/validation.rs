@@ -1,5 +1,5 @@
-use libproc::proc_pid::pidpath;
 use std::net::SocketAddr;
+use sysinfo::{Pid, System};
 use tower::{BoxError, filter::Predicate};
 
 use crate::traceability::{error::TraceabilityError, message::P2mRequest};
@@ -9,7 +9,9 @@ pub struct ResourceValidator;
 
 impl ResourceValidator {
     fn is_valid_process(&self, pid: i32) -> bool {
-        pidpath(pid).is_ok()
+        let mut system = System::new();
+        system.refresh_all();
+        system.process(Pid::from(pid as usize)).is_some()
     }
 
     fn is_valid_stream(&self, local_socket: &String, peer_socket: &String) -> bool {

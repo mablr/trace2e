@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use libproc::proc_pid::pidpath;
+use sysinfo::{Pid, System};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct File {
@@ -22,6 +22,7 @@ pub enum Fd {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Process {
     pub pid: i32,
+    pub starttime: u64,
     pub exe_path: String,
 }
 
@@ -45,9 +46,27 @@ impl Resource {
     }
 
     pub fn new_process(pid: i32) -> Self {
-        let starttime = 0;
-        let exe_path = pidpath(pid).unwrap_or_default();
-        Self::Process(Process { pid, exe_path })
+        let mut system = System::new();
+        system.refresh_all();
+        if let Some(process) = system.process(Pid::from(pid as usize)) {
+            let starttime = process.start_time();
+            let exe_path = if let Some(exe) = process.exe() {
+                exe.to_string_lossy().to_string()
+            } else {
+                String::new()
+            };
+            Self::Process(Process {
+                pid,
+                starttime,
+                exe_path,
+            })
+        } else {
+            Self::Process(Process {
+                pid,
+                starttime: 0,
+                exe_path: String::new(),
+            })
+        }
     }
 }
 
