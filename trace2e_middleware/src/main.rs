@@ -1,11 +1,20 @@
+use tonic::transport::Server;
+use tonic_reflection::server::Builder;
+use tower::{ServiceBuilder, layer::layer_fn};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, fmt};
 
-use tonic::transport::Server;
-use tonic_reflection::server::Builder;
 use trace2e_middleware::{
-    Trace2eService,
+    Trace2eGrpcService,
     grpc_proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_server::Trace2eServer},
+    traceability::{
+        api::P2mApiService,
+        layers::{
+            mock::TraceabilityMockService,
+            provenance::ProvenanceService,
+            sequencer::{SequencerService, WaitingQueueService},
+        },
+    },
 };
 
 #[cfg(not(tarpaulin_include))]
@@ -21,13 +30,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(fmt_layer)
         .init();
 
+    let trace2e_service = ServiceBuilder::new()
+        .layer(layer_fn(|inner| P2mApiService::new(inner)))
+        .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
+        .layer(layer_fn(|inner| SequencerService::new(inner)))
+        .layer(layer_fn(|inner| ProvenanceService::new(inner)))
+        .service(TraceabilityMockService::default());
+
     let address = "[::]:8080".parse().unwrap();
     let reflection_service = Builder::configure()
         .register_encoded_file_descriptor_set(MIDDLEWARE_DESCRIPTOR_SET)
         .build_v1()?;
 
     Server::builder()
-        .add_service(Trace2eServer::new(Trace2eService::default()))
+        .add_service(Trace2eServer::new(Trace2eGrpcService::new(trace2e_service)))
         .add_service(reflection_service)
         .serve(address)
         .await?;

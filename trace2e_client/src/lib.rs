@@ -52,7 +52,7 @@ mod grpc {
 
     pub fn local_enroll(path: impl AsRef<Path>, fd: i32) {
         let request = tonic::Request::new(proto::LocalCt {
-            process_id: id(),
+            process_id: id() as i32,
             file_descriptor: fd,
             path: canonicalize(path.as_ref())
                 .unwrap()
@@ -74,7 +74,7 @@ mod grpc {
 
     pub fn remote_enroll(fd: i32, local_socket: String, peer_socket: String) {
         let request = tonic::Request::new(proto::RemoteCt {
-            process_id: id(),
+            process_id: id() as i32,
             file_descriptor: fd,
             local_socket,
             peer_socket,
@@ -91,9 +91,9 @@ mod grpc {
         }
     }
 
-    pub fn io_request(fd: i32, flow: i32) -> Result<u64, Box<dyn std::error::Error>> {
+    pub fn io_request(fd: i32, flow: i32) -> Result<u128, Box<dyn std::error::Error>> {
         let request = tonic::Request::new(proto::IoInfo {
-            process_id: id(),
+            process_id: id() as i32,
             file_descriptor: fd,
             flow,
         });
@@ -117,14 +117,16 @@ mod grpc {
                 ))),
             }
         };
-        result.map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+        result
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)
+            .map(|id| id.parse::<u128>().unwrap())
     }
 
-    pub fn io_report(fd: i32, grant_id: u64, result: bool) -> std::io::Result<()> {
+    pub fn io_report(fd: i32, grant_id: u128, result: bool) -> std::io::Result<()> {
         let request = tonic::Request::new(proto::IoResult {
-            process_id: id(),
+            process_id: id() as i32,
             file_descriptor: fd,
-            grant_id,
+            grant_id: grant_id.to_string(),
             result,
         });
 

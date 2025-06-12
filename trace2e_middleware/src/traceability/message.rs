@@ -19,8 +19,10 @@ pub enum P2mRequest {
         output: bool,
     },
     IoReport {
-        id: u128,
-        success: bool,
+        pid: i32,
+        fd: i32,
+        grant_id: u128,
+        result: bool,
     },
 }
 

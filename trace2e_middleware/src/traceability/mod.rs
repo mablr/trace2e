@@ -1,7 +1,7 @@
 //! Traceability module.
-mod api;
-mod error;
-mod layers;
-mod message;
-mod naming;
-mod validation;
+pub mod api;
+pub mod error;
+pub mod layers;
+pub mod message;
+pub mod naming;
+pub mod validation;

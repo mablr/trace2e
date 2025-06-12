@@ -69,7 +69,7 @@ mod tests {
     use tower::{Service, ServiceBuilder, filter::FilterLayer, layer::layer_fn};
 
     use crate::traceability::{
-        api::Trace2eService, layers::mock::TraceabilityMockService, message::P2mResponse,
+        api::P2mApiService, layers::mock::TraceabilityMockService, message::P2mResponse,
     };
 
     use super::*;
@@ -79,7 +79,7 @@ mod tests {
         let validator = ResourceValidator::default();
         let mut provenance_service = ServiceBuilder::new()
             .layer(FilterLayer::new(validator))
-            .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .layer(layer_fn(|inner| P2mApiService::new(inner)))
             .service(TraceabilityMockService::default());
 
         assert_eq!(
@@ -121,8 +121,10 @@ mod tests {
         assert_eq!(
             provenance_service
                 .call(P2mRequest::IoReport {
-                    id: flow_id,
-                    success: true
+                    pid: 1,
+                    fd: 1,
+                    grant_id: flow_id,
+                    result: true
                 })
                 .await
                 .unwrap(),

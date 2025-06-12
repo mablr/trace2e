@@ -14,14 +14,14 @@ use super::{
 };
 
 #[derive(Debug, Clone)]
-pub struct Trace2eService<T> {
+pub struct P2mApiService<T> {
     node_id: String,
     resource_map: Arc<Mutex<HashMap<(i32, i32), (Identifier, Identifier)>>>,
     flow_map: Arc<Mutex<HashMap<u128, (Identifier, Identifier, bool)>>>,
     inner: T,
 }
 
-impl<T> Trace2eService<T> {
+impl<T> P2mApiService<T> {
     pub fn new(inner: T) -> Self {
         Self::new_with_node_id(
             rustix::system::uname()
@@ -44,15 +44,17 @@ impl<T> Trace2eService<T> {
     }
 }
 
-impl<T> Service<P2mRequest> for Trace2eService<T>
+impl<T> Service<P2mRequest> for P2mApiService<T>
 where
     T: Service<TraceabilityRequest, Response = TraceabilityResponse, Error = TraceabilityError>
         + Clone
+        + Send
         + 'static,
+    T::Future: Send,
 {
     type Response = P2mResponse;
     type Error = T::Error;
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>>>>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
     fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
@@ -119,9 +121,9 @@ where
                         Err(TraceabilityError::UndeclaredResource(pid, fd))
                     }
                 }
-                P2mRequest::IoReport { id, .. } => {
+                P2mRequest::IoReport { grant_id, .. } => {
                     let mut flow_map = this.flow_map.lock().await;
-                    if let Some((process, fd, output)) = flow_map.remove(&id) {
+                    if let Some((process, fd, output)) = flow_map.remove(&grant_id) {
                         let (source, destination) = if output {
                             (process.clone(), fd.clone())
                         } else {
@@ -140,7 +142,7 @@ where
                             _ => unreachable!(),
                         }
                     } else {
-                        Err(TraceabilityError::NotFoundFlow(id))
+                        Err(TraceabilityError::NotFoundFlow(grant_id))
                     }
                 }
             }
@@ -166,7 +168,7 @@ mod tests {
     #[tokio::test]
     async fn unit_trace2e_service_request_response() {
         let mut trace2e_service = ServiceBuilder::new()
-            .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .layer(layer_fn(|inner| P2mApiService::new(inner)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
             .layer(layer_fn(|inner| SequencerService::new(inner)))
             .layer(layer_fn(|inner| ProvenanceService::new(inner)))
@@ -210,8 +212,10 @@ mod tests {
         assert_eq!(
             trace2e_service
                 .call(P2mRequest::IoReport {
-                    id: flow_id,
-                    success: true
+                    pid: 1,
+                    fd: 3,
+                    grant_id: flow_id,
+                    result: true
                 })
                 .await
                 .unwrap(),
@@ -232,8 +236,10 @@ mod tests {
         assert_eq!(
             trace2e_service
                 .call(P2mRequest::IoReport {
-                    id: flow_id,
-                    success: true
+                    pid: 1,
+                    fd: 3,
+                    grant_id: flow_id,
+                    result: true
                 })
                 .await
                 .unwrap(),
@@ -245,7 +251,7 @@ mod tests {
     async fn unit_trace2e_service_validated_resources() {
         let mut trace2e_service = ServiceBuilder::new()
             .layer(FilterLayer::new(ResourceValidator::default()))
-            .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .layer(layer_fn(|inner| P2mApiService::new(inner)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
             .layer(layer_fn(|inner| SequencerService::new(inner)))
             .layer(layer_fn(|inner| ProvenanceService::new(inner)))
@@ -283,7 +289,7 @@ mod tests {
     #[tokio::test]
     async fn unit_trace2e_service_io_invalid_request() {
         let mut trace2e_service = ServiceBuilder::new()
-            .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .layer(layer_fn(|inner| P2mApiService::new(inner)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
             .layer(layer_fn(|inner| SequencerService::new(inner)))
             .layer(layer_fn(|inner| ProvenanceService::new(inner)))
@@ -328,7 +334,7 @@ mod tests {
     #[tokio::test]
     async fn unit_trace2e_service_io_invalid_report() {
         let mut trace2e_service = ServiceBuilder::new()
-            .layer(layer_fn(|inner| Trace2eService::new(inner)))
+            .layer(layer_fn(|inner| P2mApiService::new(inner)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
             .layer(layer_fn(|inner| SequencerService::new(inner)))
             .layer(layer_fn(|inner| ProvenanceService::new(inner)))
@@ -338,8 +344,10 @@ mod tests {
         assert_eq!(
             trace2e_service
                 .call(P2mRequest::IoReport {
-                    id: 0,
-                    success: true,
+                    pid: 1,
+                    fd: 3,
+                    grant_id: 0,
+                    result: true,
                 })
                 .await
                 .unwrap_err(),
