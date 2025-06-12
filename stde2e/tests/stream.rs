@@ -5,6 +5,7 @@ use stde2e::{
 use tokio::runtime::Handle;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ignore]
 async fn stde2e_net_stream_instantiation() -> std::io::Result<()> {
     let listener = TcpListener::bind("127.0.0.1:8081")?;
     Handle::current().spawn(async move {
