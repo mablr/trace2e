@@ -31,11 +31,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let trace2e_service = ServiceBuilder::new()
-        .layer(layer_fn(|inner| P2mApiService::new(inner)))
         .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
         .layer(layer_fn(|inner| SequencerService::new(inner)))
         .layer(layer_fn(|inner| ProvenanceService::new(inner)))
         .service(TraceabilityMockService::default());
+
+    let p2m_service = ServiceBuilder::new()
+        .layer(layer_fn(|inner| P2mApiService::new(inner)))
+        .service(trace2e_service);
 
     let address = "[::]:8080".parse().unwrap();
     let reflection_service = Builder::configure()
@@ -43,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_v1()?;
 
     Server::builder()
-        .add_service(Trace2eServer::new(Trace2eGrpcService::new(trace2e_service)))
+        .add_service(Trace2eServer::new(Trace2eGrpcService::new(p2m_service)))
         .add_service(reflection_service)
         .serve(address)
         .await?;
