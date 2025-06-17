@@ -115,7 +115,7 @@ where
                         {
                             Ok(TraceabilityResponse::Grant) => Ok(P2mResponse::Grant(flow_id)),
                             Err(e) => Err(e),
-                            _ => unreachable!(),
+                            _ => Err(TraceabilityError::InternalTrace2eError),
                         }
                     } else {
                         Err(TraceabilityError::UndeclaredResource(pid, fd))
@@ -139,7 +139,7 @@ where
                         {
                             Ok(TraceabilityResponse::Ack) => Ok(P2mResponse::Ack),
                             Err(e) => Err(e),
-                            _ => unreachable!(),
+                            _ => Err(TraceabilityError::InternalTrace2eError),
                         }
                     } else {
                         Err(TraceabilityError::NotFoundFlow(grant_id))
