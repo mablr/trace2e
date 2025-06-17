@@ -54,7 +54,7 @@ where
             .await?
         {
             P2mResponse::Ack => Ok(Response::new(proto::Ack {})),
-            _ => unreachable!(),
+            _ => Err(Status::internal("Internal traceability API error")),
         }
     }
 
@@ -74,7 +74,7 @@ where
             .await?
         {
             P2mResponse::Ack => Ok(Response::new(proto::Ack {})),
-            _ => unreachable!(),
+            _ => Err(Status::internal("Internal traceability API error")),
         }
     }
 
@@ -93,7 +93,7 @@ where
             .await?
         {
             P2mResponse::Grant(id) => Ok(Response::new(proto::Grant { id: id.to_string() })),
-            _ => unreachable!(),
+            _ => Err(Status::internal("Internal traceability API error")),
         }
     }
 
@@ -113,7 +113,7 @@ where
             .await?
         {
             P2mResponse::Ack => Ok(Response::new(proto::Ack {})),
-            _ => unreachable!(),
+            _ => Err(Status::internal("Internal traceability API error")),
         }
     }
 }
