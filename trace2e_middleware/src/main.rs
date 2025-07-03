@@ -10,7 +10,7 @@ use trace2e_middleware::{
     traceability::{
         api::P2mApiService,
         layers::{
-            mock::TraceabilityMockService,
+            mock_compliance::TraceabilityMockService,
             provenance::ProvenanceService,
             sequencer::{SequencerService, WaitingQueueService},
         },
