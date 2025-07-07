@@ -69,7 +69,7 @@ mod tests {
     use tower::{Service, ServiceBuilder, filter::FilterLayer, layer::layer_fn};
 
     use crate::traceability::{
-        api::P2mApiService, layers::mock_compliance::TraceabilityMockService, message::P2mResponse,
+        api_p2m::P2mApiService, layers::mock_compliance::TraceabilityMockService, message::P2mResponse,
     };
 
     use super::*;

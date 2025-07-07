@@ -1,5 +1,5 @@
 //! Traceability module.
-pub mod api;
+pub mod api_p2m;
 pub mod error;
 pub mod layers;
 pub mod message;
