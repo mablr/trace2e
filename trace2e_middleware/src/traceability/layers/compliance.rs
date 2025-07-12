@@ -1,14 +1,40 @@
-use std::{future::Future, pin::Pin, task::Poll};
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    task::Poll,
+};
 
+use tokio::sync::Mutex;
 use tower::Service;
 
 use crate::traceability::{
     error::TraceabilityError,
     message::{TraceabilityRequest, TraceabilityResponse},
+    naming::Identifier,
 };
 
-#[derive(Clone, Default)]
-pub struct ComplianceService;
+enum ConfidentialityPolicy {
+    Secret,
+    Local,
+    Public,
+}
+
+enum IntegrityPolicy {
+    Low,
+    High,
+}
+
+enum Policy {
+    Confidentiality(ConfidentialityPolicy),
+    Integrity(IntegrityPolicy),
+}
+
+#[derive(Default)]
+pub struct ComplianceService {
+    policies: Arc<Mutex<HashMap<Identifier, HashSet<Policy>>>>,
+}
 
 impl Service<TraceabilityRequest> for ComplianceService {
     type Response = TraceabilityResponse;
