@@ -33,4 +33,7 @@ pub enum TraceabilityError {
 
     #[error("Traceability error, reached max retries waiting queue")]
     ReachedMaxRetriesWaitingQueue,
+
+    #[error("Traceability error, direct policy violation")]
+    DirectPolicyViolation,
 }
