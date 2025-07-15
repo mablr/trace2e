@@ -107,6 +107,7 @@ where
                     Err(e) => Err(e),
                     Ok(_) => unreachable!(),
                 },
+                _ => Err(TraceabilityError::InvalidRequest),
             }
         })
     }

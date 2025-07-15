@@ -24,6 +24,7 @@ impl Service<TraceabilityRequest> for TraceabilityMockService {
             match req.clone() {
                 TraceabilityRequest::Request { .. } => Ok(TraceabilityResponse::Grant),
                 TraceabilityRequest::Report { .. } => Ok(TraceabilityResponse::Ack),
+                TraceabilityRequest::SetPolicy { .. } => Ok(TraceabilityResponse::Ack),
             }
         })
     }

@@ -9,15 +9,15 @@ use crate::traceability::{
     naming::Identifier,
 };
 
-#[derive(Default, PartialEq, Debug)]
-enum ConfidentialityPolicy {
+#[derive(Default, PartialEq, Debug, Clone)]
+pub enum ConfidentialityPolicy {
     Secret,
     #[default]
     Public,
 }
 
-#[derive(Default, Debug)]
-struct Policy {
+#[derive(Default, Debug, Clone)]
+pub struct Policy {
     confidentiality: ConfidentialityPolicy,
     integrity: u8,
 }
@@ -81,6 +81,10 @@ impl Service<TraceabilityRequest> for ComplianceService {
                     }
                 }
                 TraceabilityRequest::Report { .. } => Ok(TraceabilityResponse::Ack),
+                TraceabilityRequest::SetPolicy { id, policy } => {
+                    this.set_policy(id, policy).await;
+                    Ok(TraceabilityResponse::Ack)
+                }
             }
         })
     }

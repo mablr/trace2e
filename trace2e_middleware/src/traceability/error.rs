@@ -7,6 +7,9 @@ pub enum TraceabilityError {
     #[error("Traceability error, internal trace2e API error")]
     InternalTrace2eError,
 
+    #[error("Traceability error, invalid request")]
+    InvalidRequest,
+
     #[error("Traceability error, undeclared resource (pid: {0}, fd: {1})")]
     UndeclaredResource(i32, i32),
 

@@ -1,4 +1,4 @@
-use super::naming::Identifier;
+use super::{layers::compliance::Policy, naming::Identifier};
 
 #[derive(Debug, Clone)]
 pub enum P2mRequest {
@@ -44,6 +44,11 @@ pub enum TraceabilityRequest {
         source: Identifier,
         destination: Identifier,
         success: bool,
+    },
+    SetPolicy {
+        // -> TraceabilityResponse::Ack
+        id: Identifier,
+        policy: Policy,
     },
 }
 

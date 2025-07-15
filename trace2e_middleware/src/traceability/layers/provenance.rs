@@ -99,6 +99,7 @@ where
                     }
                     inner.call(req).await
                 }
+                _ => Err(TraceabilityError::InvalidRequest),
             }
         })
     }
