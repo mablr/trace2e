@@ -24,16 +24,24 @@ pub struct Policy {
 
 #[derive(Default, Clone)]
 pub struct ComplianceService {
+    node_id: String,
     policies: Arc<Mutex<HashMap<Identifier, Policy>>>,
 }
 
 impl ComplianceService {
+    pub fn new(node_id: String) -> Self {
+        Self {
+            node_id,
+            policies: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
     async fn set_policy(&self, id: Identifier, policy: Policy) -> Option<Policy> {
         let mut policies = self.policies.lock().await;
         policies.insert(id, policy)
     }
 
-    async fn is_compliant(&self, source: Identifier, destination: Identifier) -> bool {
+    async fn local_flow_check(&self, source: Identifier, destination: Identifier) -> bool {
         let policies = self.policies.lock().await;
 
         let default_policy = Policy::default();
@@ -74,7 +82,11 @@ impl Service<TraceabilityRequest> for ComplianceService {
                     source,
                     destination,
                 } => {
-                    if this.is_compliant(source, destination).await {
+                    if destination.node != this.node_id || source.node != this.node_id {
+                        todo!("implement distributed flow check")
+                    }
+
+                    if this.local_flow_check(source, destination).await {
                         Ok(TraceabilityResponse::Grant)
                     } else {
                         Err(TraceabilityError::DirectPolicyViolation)
@@ -101,8 +113,7 @@ mod tests {
     #[tokio::test]
     async fn unit_compliance_set_policy_basic() {
         let compliance = ComplianceService::default();
-        let node_id = "test".to_string();
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
+        let process = Identifier::new(String::default(), Resource::new_process(0));
 
         let policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
@@ -116,8 +127,7 @@ mod tests {
     #[tokio::test]
     async fn unit_compliance_set_policy_overwrite() {
         let compliance = ComplianceService::default();
-        let node_id = "test".to_string();
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
+        let process = Identifier::new(String::default(), Resource::new_process(0));
 
         let policy1 = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
@@ -141,10 +151,11 @@ mod tests {
     #[tokio::test]
     async fn unit_compliance_check_integrity_pass() {
         let compliance = ComplianceService::default();
-        let node_id = "test".to_string();
-        let source = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let destination =
-            Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let source = Identifier::new(String::default(), Resource::new_process(0));
+        let destination = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
 
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
@@ -161,16 +172,17 @@ mod tests {
             .set_policy(destination.clone(), dest_policy)
             .await;
 
-        assert!(compliance.is_compliant(source, destination).await);
+        assert!(compliance.local_flow_check(source, destination).await);
     }
 
     #[tokio::test]
     async fn unit_compliance_check_integrity_fail() {
         let compliance = ComplianceService::default();
-        let node_id = "test".to_string();
-        let source = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let destination =
-            Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let source = Identifier::new(String::default(), Resource::new_process(0));
+        let destination = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
 
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
@@ -187,16 +199,17 @@ mod tests {
             .set_policy(destination.clone(), dest_policy)
             .await;
 
-        assert!(!compliance.is_compliant(source, destination).await);
+        assert!(!compliance.local_flow_check(source, destination).await);
     }
 
     #[tokio::test]
     async fn unit_compliance_check_confidentiality_pass() {
         let compliance = ComplianceService::default();
-        let node_id = "test".to_string();
-        let source = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let destination =
-            Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let source = Identifier::new(String::default(), Resource::new_process(0));
+        let destination = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
 
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
@@ -213,16 +226,17 @@ mod tests {
             .set_policy(destination.clone(), dest_policy)
             .await;
 
-        assert!(compliance.is_compliant(source, destination).await);
+        assert!(compliance.local_flow_check(source, destination).await);
     }
 
     #[tokio::test]
     async fn unit_compliance_check_confidentiality_fail() {
         let compliance = ComplianceService::default();
-        let node_id = "test".to_string();
-        let source = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let destination =
-            Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let source = Identifier::new(String::default(), Resource::new_process(0));
+        let destination = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
 
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
@@ -239,7 +253,7 @@ mod tests {
             .set_policy(destination.clone(), dest_policy)
             .await;
 
-        assert!(!compliance.is_compliant(source, destination).await);
+        assert!(!compliance.local_flow_check(source, destination).await);
     }
 
     #[tokio::test]
@@ -251,16 +265,17 @@ mod tests {
             Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
 
         // Both should use default policies (Public, integrity 0)
-        assert!(compliance.is_compliant(source, destination).await);
+        assert!(compliance.local_flow_check(source, destination).await);
     }
 
     #[tokio::test]
     async fn unit_compliance_check_mixed_default_explicit() {
         let compliance = ComplianceService::default();
-        let node_id = "test".to_string();
-        let source = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let destination =
-            Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let source = Identifier::new(String::default(), Resource::new_process(0));
+        let destination = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
 
         let dest_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
@@ -272,16 +287,17 @@ mod tests {
             .await;
 
         // Source uses default (integrity 0), destination has integrity 2
-        assert!(!compliance.is_compliant(source, destination).await);
+        assert!(!compliance.local_flow_check(source, destination).await);
     }
 
     #[tokio::test]
     async fn unit_compliance_service_request_grant() {
         let mut compliance = ComplianceService::default();
-        let node_id = "test".to_string();
-        let source = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let destination =
-            Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let source = Identifier::new(String::default(), Resource::new_process(0));
+        let destination = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
 
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
@@ -310,10 +326,11 @@ mod tests {
     #[tokio::test]
     async fn unit_compliance_service_request_deny() {
         let mut compliance = ComplianceService::default();
-        let node_id = "test".to_string();
-        let source = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let destination =
-            Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let source = Identifier::new(String::default(), Resource::new_process(0));
+        let destination = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
 
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
@@ -342,10 +359,11 @@ mod tests {
     #[tokio::test]
     async fn unit_compliance_service_report_ack() {
         let mut compliance = ComplianceService::default();
-        let node_id = "test".to_string();
-        let source = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let destination =
-            Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let source = Identifier::new(String::default(), Resource::new_process(0));
+        let destination = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
 
         let request = TraceabilityRequest::Report {
             source,
@@ -360,16 +378,17 @@ mod tests {
     #[tokio::test]
     async fn unit_compliance_service_complex_policy_scenario() {
         let mut compliance = ComplianceService::default();
-        let node_id = "test".to_string();
 
         // Create multiple resources with different security levels
-        let high_security_process = Identifier::new(node_id.clone(), Resource::new_process(1));
+        let high_security_process = Identifier::new(String::default(), Resource::new_process(1));
         let medium_security_file = Identifier::new(
-            node_id.clone(),
+            String::default(),
             Resource::new_file("/tmp/medium".to_string()),
         );
-        let low_security_file =
-            Identifier::new(node_id.clone(), Resource::new_file("/tmp/low".to_string()));
+        let low_security_file = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/low".to_string()),
+        );
 
         let high_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
@@ -423,12 +442,13 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_service_layer_integration() {
-        let node_id = "test".to_string();
         let mut compliance_service = ServiceBuilder::new().service(ComplianceService::default());
 
-        let source = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let destination =
-            Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let source = Identifier::new(String::default(), Resource::new_process(0));
+        let destination = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
 
         // Test with default policies (should pass)
         let request = TraceabilityRequest::Request {
@@ -446,5 +466,26 @@ mod tests {
         };
         let response = compliance_service.call(report).await.unwrap();
         assert_eq!(response, TraceabilityResponse::Ack);
+    }
+
+    #[tokio::test]
+    #[should_panic] // todo : implement distributed flow check
+    async fn unit_compliance_service_layer_distributed_flow_check() {
+        let remote_node_id = "remote".to_string();
+        let local_node_id = "local".to_string();
+        let mut compliance_service =
+            ServiceBuilder::new().service(ComplianceService::new(local_node_id.clone()));
+        let source = Identifier::new(remote_node_id.clone(), Resource::new_process(0));
+        let destination = Identifier::new(
+            local_node_id.clone(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
+
+        let request = TraceabilityRequest::Request {
+            source: source.clone(),
+            destination: destination.clone(),
+        };
+        let response = compliance_service.call(request).await.unwrap();
+        assert_eq!(response, TraceabilityResponse::Grant);
     }
 }
