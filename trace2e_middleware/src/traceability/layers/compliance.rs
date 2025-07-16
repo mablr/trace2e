@@ -77,7 +77,6 @@ impl Service<TraceabilityRequest> for ComplianceService {
         let this = self.clone();
         Box::pin(async move {
             match req.clone() {
-                // todo : implement compliance check service
                 TraceabilityRequest::Request {
                     source,
                     destination,
