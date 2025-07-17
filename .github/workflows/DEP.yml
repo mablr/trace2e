@@ -1,0 +1,17 @@
+# Made by ithacaxyz team
+name: DEP
+
+on:
+  schedule:
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    uses: ithacaxyz/ci/.github/workflows/cargo-update-pr.yml@main
+    secrets:
+      token: ${{ secrets.GITHUB_TOKEN }}
