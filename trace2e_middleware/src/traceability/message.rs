@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use super::{layers::compliance::Policy, naming::Identifier};
 
 #[derive(Debug, Clone)]
@@ -58,3 +60,67 @@ pub enum TraceabilityResponse {
     Ack,
     Wait, // Only produced by SequencerService and mapped to Ack by WaitingQueueService
 }
+
+/// Sequencer-specific API for resource management and flow control
+#[derive(Debug, Clone)]
+pub enum SequencerRequest {
+    /// Reserve a flow from source to destination
+    ReserveFlow {
+        source: Identifier,
+        destination: Identifier,
+    },
+    /// Release a flow from source to destination  
+    ReleaseFlow {
+        source: Identifier,
+        destination: Identifier,
+    },
+    /// Check if resources are available for a flow
+    CheckAvailability {
+        source: Identifier,
+        destination: Identifier,
+    },
+    /// Get current flow status
+    GetFlowStatus {
+        source: Identifier,
+        destination: Identifier,
+    },
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum SequencerResponse {
+    /// Flow successfully reserved
+    FlowReserved,
+    /// Flow successfully released, and notify there is a waiting queue
+    FlowReleased { notify: bool },
+    /// Source resource is unavailable (already reserved by another writer)
+    SourceUnavailable,
+    /// Destination resource is unavailable (already reserved)
+    DestinationUnavailable,
+    /// Both source and destination are unavailable
+    BothUnavailable,
+} 
+
+
+/// Provenance-specific API for lineage tracking and data provenance
+#[derive(Debug, Clone)]
+pub enum ProvenanceRequest {
+    /// Get the complete provenance (lineage) of a resource
+    GetProvenance {
+        id: Identifier,
+    },
+    /// Update provenance when data flows from source to destination
+    UpdateProvenance {
+        source: Identifier,
+        destination: Identifier,
+    },
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum ProvenanceResponse {
+    /// Complete provenance set for the requested resource
+    Provenance {
+        lineage: HashSet<Identifier>,
+    },
+    /// Provenance successfully updated
+    ProvenanceUpdated,
+} 
