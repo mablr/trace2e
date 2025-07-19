@@ -9,14 +9,14 @@ use crate::traceability::{
     naming::Identifier,
 };
 
-#[derive(Default, PartialEq, Debug, Clone)]
+#[derive(Default, PartialEq, Debug, Clone, Eq)]
 pub enum ConfidentialityPolicy {
     Secret,
     #[default]
     Public,
 }
 
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, Eq, PartialEq)]
 pub struct Policy {
     confidentiality: ConfidentialityPolicy,
     integrity: u8,
