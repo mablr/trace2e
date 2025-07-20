@@ -124,28 +124,18 @@ pub enum ProvenanceResponse {
 #[derive(Debug, Clone)]
 pub enum ComplianceRequest {
     /// Check if a flow from source to destination is compliant with policies
-    CheckFlowCompliance {
+    CheckCompliance {
         source: Identifier,
         destination: Identifier,
     },
     /// Set policy for a specific resource
     SetPolicy { id: Identifier, policy: Policy },
-    /// Get policy for a specific resource
-    GetPolicy { id: Identifier },
-    /// Remove policy for a specific resource
-    RemovePolicy { id: Identifier },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ComplianceResponse {
     /// Flow is compliant and authorized
-    FlowAuthorized,
-    /// Flow violates policy and is denied
-    FlowDenied,
+    Grant,
     /// Policy successfully set
-    PolicySet,
-    /// Policy information
-    Policy { policy: Policy },
-    /// Policy successfully removed
-    PolicyRemoved,
+    PolicyUpdated,
 }
