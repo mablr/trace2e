@@ -4,7 +4,7 @@ use tokio::sync::Mutex;
 use tower::Service;
 
 use crate::traceability::{
-    api::{TraceabilityRequest, TraceabilityResponse},
+    api::{ComplianceRequest, ComplianceResponse},
     error::TraceabilityError,
     naming::Identifier,
 };
@@ -64,8 +64,8 @@ impl ComplianceService {
     }
 }
 
-impl Service<TraceabilityRequest> for ComplianceService {
-    type Response = TraceabilityResponse;
+impl Service<ComplianceRequest> for ComplianceService {
+    type Response = ComplianceResponse;
     type Error = TraceabilityError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
@@ -73,11 +73,11 @@ impl Service<TraceabilityRequest> for ComplianceService {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: TraceabilityRequest) -> Self::Future {
+    fn call(&mut self, req: ComplianceRequest) -> Self::Future {
         let this = self.clone();
         Box::pin(async move {
             match req.clone() {
-                TraceabilityRequest::Request {
+                ComplianceRequest::CheckCompliance {
                     source,
                     destination,
                 } => {
@@ -86,15 +86,14 @@ impl Service<TraceabilityRequest> for ComplianceService {
                     }
 
                     if this.local_flow_check(source, destination).await {
-                        Ok(TraceabilityResponse::Grant)
+                        Ok(ComplianceResponse::Grant)
                     } else {
                         Err(TraceabilityError::DirectPolicyViolation)
                     }
                 }
-                TraceabilityRequest::Report { .. } => Ok(TraceabilityResponse::Ack),
-                TraceabilityRequest::SetPolicy { id, policy } => {
+                ComplianceRequest::SetPolicy { id, policy } => {
                     this.set_policy(id, policy).await;
-                    Ok(TraceabilityResponse::Ack)
+                    Ok(ComplianceResponse::PolicyUpdated)
                 }
             }
         })
@@ -313,13 +312,13 @@ mod tests {
             .set_policy(destination.clone(), dest_policy)
             .await;
 
-        let request = TraceabilityRequest::Request {
+        let request = ComplianceRequest::CheckCompliance {
             source,
             destination,
         };
         let response = compliance.call(request).await.unwrap();
 
-        assert_eq!(response, TraceabilityResponse::Grant);
+        assert_eq!(response, ComplianceResponse::Grant);
     }
 
     #[tokio::test]
@@ -346,7 +345,7 @@ mod tests {
             .set_policy(destination.clone(), dest_policy)
             .await;
 
-        let request = TraceabilityRequest::Request {
+        let request = ComplianceRequest::CheckCompliance {
             source,
             destination,
         };
@@ -364,14 +363,13 @@ mod tests {
             Resource::new_file("/tmp/test".to_string()),
         );
 
-        let request = TraceabilityRequest::Report {
+        let request = ComplianceRequest::CheckCompliance {
             source,
             destination,
-            success: true,
         };
         let response = compliance.call(request).await.unwrap();
 
-        assert_eq!(response, TraceabilityResponse::Ack);
+        assert_eq!(response, ComplianceResponse::Grant);
     }
 
     #[tokio::test]
@@ -415,7 +413,7 @@ mod tests {
             .await;
 
         // High -> Medium: Should pass (integrity 10 >= 5, secret -> public is blocked but this is reverse)
-        let request1 = TraceabilityRequest::Request {
+        let request1 = ComplianceRequest::CheckCompliance {
             source: high_security_process.clone(),
             destination: medium_security_file.clone(),
         };
@@ -423,48 +421,20 @@ mod tests {
         assert_eq!(error1, TraceabilityError::DirectPolicyViolation); // Secret -> Public fails
 
         // Medium -> Low: Should pass (integrity 5 >= 1, public -> public)
-        let request2 = TraceabilityRequest::Request {
+        let request2 = ComplianceRequest::CheckCompliance {
             source: medium_security_file.clone(),
             destination: low_security_file.clone(),
         };
         let response2 = compliance.call(request2).await.unwrap();
-        assert_eq!(response2, TraceabilityResponse::Grant);
+        assert_eq!(response2, ComplianceResponse::Grant);
 
         // Low -> High: Should fail (integrity 1 < 10)
-        let request3 = TraceabilityRequest::Request {
+        let request3 = ComplianceRequest::CheckCompliance {
             source: low_security_file.clone(),
             destination: high_security_process.clone(),
         };
         let error3 = compliance.call(request3).await.unwrap_err();
         assert_eq!(error3, TraceabilityError::DirectPolicyViolation);
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_service_layer_integration() {
-        let mut compliance_service = ServiceBuilder::new().service(ComplianceService::default());
-
-        let source = Identifier::new(String::default(), Resource::new_process(0));
-        let destination = Identifier::new(
-            String::default(),
-            Resource::new_file("/tmp/test".to_string()),
-        );
-
-        // Test with default policies (should pass)
-        let request = TraceabilityRequest::Request {
-            source: source.clone(),
-            destination: destination.clone(),
-        };
-        let response = compliance_service.call(request).await.unwrap();
-        assert_eq!(response, TraceabilityResponse::Grant);
-
-        // Test report handling
-        let report = TraceabilityRequest::Report {
-            source,
-            destination,
-            success: true,
-        };
-        let response = compliance_service.call(report).await.unwrap();
-        assert_eq!(response, TraceabilityResponse::Ack);
     }
 
     #[tokio::test]
@@ -480,11 +450,11 @@ mod tests {
             Resource::new_file("/tmp/test".to_string()),
         );
 
-        let request = TraceabilityRequest::Request {
+        let request = ComplianceRequest::CheckCompliance {
             source: source.clone(),
             destination: destination.clone(),
         };
         let response = compliance_service.call(request).await.unwrap();
-        assert_eq!(response, TraceabilityResponse::Grant);
+        assert_eq!(response, ComplianceResponse::Grant);
     }
 }
