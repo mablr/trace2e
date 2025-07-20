@@ -3,8 +3,8 @@ use std::{future::Future, pin::Pin, task::Poll};
 use tower::Service;
 
 use crate::traceability::{
+    api::{TraceabilityRequest, TraceabilityResponse},
     error::TraceabilityError,
-    message::{TraceabilityRequest, TraceabilityResponse},
 };
 
 #[derive(Clone, Default)]

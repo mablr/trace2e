@@ -1,6 +1,6 @@
 use crate::traceability::{
+    api::{P2mRequest, TraceabilityRequest, TraceabilityResponse},
     error::TraceabilityError,
-    message::{P2mRequest, TraceabilityRequest, TraceabilityResponse},
 };
 use std::{
     collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll, time::SystemTime,
@@ -9,7 +9,7 @@ use tokio::sync::Mutex;
 use tower::Service;
 
 use super::{
-    message::P2mResponse,
+    api::P2mResponse,
     naming::{Identifier, Resource},
 };
 

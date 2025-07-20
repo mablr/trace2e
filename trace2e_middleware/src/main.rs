@@ -8,12 +8,12 @@ use trace2e_middleware::{
     Trace2eGrpcService,
     grpc_proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_server::Trace2eServer},
     traceability::{
-        api_p2m::P2mApiService,
         layers::{
             mock_compliance::TraceabilityMockService,
             provenance::ProvenanceService,
             sequencer::{SequencerService, WaitingQueueService},
         },
+        p2m::P2mApiService,
     },
 };
 

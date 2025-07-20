@@ -4,8 +4,8 @@ use tokio::sync::Mutex;
 use tower::Service;
 
 use crate::traceability::{
+    api::{TraceabilityRequest, TraceabilityResponse},
     error::TraceabilityError,
-    message::{TraceabilityRequest, TraceabilityResponse},
     naming::Identifier,
 };
 

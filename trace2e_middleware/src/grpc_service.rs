@@ -8,8 +8,8 @@ pub mod proto {
 }
 
 use crate::traceability::{
+    api::{P2mRequest, P2mResponse},
     error::TraceabilityError,
-    message::{P2mRequest, P2mResponse},
 };
 
 impl From<TraceabilityError> for Status {

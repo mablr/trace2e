@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use sysinfo::{Pid, System};
 use tower::{BoxError, filter::Predicate};
 
-use crate::traceability::{error::TraceabilityError, message::P2mRequest};
+use crate::traceability::{api::P2mRequest, error::TraceabilityError};
 
 #[derive(Default, Debug, Clone)]
 pub struct ResourceValidator;
@@ -69,8 +69,7 @@ mod tests {
     use tower::{Service, ServiceBuilder, filter::FilterLayer, layer::layer_fn};
 
     use crate::traceability::{
-        api_p2m::P2mApiService, layers::mock_compliance::TraceabilityMockService,
-        message::P2mResponse,
+        api::P2mResponse, layers::mock_compliance::TraceabilityMockService, p2m::P2mApiService,
     };
 
     use super::*;
