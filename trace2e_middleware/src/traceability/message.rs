@@ -98,16 +98,13 @@ pub enum SequencerResponse {
     DestinationUnavailable,
     /// Both source and destination are unavailable
     BothUnavailable,
-} 
-
+}
 
 /// Provenance-specific API for lineage tracking and data provenance
 #[derive(Debug, Clone)]
 pub enum ProvenanceRequest {
     /// Get the complete provenance (lineage) of a resource
-    GetProvenance {
-        id: Identifier,
-    },
+    GetProvenance { id: Identifier },
     /// Update provenance when data flows from source to destination
     UpdateProvenance {
         source: Identifier,
@@ -118,9 +115,7 @@ pub enum ProvenanceRequest {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ProvenanceResponse {
     /// Complete provenance set for the requested resource
-    Provenance {
-        lineage: HashSet<Identifier>,
-    },
+    Provenance { lineage: HashSet<Identifier> },
     /// Provenance successfully updated
     ProvenanceUpdated,
 }
@@ -134,18 +129,11 @@ pub enum ComplianceRequest {
         destination: Identifier,
     },
     /// Set policy for a specific resource
-    SetPolicy {
-        id: Identifier,
-        policy: Policy,
-    },
+    SetPolicy { id: Identifier, policy: Policy },
     /// Get policy for a specific resource
-    GetPolicy {
-        id: Identifier,
-    },
+    GetPolicy { id: Identifier },
     /// Remove policy for a specific resource
-    RemovePolicy {
-        id: Identifier,
-    },
+    RemovePolicy { id: Identifier },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -157,9 +145,7 @@ pub enum ComplianceResponse {
     /// Policy successfully set
     PolicySet,
     /// Policy information
-    Policy {
-        policy: Policy,
-    },
+    Policy { policy: Policy },
     /// Policy successfully removed
     PolicyRemoved,
 }
