@@ -74,16 +74,6 @@ pub enum SequencerRequest {
         source: Identifier,
         destination: Identifier,
     },
-    /// Check if resources are available for a flow
-    CheckAvailability {
-        source: Identifier,
-        destination: Identifier,
-    },
-    /// Get current flow status
-    GetFlowStatus {
-        source: Identifier,
-        destination: Identifier,
-    },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -92,12 +82,6 @@ pub enum SequencerResponse {
     FlowReserved,
     /// Flow successfully released, and notify there is a waiting queue
     FlowReleased { notify: bool },
-    /// Source resource is unavailable (already reserved by another writer)
-    SourceUnavailable,
-    /// Destination resource is unavailable (already reserved)
-    DestinationUnavailable,
-    /// Both source and destination are unavailable
-    BothUnavailable,
 }
 
 /// Provenance-specific API for lineage tracking and data provenance
