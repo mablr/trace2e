@@ -69,7 +69,13 @@ mod tests {
     use tower::{Service, ServiceBuilder, filter::FilterLayer, layer::layer_fn};
 
     use crate::traceability::{
-        api::P2mResponse, layers::mock::TraceabilityMockService, p2m::P2mApiService,
+        api::P2mResponse,
+        layers::{
+            compliance::ComplianceService,
+            provenance::ProvenanceService,
+            sequencer::{SequencerService, WaitingQueueService},
+        },
+        p2m::P2mApiService,
     };
 
     use super::*;
@@ -77,13 +83,17 @@ mod tests {
     #[tokio::test]
     async fn unit_traceability_provenance_service_p2m_validator() {
         let validator = ResourceValidator::default();
-        let mut provenance_service = ServiceBuilder::new()
+        let sequencer = ServiceBuilder::new()
+            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
+            .service(SequencerService::default());
+        let provenance = ServiceBuilder::new().service(ProvenanceService::default());
+        let compliance = ServiceBuilder::new().service(ComplianceService::default());
+        let mut p2m_service = ServiceBuilder::new()
             .layer(FilterLayer::new(validator))
-            .layer(layer_fn(|inner| P2mApiService::new(inner)))
-            .service(TraceabilityMockService::default());
+            .service(P2mApiService::new(sequencer, provenance, compliance));
 
         assert_eq!(
-            provenance_service
+            p2m_service
                 .call(P2mRequest::LocalEnroll {
                     pid: 1,
                     fd: 1,
@@ -95,7 +105,7 @@ mod tests {
         );
 
         assert_eq!(
-            provenance_service
+            p2m_service
                 .call(P2mRequest::RemoteEnroll {
                     pid: 1,
                     local_socket: "127.0.0.1:8080".to_string(),
@@ -107,7 +117,7 @@ mod tests {
             P2mResponse::Ack
         );
 
-        let P2mResponse::Grant(flow_id) = provenance_service
+        let P2mResponse::Grant(flow_id) = p2m_service
             .call(P2mRequest::IoRequest {
                 pid: 1,
                 fd: 1,
@@ -119,7 +129,7 @@ mod tests {
             panic!("Expected P2mResponse::Grant");
         };
         assert_eq!(
-            provenance_service
+            p2m_service
                 .call(P2mRequest::IoReport {
                     pid: 1,
                     fd: 1,
@@ -132,7 +142,7 @@ mod tests {
         );
 
         assert_eq!(
-            provenance_service
+            p2m_service
                 .check(P2mRequest::LocalEnroll {
                     pid: 0,
                     fd: 1,
@@ -144,7 +154,7 @@ mod tests {
         );
 
         assert_eq!(
-            provenance_service
+            p2m_service
                 .call(P2mRequest::LocalEnroll {
                     pid: 0,
                     fd: 1,
@@ -157,7 +167,7 @@ mod tests {
         );
 
         assert_eq!(
-            provenance_service
+            p2m_service
                 .call(P2mRequest::RemoteEnroll {
                     pid: 1,
                     local_socket: "bad_socket".to_string(),

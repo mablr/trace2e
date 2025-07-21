@@ -7,7 +7,6 @@ repository.workspace = true
 
 [dependencies]
 prost.workspace = true
-rustix = { workspace = true, features = ["system"] }
 sysinfo = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tonic.workspace = true

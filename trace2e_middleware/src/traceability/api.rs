@@ -34,33 +34,6 @@ pub enum P2mResponse {
     Ack,         // <- P2mRequest::{LocalEnroll, RemoteEnroll, Report}
 }
 
-#[derive(Debug, Clone)]
-pub enum TraceabilityRequest {
-    Request {
-        // -> TraceabilityResponse::Grant
-        source: Identifier,
-        destination: Identifier,
-    },
-    Report {
-        // -> TraceabilityResponse::Ack
-        source: Identifier,
-        destination: Identifier,
-        success: bool,
-    },
-    SetPolicy {
-        // -> TraceabilityResponse::Ack
-        id: Identifier,
-        policy: Policy,
-    },
-}
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum TraceabilityResponse {
-    Grant,
-    Ack,
-    Wait, // Only produced by SequencerService and mapped to Ack by WaitingQueueService
-}
-
 /// Sequencer-specific API for resource management and flow control
 #[derive(Debug, Clone)]
 pub enum SequencerRequest {
@@ -80,8 +53,10 @@ pub enum SequencerRequest {
 pub enum SequencerResponse {
     /// Flow successfully reserved
     FlowReserved,
-    /// Flow successfully released, and notify there is a waiting queue
-    FlowReleased { notify: bool },
+    /// Flow successfully released
+    FlowReleased,
+    /// Flow partially released, source is not writable
+    FlowPartiallyReleased,
 }
 
 /// Provenance-specific API for lineage tracking and data provenance

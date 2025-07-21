@@ -12,25 +12,17 @@ use tokio::{
 use tower::Service;
 
 use crate::traceability::{
-    api::{TraceabilityRequest, TraceabilityResponse},
+    api::{SequencerRequest, SequencerResponse},
     error::TraceabilityError,
     naming::Identifier,
 };
 
-#[derive(Clone)]
-pub struct SequencerService<T> {
-    inner: T,
+#[derive(Clone, Default)]
+pub struct SequencerService {
     flows: Arc<Mutex<HashMap<Identifier, Identifier>>>,
 }
 
-impl<T> SequencerService<T> {
-    pub fn new(inner: T) -> Self {
-        Self {
-            inner,
-            flows: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
+impl SequencerService {
     /// Make a flow
     /// Returns the availability state of the source and destination before the attempt
     async fn make_flow(&self, source: Identifier, destination: Identifier) -> (bool, bool) {
@@ -57,34 +49,24 @@ impl<T> SequencerService<T> {
     }
 }
 
-impl<T> Service<TraceabilityRequest> for SequencerService<T>
-where
-    T: Service<TraceabilityRequest, Response = TraceabilityResponse, Error = TraceabilityError>
-        + Clone
-        + Sync
-        + Send
-        + 'static,
-    T::Future: Send,
-{
-    type Response = T::Response;
-    type Error = T::Error;
+impl Service<SequencerRequest> for SequencerService {
+    type Response = SequencerResponse;
+    type Error = TraceabilityError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx)
+    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: TraceabilityRequest) -> Self::Future {
-        let inner_clone = self.inner.clone();
-        let mut inner = std::mem::replace(&mut self.inner, inner_clone);
+    fn call(&mut self, req: SequencerRequest) -> Self::Future {
         let this = self.clone();
         Box::pin(async move {
             match req.clone() {
-                TraceabilityRequest::Request {
+                SequencerRequest::ReserveFlow {
                     source,
                     destination,
                 } => match this.make_flow(source.clone(), destination.clone()).await {
-                    (true, true) => inner.call(req).await,
+                    (true, true) => Ok(SequencerResponse::FlowReserved),
                     (true, false) => Err(TraceabilityError::UnavailableDestination(destination)),
                     (false, true) => Err(TraceabilityError::UnavailableSource(source)),
                     (false, false) => Err(TraceabilityError::UnavailableSourceAndDestination(
@@ -92,22 +74,16 @@ where
                         destination,
                     )),
                 },
-                TraceabilityRequest::Report {
+                SequencerRequest::ReleaseFlow {
                     source,
                     destination,
-                    ..
-                } => match inner.call(req).await {
-                    Ok(TraceabilityResponse::Ack) => {
-                        if !this.drop_flow(source, destination).await {
-                            Ok(TraceabilityResponse::Wait)
-                        } else {
-                            Ok(TraceabilityResponse::Ack)
-                        }
+                } => {
+                    if this.drop_flow(source, destination).await {
+                        Ok(SequencerResponse::FlowReleased)
+                    } else {
+                        Ok(SequencerResponse::FlowPartiallyReleased)
                     }
-                    Err(e) => Err(e),
-                    Ok(_) => unreachable!(),
-                },
-                _ => Err(TraceabilityError::InvalidRequest),
+                }
             }
         })
     }
@@ -151,9 +127,9 @@ impl<T> WaitingQueueService<T> {
     }
 }
 
-impl<T> Service<TraceabilityRequest> for WaitingQueueService<T>
+impl<T> Service<SequencerRequest> for WaitingQueueService<T>
 where
-    T: Service<TraceabilityRequest, Response = TraceabilityResponse, Error = TraceabilityError>
+    T: Service<SequencerRequest, Response = SequencerResponse, Error = TraceabilityError>
         + Clone
         + Sync
         + Send
@@ -168,7 +144,7 @@ where
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, req: TraceabilityRequest) -> Self::Future {
+    fn call(&mut self, req: SequencerRequest) -> Self::Future {
         let inner_clone = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, inner_clone);
         let max_tries = self.max_retries + 1;
@@ -176,28 +152,28 @@ where
         Box::pin(async move {
             for _ in 0..max_tries {
                 match inner.call(req.clone()).await {
-                    Ok(TraceabilityResponse::Grant) => return Ok(TraceabilityResponse::Grant),
-                    Ok(TraceabilityResponse::Ack) => match req.clone() {
-                        TraceabilityRequest::Report {
+                    Ok(SequencerResponse::FlowReserved) => {
+                        return Ok(SequencerResponse::FlowReserved);
+                    }
+                    Ok(SequencerResponse::FlowReleased) => {
+                        if let SequencerRequest::ReleaseFlow {
                             source,
                             destination,
-                            ..
-                        } => {
+                        } = req.clone()
+                        {
                             join!(
                                 this.notify_waiting_queue(source),
                                 this.notify_waiting_queue(destination)
                             );
-                            return Ok(TraceabilityResponse::Ack);
                         }
-                        _ => unreachable!(),
-                    },
-                    Ok(TraceabilityResponse::Wait) => match req.clone() {
-                        TraceabilityRequest::Report { destination, .. } => {
+                        return Ok(SequencerResponse::FlowReleased);
+                    }
+                    Ok(SequencerResponse::FlowPartiallyReleased) => {
+                        if let SequencerRequest::ReleaseFlow { destination, .. } = req.clone() {
                             this.notify_waiting_queue(destination).await;
-                            return Ok(TraceabilityResponse::Ack);
                         }
-                        _ => unreachable!(),
-                    },
+                        return Ok(SequencerResponse::FlowReleased);
+                    }
                     Err(TraceabilityError::UnavailableSource(id)) => {
                         let rx = this.join_waiting_queue(id).await;
                         let _ = rx.await;
@@ -225,12 +201,12 @@ mod tests {
 
     use tower::{ServiceBuilder, layer::layer_fn, timeout::TimeoutLayer};
 
-    use crate::traceability::{layers::mock::TraceabilityMockService, naming::Resource};
+    use crate::traceability::naming::Resource;
 
     use super::*;
     #[tokio::test]
     async fn unit_sequencer_impl_flow() {
-        let sequencer = SequencerService::new(());
+        let sequencer = SequencerService::default();
         let process = Identifier::new("test".to_string(), Resource::new_process(0));
         let file = Identifier::new(
             "test".to_string(),
@@ -256,7 +232,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_impl_flow_drop_already_dropped() {
-        let sequencer = SequencerService::new(());
+        let sequencer = SequencerService::default();
         let process = Identifier::new("test".to_string(), Resource::new_process(0));
         let file = Identifier::new(
             "test".to_string(),
@@ -279,7 +255,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_impl_flow_readers_drop() {
-        let sequencer = SequencerService::new(());
+        let sequencer = SequencerService::default();
         let process = Identifier::new("test".to_string(), Resource::new_process(0));
         let file1 = Identifier::new(
             "test".to_string(),
@@ -347,7 +323,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_impl_flow_interference() {
-        let sequencer = SequencerService::new(());
+        let sequencer = SequencerService::default();
         let process1 = Identifier::new("test".to_string(), Resource::new_process(1));
         let process2 = Identifier::new("test".to_string(), Resource::new_process(2));
         let file1 = Identifier::new(
@@ -393,61 +369,56 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_layer_flow() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new()
-            .layer(layer_fn(|inner| SequencerService::new(inner)))
-            .service(TraceabilityMockService::default());
+        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process.clone(),
                     destination: file.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: process.clone(),
                     destination: file.clone(),
-                    success: false,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
     }
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow_interference() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new()
-            .layer(layer_fn(|inner| SequencerService::new(inner)))
-            .service(TraceabilityMockService::default());
+        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process.clone(),
                     destination: file.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process.clone(),
                     destination: file.clone(),
                 })
@@ -460,27 +431,25 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_layer_flow_circular() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new()
-            .layer(layer_fn(|inner| SequencerService::new(inner)))
-            .service(TraceabilityMockService::default());
+        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process.clone(),
                     destination: file.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file.clone(),
                     destination: process.clone(),
                 })
@@ -493,9 +462,7 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new()
-            .layer(layer_fn(|inner| SequencerService::new(inner)))
-            .service(TraceabilityMockService::default());
+        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file1 = Identifier::new(
@@ -509,57 +476,53 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file1.clone(),
                     destination: process.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: file1.clone(),
                     destination: process.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file2.clone(),
                     destination: process.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: file2.clone(),
                     destination: process.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
     }
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence_interference() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new()
-            .layer(layer_fn(|inner| SequencerService::new(inner)))
-            .service(TraceabilityMockService::default());
+        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
 
         let process1 = Identifier::new(node_id.clone(), Resource::new_process(1));
         let process2 = Identifier::new(node_id.clone(), Resource::new_process(2));
@@ -574,19 +537,19 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file1.clone(),
                     destination: process1.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         // Fails because try get write of write lock
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file1.clone(),
                     destination: process1.clone(),
                 })
@@ -598,7 +561,7 @@ mod tests {
         // Fails because try get write on read lock
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process2.clone(),
                     destination: file1.clone(),
                 })
@@ -610,7 +573,7 @@ mod tests {
         // Fails because try get read on write lock
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process1.clone(),
                     destination: file2.clone(),
                 })
@@ -622,7 +585,7 @@ mod tests {
         // Fails because circular flow (get read on write lock & get write on read lock)
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process1.clone(),
                     destination: file1.clone(),
                 })
@@ -634,9 +597,7 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence_interference_multiple_share_releases() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new()
-            .layer(layer_fn(|inner| SequencerService::new(inner)))
-            .service(TraceabilityMockService::default());
+        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file1 = Identifier::new(
@@ -654,70 +615,67 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process.clone(),
                     destination: file1.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process.clone(),
                     destination: file2.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process.clone(),
                     destination: file3.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: process.clone(),
                     destination: file2.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Wait
+            SequencerResponse::FlowPartiallyReleased
         );
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: process.clone(),
                     destination: file3.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Wait
+            SequencerResponse::FlowPartiallyReleased
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: process.clone(),
                     destination: file1.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
     }
 
@@ -727,26 +685,25 @@ mod tests {
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(1)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
-            .layer(layer_fn(|inner| SequencerService::new(inner)))
-            .service(TraceabilityMockService::default());
+            .service(SequencerService::default());
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process.clone(),
                     destination: file.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process.clone(),
                     destination: file.clone(),
                 })
@@ -761,26 +718,25 @@ mod tests {
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(1)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
-            .layer(layer_fn(|inner| SequencerService::new(inner)))
-            .service(TraceabilityMockService::default());
+            .service(SequencerService::default());
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process.clone(),
                     destination: file.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file.clone(),
                     destination: process.clone(),
                 })
@@ -795,8 +751,7 @@ mod tests {
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(10)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, Some(1))))
-            .layer(layer_fn(|inner| SequencerService::new(inner)))
-            .service(TraceabilityMockService::default());
+            .service(SequencerService::default());
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file1 = Identifier::new(
@@ -810,13 +765,13 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file1.clone(),
                     destination: process.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         let mut sequencer_clone = sequencer.clone();
@@ -824,7 +779,7 @@ mod tests {
         let file2_clone = file2.clone();
         let res = tokio::spawn(async move {
             sequencer_clone
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file2_clone,
                     destination: process_clone,
                 })
@@ -834,28 +789,26 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(5)).await;
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: file1.clone(),
                     destination: process.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
 
-        assert_eq!(res.await.unwrap().unwrap(), TraceabilityResponse::Grant);
+        assert_eq!(res.await.unwrap().unwrap(), SequencerResponse::FlowReserved);
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: file2.clone(),
                     destination: process.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
     }
     #[tokio::test]
@@ -864,8 +817,7 @@ mod tests {
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(2)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, Some(1))))
-            .layer(layer_fn(|inner| SequencerService::new(inner)))
-            .service(TraceabilityMockService::default());
+            .service(SequencerService::default());
 
         let process1 = Identifier::new(node_id.clone(), Resource::new_process(0));
         let process2 = Identifier::new(node_id.clone(), Resource::new_process(1));
@@ -875,35 +827,35 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file.clone(),
                     destination: process1.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file.clone(),
                     destination: process2.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file.clone(),
                     destination: process3.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         let mut sequencer_clone = sequencer.clone();
@@ -911,7 +863,7 @@ mod tests {
         let process4_clone = process4.clone();
         let res = tokio::spawn(async move {
             sequencer_clone
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process4_clone,
                     destination: file_clone,
                 })
@@ -921,49 +873,45 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(1)).await;
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: file.clone(),
                     destination: process1.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: file.clone(),
                     destination: process2.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: file.clone(),
                     destination: process3.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
 
-        assert_eq!(res.await.unwrap().unwrap(), TraceabilityResponse::Grant);
+        assert_eq!(res.await.unwrap().unwrap(), SequencerResponse::FlowReserved);
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: process4.clone(),
                     destination: file.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
     }
 
@@ -973,8 +921,7 @@ mod tests {
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(2)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, Some(1))))
-            .layer(layer_fn(|inner| SequencerService::new(inner)))
-            .service(TraceabilityMockService::default());
+            .service(SequencerService::default());
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file1 = Identifier::new(
@@ -988,13 +935,13 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: file1.clone(),
                     destination: process.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            SequencerResponse::FlowReserved
         );
 
         let mut sequencer_clone = sequencer.clone();
@@ -1002,7 +949,7 @@ mod tests {
         let file2_clone = file2.clone();
         let res = tokio::spawn(async move {
             sequencer_clone
-                .call(TraceabilityRequest::Request {
+                .call(SequencerRequest::ReserveFlow {
                     source: process_clone,
                     destination: file2_clone,
                 })
@@ -1012,28 +959,26 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(1)).await;
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: file1.clone(),
                     destination: process.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
 
-        assert_eq!(res.await.unwrap().unwrap(), TraceabilityResponse::Grant);
+        assert_eq!(res.await.unwrap().unwrap(), SequencerResponse::FlowReserved);
 
         assert_eq!(
             sequencer
-                .call(TraceabilityRequest::Report {
+                .call(SequencerRequest::ReleaseFlow {
                     source: process.clone(),
                     destination: file2.clone(),
-                    success: true,
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
+            SequencerResponse::FlowReleased
         );
     }
 }

@@ -2,7 +2,7 @@ use tokio::sync::Mutex;
 use tower::Service;
 
 use crate::traceability::{
-    api::{TraceabilityRequest, TraceabilityResponse},
+    api::{ProvenanceRequest, ProvenanceResponse},
     error::TraceabilityError,
     naming::{Fd, Identifier, Resource},
 };
@@ -21,19 +21,11 @@ fn init_provenance(id: Identifier) -> HashSet<Identifier> {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct ProvenanceService<T> {
-    inner: T,
+pub struct ProvenanceService {
     derived_from_map: Arc<Mutex<HashMap<Identifier, HashSet<Identifier>>>>,
 }
 
-impl<T> ProvenanceService<T> {
-    pub fn new(inner: T) -> Self {
-        Self {
-            inner,
-            derived_from_map: Arc::new(Mutex::new(HashMap::new())),
-        }
-    }
-
+impl ProvenanceService {
     async fn get_prov(&self, id: Identifier) -> HashSet<Identifier> {
         self.derived_from_map
             .lock()
@@ -60,46 +52,29 @@ impl<T> ProvenanceService<T> {
     }
 }
 
-impl<T> Service<TraceabilityRequest> for ProvenanceService<T>
-where
-    T: Service<TraceabilityRequest, Response = TraceabilityResponse, Error = TraceabilityError>
-        + Clone
-        + Sync
-        + Send
-        + 'static,
-    T::Future: Send,
-{
-    type Response = T::Response;
-    type Error = T::Error;
+impl Service<ProvenanceRequest> for ProvenanceService {
+    type Response = ProvenanceResponse;
+    type Error = TraceabilityError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, cx: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.inner.poll_ready(cx)
+    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: TraceabilityRequest) -> Self::Future {
-        let inner_clone = self.inner.clone();
-        let mut inner = std::mem::replace(&mut self.inner, inner_clone);
+    fn call(&mut self, req: ProvenanceRequest) -> Self::Future {
         let mut this = self.clone();
         Box::pin(async move {
             match req.clone() {
-                TraceabilityRequest::Request { source, .. } => {
-                    // dummy provenance read
-                    let _ = this.get_prov(source.clone()).await;
-                    // todo!() // compliance check
-                    inner.call(req).await
-                }
-                TraceabilityRequest::Report {
+                ProvenanceRequest::GetProvenance { id } => Ok(ProvenanceResponse::Provenance {
+                    derived_from: this.get_prov(id.clone()).await,
+                }),
+                ProvenanceRequest::UpdateProvenance {
                     source,
                     destination,
-                    success,
                 } => {
-                    if success {
-                        this.update(source, destination).await;
-                    }
-                    inner.call(req).await
+                    this.update(source, destination).await;
+                    Ok(ProvenanceResponse::ProvenanceUpdated)
                 }
-                _ => Err(TraceabilityError::InvalidRequest),
             }
         })
     }
@@ -107,15 +82,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use tower::{ServiceBuilder, layer::layer_fn};
-
-    use crate::traceability::{layers::mock::TraceabilityMockService, naming::Resource};
+    use tower::ServiceBuilder;
 
     use super::*;
 
     #[tokio::test]
     async fn unit_provenance_update_simple() {
-        let mut provenance = ProvenanceService::new(());
+        let mut provenance = ProvenanceService::default();
         let node_id = "test".to_string();
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
@@ -131,7 +104,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_provenance_update_circular() {
-        let mut provenance = ProvenanceService::new(());
+        let mut provenance = ProvenanceService::default();
         let node_id = "test".to_string();
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
@@ -148,114 +121,44 @@ mod tests {
 
     #[tokio::test]
     async fn unit_provenance_service_flow_simple() {
-        let mut provenance = ServiceBuilder::new()
-            .layer(layer_fn(|inner| ProvenanceService::new(inner)))
-            .service(TraceabilityMockService::default());
+        let mut provenance = ServiceBuilder::new().service(ProvenanceService::default());
         let node_id = "test".to_string();
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
 
         assert_eq!(
             provenance
-                .call(TraceabilityRequest::Request {
+                .call(ProvenanceRequest::GetProvenance {
+                    id: process.clone()
+                })
+                .await
+                .unwrap(),
+            ProvenanceResponse::Provenance {
+                derived_from: HashSet::from([process.clone()]),
+            }
+        );
+
+        assert_eq!(
+            provenance
+                .call(ProvenanceRequest::UpdateProvenance {
                     source: file.clone(),
                     destination: process.clone(),
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Grant
+            ProvenanceResponse::ProvenanceUpdated
         );
 
         assert_eq!(
             provenance
-                .call(TraceabilityRequest::Report {
-                    source: file.clone(),
-                    destination: process.clone(),
-                    success: true,
+                .call(ProvenanceRequest::GetProvenance {
+                    id: process.clone()
                 })
                 .await
                 .unwrap(),
-            TraceabilityResponse::Ack
-        );
-
-        assert_eq!(
-            provenance.get_prov(process.clone()).await,
-            HashSet::from([file.clone(), process.clone()])
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_provenance_service_sequential_consistency() {
-        let mut provenance = ServiceBuilder::new()
-            .layer(layer_fn(|inner| ProvenanceService::new(inner)))
-            .service(TraceabilityMockService::default());
-        let node_id = "test".to_string();
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file1 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test1".to_string()),
-        );
-        let file2 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test2".to_string()),
-        );
-
-        // file1 -> process
-        assert_eq!(
-            provenance
-                .call(TraceabilityRequest::Request {
-                    source: file1.clone(),
-                    destination: process.clone(),
-                })
-                .await
-                .unwrap(),
-            TraceabilityResponse::Grant
-        );
-
-        // This is possible only because there is no sequencer layer
-        // process -> file2
-        assert_eq!(
-            provenance
-                .call(TraceabilityRequest::Request {
-                    source: process.clone(),
-                    destination: file2.clone(),
-                })
-                .await
-                .unwrap(),
-            TraceabilityResponse::Grant
-        );
-
-        assert_eq!(
-            provenance
-                .call(TraceabilityRequest::Report {
-                    source: process.clone(),
-                    destination: file2.clone(),
-                    success: true,
-                })
-                .await
-                .unwrap(),
-            TraceabilityResponse::Ack
-        );
-
-        assert_eq!(
-            provenance
-                .call(TraceabilityRequest::Report {
-                    source: file1.clone(),
-                    destination: process.clone(),
-                    success: true,
-                })
-                .await
-                .unwrap(),
-            TraceabilityResponse::Ack
-        );
-
-        // This is possible only because there is no sequencer layer.
-        // The sequencer would force the order of the requests, so that the provenance
-        // of file2 would be [file2, process, file1] and the provenance of process
-        // would be [process, file1]
-        assert_eq!(
-            provenance.get_prov(file2.clone()).await,
-            HashSet::from([file2.clone(), process.clone()])
+            ProvenanceResponse::Provenance {
+                derived_from: HashSet::from([file.clone(), process.clone()]),
+            }
         );
     }
 }
