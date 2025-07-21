@@ -9,7 +9,7 @@ use trace2e_middleware::{
     grpc_proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_server::Trace2eServer},
     traceability::{
         layers::{
-            mock_compliance::TraceabilityMockService,
+            mock::TraceabilityMockService,
             provenance::ProvenanceService,
             sequencer::{SequencerService, WaitingQueueService},
         },

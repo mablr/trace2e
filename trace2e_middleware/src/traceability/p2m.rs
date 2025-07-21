@@ -156,7 +156,7 @@ mod tests {
 
     use crate::traceability::{
         layers::{
-            mock_compliance::TraceabilityMockService,
+            mock::TraceabilityMockService,
             provenance::ProvenanceService,
             sequencer::{SequencerService, WaitingQueueService},
         },

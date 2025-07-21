@@ -225,7 +225,7 @@ mod tests {
 
     use tower::{ServiceBuilder, layer::layer_fn, timeout::TimeoutLayer};
 
-    use crate::traceability::{layers::mock_compliance::TraceabilityMockService, naming::Resource};
+    use crate::traceability::{layers::mock::TraceabilityMockService, naming::Resource};
 
     use super::*;
     #[tokio::test]
