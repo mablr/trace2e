@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::{layers::compliance::Policy, naming::Identifier};
 
@@ -87,6 +87,8 @@ pub enum ComplianceRequest {
         source: Identifier,
         destination: Identifier,
     },
+    /// Get policy for a specific resource
+    GetPolicies { ids: HashSet<Identifier> },
     /// Set policy for a specific resource
     SetPolicy { id: Identifier, policy: Policy },
 }
@@ -95,6 +97,8 @@ pub enum ComplianceRequest {
 pub enum ComplianceResponse {
     /// Flow is compliant and authorized
     Grant,
+    /// Policies for the requested resources
+    Policies(HashMap<Identifier, Policy>),
     /// Policy successfully set
     PolicyUpdated,
 }

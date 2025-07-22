@@ -1,4 +1,10 @@
-use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll};
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    task::Poll,
+};
 
 use tokio::sync::Mutex;
 use tower::Service;
@@ -36,11 +42,29 @@ impl ComplianceService {
         }
     }
 
+    /// Get the policies for a specific resource
+    /// Returns the default policy if the resource is not found
+    async fn get_policies(&self, ids: HashSet<Identifier>) -> HashMap<Identifier, Policy> {
+        let policies = self.policies.lock().await;
+        let mut policies_map = HashMap::new();
+        for id in ids {
+            // If the resource is local, get the policy from the local policies
+            if id.node == self.node_id {
+                policies_map.insert(id.clone(), policies.get(&id).cloned().unwrap_or_default());
+            }
+        }
+        policies_map
+    }
+
+    /// Set the policy for a specific resource
+    /// Returns the old policy if the resource is already set
     async fn set_policy(&self, id: Identifier, policy: Policy) -> Option<Policy> {
         let mut policies = self.policies.lock().await;
         policies.insert(id, policy)
     }
 
+    /// Check if a flow from source to destination is compliant with policies
+    /// Returns true if the flow is compliant, false otherwise
     async fn local_flow_check(&self, source: Identifier, destination: Identifier) -> bool {
         let policies = self.policies.lock().await;
 
@@ -90,6 +114,10 @@ impl Service<ComplianceRequest> for ComplianceService {
                     } else {
                         Err(TraceabilityError::DirectPolicyViolation)
                     }
+                }
+                ComplianceRequest::GetPolicies { ids } => {
+                    let policies = this.get_policies(ids).await;
+                    Ok(ComplianceResponse::Policies(policies))
                 }
                 ComplianceRequest::SetPolicy { id, policy } => {
                     this.set_policy(id, policy).await;
@@ -456,5 +484,184 @@ mod tests {
         };
         let response = compliance_service.call(request).await.unwrap();
         assert_eq!(response, ComplianceResponse::Grant);
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_get_policies_empty() {
+        let compliance = ComplianceService::default();
+        let process = Identifier::new(String::default(), Resource::new_process(0));
+        let file = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
+
+        let mut ids = HashSet::new();
+        ids.insert(process.clone());
+        ids.insert(file.clone());
+
+        let policies = compliance.get_policies(ids).await;
+
+        assert_eq!(policies.len(), 2);
+        assert_eq!(policies.get(&process).unwrap(), &Policy::default());
+        assert_eq!(policies.get(&file).unwrap(), &Policy::default());
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_get_policies_single_resource() {
+        let compliance = ComplianceService::default();
+        let process = Identifier::new(String::default(), Resource::new_process(0));
+
+        let policy = Policy {
+            confidentiality: ConfidentialityPolicy::Secret,
+            integrity: 7,
+        };
+
+        compliance.set_policy(process.clone(), policy.clone()).await;
+
+        let mut ids = HashSet::new();
+        ids.insert(process.clone());
+
+        let policies = compliance.get_policies(ids).await;
+
+        assert_eq!(policies.len(), 1);
+        assert_eq!(policies.get(&process).unwrap(), &policy);
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_get_policies_multiple_resources() {
+        let compliance = ComplianceService::default();
+        let process = Identifier::new(String::default(), Resource::new_process(0));
+        let file = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
+
+        let process_policy = Policy {
+            confidentiality: ConfidentialityPolicy::Secret,
+            integrity: 5,
+        };
+
+        let file_policy = Policy {
+            confidentiality: ConfidentialityPolicy::Public,
+            integrity: 3,
+        };
+
+        compliance
+            .set_policy(process.clone(), process_policy.clone())
+            .await;
+        compliance
+            .set_policy(file.clone(), file_policy.clone())
+            .await;
+
+        let mut ids = HashSet::new();
+        ids.insert(process.clone());
+        ids.insert(file.clone());
+
+        let policies = compliance.get_policies(ids).await;
+
+        assert_eq!(policies.len(), 2);
+        assert_eq!(policies.get(&process).unwrap(), &process_policy);
+        assert_eq!(policies.get(&file).unwrap(), &file_policy);
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_get_policies_mixed_existing_default() {
+        let compliance = ComplianceService::default();
+        let process = Identifier::new(String::default(), Resource::new_process(0));
+        let file = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
+
+        let process_policy = Policy {
+            confidentiality: ConfidentialityPolicy::Secret,
+            integrity: 8,
+        };
+
+        // Set policy only for process, not for file
+        compliance
+            .set_policy(process.clone(), process_policy.clone())
+            .await;
+
+        let mut ids = HashSet::new();
+        ids.insert(process.clone());
+        ids.insert(file.clone());
+
+        let policies = compliance.get_policies(ids).await;
+
+        assert_eq!(policies.len(), 2);
+        assert_eq!(policies.get(&process).unwrap(), &process_policy);
+        assert_eq!(policies.get(&file).unwrap(), &Policy::default());
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_get_policies_empty_request() {
+        let compliance = ComplianceService::default();
+        let ids = HashSet::new();
+
+        let policies = compliance.get_policies(ids).await;
+
+        assert_eq!(policies.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_get_policies_after_update() {
+        let compliance = ComplianceService::default();
+        let process = Identifier::new(String::default(), Resource::new_process(0));
+
+        let initial_policy = Policy {
+            confidentiality: ConfidentialityPolicy::Public,
+            integrity: 2,
+        };
+
+        let updated_policy = Policy {
+            confidentiality: ConfidentialityPolicy::Secret,
+            integrity: 9,
+        };
+
+        // Set initial policy
+        compliance.set_policy(process.clone(), initial_policy).await;
+
+        let mut ids = HashSet::new();
+        ids.insert(process.clone());
+
+        // Verify initial policy
+        let policies = compliance.get_policies(ids.clone()).await;
+        assert_eq!(policies.len(), 1);
+        assert_eq!(policies.get(&process).unwrap().integrity, 2);
+        assert_eq!(
+            policies.get(&process).unwrap().confidentiality,
+            ConfidentialityPolicy::Public
+        );
+
+        // Update policy
+        compliance
+            .set_policy(process.clone(), updated_policy.clone())
+            .await;
+
+        // Verify updated policy
+        let policies = compliance.get_policies(ids).await;
+        assert_eq!(policies.len(), 1);
+        assert_eq!(policies.get(&process).unwrap(), &updated_policy);
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_get_policies_filter_local_resources() {
+        let compliance = ComplianceService::default();
+        let process = Identifier::new(String::default(), Resource::new_process(0));
+        let file = Identifier::new(
+            "remote".to_string(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
+
+        let mut ids = HashSet::new();
+        ids.insert(process.clone());
+        ids.insert(file.clone());
+
+        let policies = compliance.get_policies(ids).await;
+
+        assert_eq!(policies.len(), 1);
+        assert_eq!(policies.get(&process).is_some(), true);
+        assert_eq!(policies.get(&file).is_none(), true);
     }
 }
