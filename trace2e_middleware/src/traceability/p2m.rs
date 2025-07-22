@@ -178,31 +178,19 @@ where
                         } else {
                             (fd.clone(), process.clone())
                         };
-                        match sequencer
+                        provenance
+                            .call(ProvenanceRequest::UpdateProvenance {
+                                source: source.clone(),
+                                destination: destination.clone(),
+                            })
+                            .await?;
+                        sequencer
                             .call(SequencerRequest::ReleaseFlow {
                                 source: source.clone(),
                                 destination: destination.clone(),
                             })
-                            .await
-                        {
-                            Ok(SequencerResponse::FlowReleased) => {
-                                match provenance
-                                    .call(ProvenanceRequest::UpdateProvenance {
-                                        source: source.clone(),
-                                        destination: destination.clone(),
-                                    })
-                                    .await
-                                {
-                                    Ok(ProvenanceResponse::ProvenanceUpdated) => {
-                                        Ok(P2mResponse::Ack)
-                                    }
-                                    Err(e) => Err(e),
-                                    _ => Err(TraceabilityError::InternalTrace2eError),
-                                }
-                            }
-                            Err(e) => Err(e),
-                            _ => Err(TraceabilityError::InternalTrace2eError),
-                        }
+                            .await?;
+                        Ok(P2mResponse::Ack)
                     } else {
                         Err(TraceabilityError::NotFoundFlow(grant_id))
                     }
