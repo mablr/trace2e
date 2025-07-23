@@ -41,11 +41,15 @@ impl SequencerService {
     }
 
     /// Drop a flow
-    /// Returns true if the source is not reserved as reader anymore
-    async fn drop_flow(&self, source: Identifier, destination: Identifier) -> bool {
+    /// Returns the SequencerResponse to the caller
+    async fn drop_flow(&self, source: Identifier, destination: Identifier) -> SequencerResponse {
         let mut flows = self.flows.lock().await;
         flows.remove(&destination);
-        !flows.values().any(|v| *v == source)
+        if flows.values().any(|v| *v == source) {
+            SequencerResponse::FlowPartiallyReleased
+        } else {
+            SequencerResponse::FlowReleased
+        }
     }
 }
 
@@ -77,13 +81,7 @@ impl Service<SequencerRequest> for SequencerService {
                 SequencerRequest::ReleaseFlow {
                     source,
                     destination,
-                } => {
-                    if this.drop_flow(source, destination).await {
-                        Ok(SequencerResponse::FlowReleased)
-                    } else {
-                        Ok(SequencerResponse::FlowPartiallyReleased)
-                    }
-                }
+                } => Ok(this.drop_flow(source, destination).await),
             }
         })
     }
@@ -218,7 +216,7 @@ mod tests {
         );
         assert_eq!(
             sequencer.drop_flow(process.clone(), file.clone()).await,
-            true
+            SequencerResponse::FlowReleased
         );
         assert_eq!(
             sequencer.make_flow(process.clone(), file.clone()).await,
@@ -226,7 +224,7 @@ mod tests {
         );
         assert_eq!(
             sequencer.drop_flow(process.clone(), file.clone()).await,
-            true
+            SequencerResponse::FlowReleased
         );
     }
 
@@ -244,12 +242,12 @@ mod tests {
         );
         assert_eq!(
             sequencer.drop_flow(process.clone(), file.clone()).await,
-            true
+            SequencerResponse::FlowReleased
         );
         // Already dropped, source is still available so it return true again
         assert_eq!(
             sequencer.drop_flow(process.clone(), file.clone()).await,
-            true
+            SequencerResponse::FlowReleased
         );
     }
 
@@ -295,11 +293,11 @@ mod tests {
         // Drop 2 reservations
         assert_eq!(
             sequencer.drop_flow(process.clone(), file2.clone()).await,
-            false
+            SequencerResponse::FlowPartiallyReleased
         );
         assert_eq!(
             sequencer.drop_flow(process.clone(), file1.clone()).await,
-            false
+            SequencerResponse::FlowPartiallyReleased
         );
 
         // Must fail because process is still reserved once as reader
@@ -311,7 +309,7 @@ mod tests {
         // Drop last reservation
         assert_eq!(
             sequencer.drop_flow(process.clone(), file3.clone()).await,
-            true
+            SequencerResponse::FlowReleased
         );
 
         // Must succeed because process is not reserved as reader
