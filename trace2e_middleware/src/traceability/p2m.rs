@@ -334,77 +334,85 @@ mod tests {
         );
     }
 
-    //     #[tokio::test]
-    //     async fn unit_trace2e_service_io_invalid_request() {
-    //         let sequencer = ServiceBuilder::new()
-    //             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
-    //             .service(SequencerService::default());
-    //         let provenance = ServiceBuilder::new().service(ProvenanceService::default());
-    //         let compliance = ServiceBuilder::new().service(ComplianceService::default());
-    //         let mut p2m_service = ServiceBuilder::new()
-    //             .layer(FilterLayer::new(ResourceValidator::default()))
-    //             .service(P2mApiService::new(sequencer, provenance, compliance));
+    #[tokio::test]
+    async fn unit_trace2e_service_io_invalid_request() {
+        let sequencer = ServiceBuilder::new()
+            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
+            .service(SequencerService::default());
+        let provenance = ServiceBuilder::new().service(ProvenanceService::default());
+        let compliance = ServiceBuilder::new().service(ComplianceService::default());
+        let mut p2m_service = ServiceBuilder::new()
+            .layer(FilterLayer::new(ResourceValidator::default()))
+            .service(P2mApiService::new(sequencer, provenance, compliance));
 
-    //         // Neither process nor fd are enrolled
-    //         assert_eq!(
-    //             p2m_service
-    //                 .call(P2mRequest::IoRequest {
-    //                     pid: std::process::id() as i32,
-    //                     fd: 3,
-    //                     output: true,
-    //                 })
-    //                 .await
-    //                 .unwrap_err(),
-    //             TraceabilityError::UndeclaredResource(std::process::id() as i32, 3)
-    //         );
+        // Neither process nor fd are enrolled
+        assert_eq!(
+            p2m_service
+                .call(P2mRequest::IoRequest {
+                    pid: std::process::id() as i32,
+                    fd: 3,
+                    output: true,
+                })
+                .await
+                .unwrap_err()
+                .to_string(),
+            format!(
+                "Traceability error, undeclared resource (pid: {}, fd: 3)",
+                std::process::id() as i32
+            )
+        );
 
-    //         p2m_service
-    //             .call(P2mRequest::LocalEnroll {
-    //                 pid: std::process::id() as i32,
-    //                 fd: 4,
-    //                 path: "/tmp/test.txt".to_string(),
-    //             })
-    //             .await
-    //             .unwrap();
+        p2m_service
+            .call(P2mRequest::LocalEnroll {
+                pid: std::process::id() as i32,
+                fd: 4,
+                path: "/tmp/test.txt".to_string(),
+            })
+            .await
+            .unwrap();
 
-    //         // Only process is enrolled
-    //         assert_eq!(
-    //             p2m_service
-    //                 .call(P2mRequest::IoRequest {
-    //                     pid: std::process::id() as i32,
-    //                     fd: 3,
-    //                     output: true,
-    //                 })
-    //                 .await
-    //                 .unwrap_err(),
-    //             TraceabilityError::UndeclaredResource(std::process::id() as i32, 3)
-    //         );
-    //     }
+        // Only process is enrolled
+        assert_eq!(
+            p2m_service
+                .call(P2mRequest::IoRequest {
+                    pid: std::process::id() as i32,
+                    fd: 3,
+                    output: true,
+                })
+                .await
+                .unwrap_err()
+                .to_string(),
+            format!(
+                "Traceability error, undeclared resource (pid: {}, fd: 3)",
+                std::process::id() as i32
+            )
+        );
+    }
 
-    //     #[tokio::test]
-    //     async fn unit_trace2e_service_io_invalid_report() {
-    //         let sequencer = ServiceBuilder::new()
-    //             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
-    //             .service(SequencerService::default());
-    //         let provenance = ServiceBuilder::new().service(ProvenanceService::default());
-    //         let compliance = ServiceBuilder::new().service(ComplianceService::default());
-    //         let mut p2m_service =
-    //             ServiceBuilder::new()
-    //                 .layer(FilterLayer::new(ResourceValidator::default()))
-    //                 .service(P2mApiService::new(sequencer, provenance, compliance));
+    #[tokio::test]
+    async fn unit_trace2e_service_io_invalid_report() {
+        let sequencer = ServiceBuilder::new()
+            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
+            .service(SequencerService::default());
+        let provenance = ServiceBuilder::new().service(ProvenanceService::default());
+        let compliance = ServiceBuilder::new().service(ComplianceService::default());
+        let mut p2m_service = ServiceBuilder::new()
+            .layer(FilterLayer::new(ResourceValidator::default()))
+            .service(P2mApiService::new(sequencer, provenance, compliance));
 
-    //         // Invalid grant id
-    //         assert_eq!(
-    //             p2m_service
-    //                 .call(P2mRequest::IoReport {
-    //                     pid: 1,
-    //                     fd: 3,
-    //                     grant_id: 0,
-    //                     result: true,
-    //                 })
-    //                 .await
-    //                 .unwrap_err(),
-    //             TraceabilityError::NotFoundFlow(0)
-    //         );
-    //     }
+        // Invalid grant id
+        assert_eq!(
+            p2m_service
+                .call(P2mRequest::IoReport {
+                    pid: 1,
+                    fd: 3,
+                    grant_id: 0,
+                    result: true,
+                })
+                .await
+                .unwrap_err()
+                .to_string(),
+            "Traceability error, flow not found (id: 0)"
+        );
+    }
 }
