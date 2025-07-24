@@ -1,20 +1,16 @@
 use crate::traceability::{
     api::{
-        ComplianceRequest, ComplianceResponse, P2mRequest, ProvenanceRequest, ProvenanceResponse,
-        SequencerRequest, SequencerResponse,
+        ComplianceRequest, ComplianceResponse, P2mRequest, P2mResponse, ProvenanceRequest,
+        ProvenanceResponse, SequencerRequest, SequencerResponse,
     },
     error::TraceabilityError,
+    naming::{Identifier, Resource},
 };
 use std::{
     collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll, time::SystemTime,
 };
 use tokio::sync::Mutex;
 use tower::Service;
-
-use super::{
-    api::P2mResponse,
-    naming::{Identifier, Resource},
-};
 
 #[derive(Debug, Clone)]
 pub struct P2mApiService<S, P, C> {
