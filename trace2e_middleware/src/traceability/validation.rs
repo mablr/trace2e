@@ -14,7 +14,7 @@ impl ResourceValidator {
         system.process(Pid::from(pid as usize)).is_some()
     }
 
-    fn is_valid_stream(&self, local_socket: &String, peer_socket: &String) -> bool {
+    fn is_valid_stream(&self, local_socket: &str, peer_socket: &str) -> bool {
         match (
             local_socket.parse::<SocketAddr>(),
             peer_socket.parse::<SocketAddr>(),

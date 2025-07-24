@@ -12,11 +12,14 @@ use std::{
 use tokio::sync::Mutex;
 use tower::Service;
 
+type ResourceMap = HashMap<(i32, i32), (Identifier, Identifier)>;
+type FlowMap = HashMap<u128, (Identifier, Identifier, bool)>;
+
 #[derive(Debug, Clone)]
 pub struct P2mApiService<S, P, C> {
     node_id: String,
-    resource_map: Arc<Mutex<HashMap<(i32, i32), (Identifier, Identifier)>>>,
-    flow_map: Arc<Mutex<HashMap<u128, (Identifier, Identifier, bool)>>>,
+    resource_map: Arc<Mutex<ResourceMap>>,
+    flow_map: Arc<Mutex<FlowMap>>,
     sequencer: S,
     provenance: P,
     compliance: C,
@@ -144,8 +147,8 @@ where
                                         // Todo: use source_prov and destination_prov to check compliance
                                         match compliance
                                             .call(ComplianceRequest::CheckCompliance {
-                                                source: source,
-                                                destination: destination,
+                                                source,
+                                                destination,
                                             })
                                             .await
                                         {
