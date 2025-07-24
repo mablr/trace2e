@@ -77,6 +77,8 @@ pub enum ProvenanceResponse {
     Provenance { derived_from: HashSet<Identifier> },
     /// Provenance successfully updated
     ProvenanceUpdated,
+    /// Provenance not updated as the source is already in the destination provenance
+    ProvenanceNotUpdated,
 }
 
 /// Compliance-specific API for policy management and flow authorization

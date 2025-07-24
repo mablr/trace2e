@@ -26,6 +26,7 @@ pub struct ProvenanceService {
 }
 
 impl ProvenanceService {
+    /// Get the provenance of an identifier
     async fn get_prov(&self, id: Identifier) -> HashSet<Identifier> {
         self.derived_from_map
             .lock()
@@ -35,20 +36,22 @@ impl ProvenanceService {
             .unwrap_or(init_provenance(id))
     }
 
-    async fn update(&mut self, source: Identifier, destination: Identifier) {
-        let mut derived_from_map = self.derived_from_map.lock().await;
-        let source_prov = derived_from_map
-            .get(&source)
-            .cloned()
-            .unwrap_or(init_provenance(source.clone()));
-        let destination_prov = derived_from_map
-            .get(&destination)
-            .cloned()
-            .unwrap_or(init_provenance(destination.clone()));
-        derived_from_map.insert(
-            destination,
-            destination_prov.union(&source_prov).cloned().collect(),
-        );
+    /// Update the provenance of the destination with the source
+    ///
+    /// Note that this function does not guarantee sequential consistency,
+    /// this is the role of the sequencer.
+    async fn update(&mut self, source: Identifier, destination: Identifier) -> ProvenanceResponse {
+        let source_prov = self.get_prov(source.clone()).await;
+        let destination_prov = self.get_prov(destination.clone()).await;
+        if destination_prov.contains(&source) {
+            ProvenanceResponse::ProvenanceNotUpdated
+        } else {
+            self.derived_from_map.lock().await.insert(
+                destination,
+                destination_prov.union(&source_prov).cloned().collect(),
+            );
+            ProvenanceResponse::ProvenanceUpdated
+        }
     }
 }
 
@@ -71,10 +74,7 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                 ProvenanceRequest::UpdateProvenance {
                     source,
                     destination,
-                } => {
-                    this.update(source, destination).await;
-                    Ok(ProvenanceResponse::ProvenanceUpdated)
-                }
+                } => Ok(this.update(source, destination).await),
             }
         })
     }
@@ -147,6 +147,17 @@ mod tests {
                 .await
                 .unwrap(),
             ProvenanceResponse::ProvenanceUpdated
+        );
+
+        assert_eq!(
+            provenance
+                .call(ProvenanceRequest::UpdateProvenance {
+                    source: file.clone(),
+                    destination: process.clone(),
+                })
+                .await
+                .unwrap(),
+            ProvenanceResponse::ProvenanceNotUpdated
         );
 
         assert_eq!(
