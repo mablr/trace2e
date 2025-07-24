@@ -88,13 +88,3 @@ impl Identifier {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_new_process() {
-        println!("{:?}", Resource::new_process(1));
-    }
-}
