@@ -367,7 +367,7 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_layer_flow() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
+        let mut sequencer = SequencerService::default();
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
@@ -398,7 +398,7 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_layer_flow_interference() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
+        let mut sequencer = SequencerService::default();
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
@@ -429,7 +429,7 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_layer_flow_circular() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
+        let mut sequencer = SequencerService::default();
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
@@ -460,7 +460,7 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
+        let mut sequencer = SequencerService::default();
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file1 = Identifier::new(
@@ -520,7 +520,7 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence_interference() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
+        let mut sequencer = SequencerService::default();
 
         let process1 = Identifier::new(node_id.clone(), Resource::new_process(1));
         let process2 = Identifier::new(node_id.clone(), Resource::new_process(2));
@@ -595,7 +595,7 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence_interference_multiple_share_releases() {
         let node_id = "test".to_string();
-        let mut sequencer = ServiceBuilder::new().service(SequencerService::default());
+        let mut sequencer = SequencerService::default();
 
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file1 = Identifier::new(

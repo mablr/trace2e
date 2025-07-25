@@ -82,8 +82,6 @@ impl Service<ProvenanceRequest> for ProvenanceService {
 
 #[cfg(test)]
 mod tests {
-    use tower::ServiceBuilder;
-
     use super::*;
 
     #[tokio::test]
@@ -121,7 +119,7 @@ mod tests {
 
     #[tokio::test]
     async fn unit_provenance_service_flow_simple() {
-        let mut provenance = ServiceBuilder::new().service(ProvenanceService::default());
+        let mut provenance = ProvenanceService::default();
         let node_id = "test".to_string();
         let process = Identifier::new(node_id.clone(), Resource::new_process(0));
         let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));

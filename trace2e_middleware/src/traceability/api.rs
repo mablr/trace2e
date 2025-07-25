@@ -34,6 +34,23 @@ pub enum P2mResponse {
     Ack,         // <- P2mRequest::{LocalEnroll, RemoteEnroll, Report}
 }
 
+pub enum M2mRequest {
+    IoRequest {
+        source: Identifier,
+        destination: Identifier,
+    },
+    IoReport {
+        source: Identifier,
+        source_provenance: HashSet<Identifier>,
+        destination: Identifier,
+    },
+}
+
+pub enum M2mResponse {
+    ComplianceToCheck { destination_policy: Policy },
+    Ack,
+}
+
 /// Sequencer-specific API for resource management and flow control
 #[derive(Debug, Clone)]
 pub enum SequencerRequest {

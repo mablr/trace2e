@@ -130,8 +130,6 @@ impl Service<ComplianceRequest> for ComplianceService {
 
 #[cfg(test)]
 mod tests {
-    use tower::ServiceBuilder;
-
     use crate::traceability::naming::Resource;
 
     use super::*;
@@ -470,8 +468,7 @@ mod tests {
     async fn unit_compliance_service_layer_distributed_flow_check() {
         let remote_node_id = "remote".to_string();
         let local_node_id = "local".to_string();
-        let mut compliance_service =
-            ServiceBuilder::new().service(ComplianceService::new(local_node_id.clone()));
+        let mut compliance_service = ComplianceService::new(local_node_id.clone());
         let source = Identifier::new(remote_node_id.clone(), Resource::new_process(0));
         let destination = Identifier::new(
             local_node_id.clone(),
