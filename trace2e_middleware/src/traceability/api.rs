@@ -86,6 +86,11 @@ pub enum ProvenanceRequest {
         source: Identifier,
         destination: Identifier,
     },
+    /// Update destination provenance with raw sourceprovenance
+    UpdateProvenanceRaw {
+        source_prov: HashSet<Identifier>,
+        destination: Identifier,
+    },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

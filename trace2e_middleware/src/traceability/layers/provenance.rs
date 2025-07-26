@@ -42,8 +42,16 @@ impl ProvenanceService {
     /// this is the role of the sequencer.
     async fn update(&mut self, source: Identifier, destination: Identifier) -> ProvenanceResponse {
         let source_prov = self.get_prov(source.clone()).await;
+        self.update_raw(source_prov, destination).await
+    }
+
+    /// Update the provenance of the destination with the raw source provenance
+    ///
+    /// Note that this function does not guarantee sequential consistency,
+    /// this is the role of the sequencer.
+    async fn update_raw(&mut self, source_prov: HashSet<Identifier>, destination: Identifier) -> ProvenanceResponse {
         let destination_prov = self.get_prov(destination.clone()).await;
-        if destination_prov.contains(&source) {
+        if destination_prov.contains(&source_prov) {
             ProvenanceResponse::ProvenanceNotUpdated
         } else {
             self.derived_from_map.lock().await.insert(
@@ -75,6 +83,10 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                     source,
                     destination,
                 } => Ok(this.update(source, destination).await),
+                ProvenanceRequest::UpdateProvenanceRaw {
+                    source_prov,
+                    destination,
+                } => Ok(this.update_raw(source_prov, destination).await),
             }
         })
     }
