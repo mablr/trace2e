@@ -59,12 +59,45 @@ where
 
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         let this = self.clone();
-        let mut _sequencer = std::mem::replace(&mut self.sequencer, this.sequencer.clone());
+        let mut sequencer = std::mem::replace(&mut self.sequencer, this.sequencer.clone());
         let mut _provenance = std::mem::replace(&mut self.provenance, this.provenance.clone());
-        let mut _compliance = std::mem::replace(&mut self.compliance, this.compliance.clone());
+        let mut compliance = std::mem::replace(&mut self.compliance, this.compliance.clone());
         Box::pin(async move {
             match request {
-                M2mRequest::IoRequest { .. } => todo!(),
+                M2mRequest::IoRequest {
+                    source,
+                    destination,
+                } => {
+                    match sequencer
+                        .call(SequencerRequest::ReserveFlow {
+                            source: source.clone(),
+                            destination: destination.clone(),
+                        })
+                        .await
+                    {
+                        Ok(SequencerResponse::FlowReserved) => {
+                            match compliance
+                                .call(ComplianceRequest::GetPolicies {
+                                    ids: [destination.clone()].into(),
+                                })
+                                .await
+                            {
+                                Ok(ComplianceResponse::Policies(policies)) => {
+                                    Ok(M2mResponse::ComplianceToCheck {
+                                        destination_policy: policies
+                                            .get(&destination)
+                                            .cloned()
+                                            .unwrap_or_default(),
+                                    })
+                                }
+                                Err(e) => Err(e),
+                                _ => Err(TraceabilityError::InternalTrace2eError),
+                            }
+                        }
+                        Err(e) => Err(e),
+                        _ => Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
                 M2mRequest::IoReport { .. } => todo!(),
             }
         })
