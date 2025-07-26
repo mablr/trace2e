@@ -49,9 +49,13 @@ impl ProvenanceService {
     ///
     /// Note that this function does not guarantee sequential consistency,
     /// this is the role of the sequencer.
-    async fn update_raw(&mut self, source_prov: HashSet<Identifier>, destination: Identifier) -> ProvenanceResponse {
+    async fn update_raw(
+        &mut self,
+        source_prov: HashSet<Identifier>,
+        destination: Identifier,
+    ) -> ProvenanceResponse {
         let destination_prov = self.get_prov(destination.clone()).await;
-        if destination_prov.contains(&source_prov) {
+        if destination_prov.is_superset(&source_prov) {
             ProvenanceResponse::ProvenanceNotUpdated
         } else {
             self.derived_from_map.lock().await.insert(
