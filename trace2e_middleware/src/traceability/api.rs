@@ -41,7 +41,7 @@ pub enum M2mRequest {
     },
     IoReport {
         source: Identifier,
-        source_provenance: HashSet<Identifier>,
+        source_prov: HashSet<Identifier>,
         destination: Identifier,
     },
 }
