@@ -60,7 +60,7 @@ where
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         let this = self.clone();
         let mut sequencer = std::mem::replace(&mut self.sequencer, this.sequencer.clone());
-        let mut _provenance = std::mem::replace(&mut self.provenance, this.provenance.clone());
+        let mut provenance = std::mem::replace(&mut self.provenance, this.provenance.clone());
         let mut compliance = std::mem::replace(&mut self.compliance, this.compliance.clone());
         Box::pin(async move {
             match request {
@@ -98,7 +98,36 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
-                M2mRequest::IoReport { .. } => todo!(),
+                M2mRequest::IoReport {
+                    source,
+                    source_prov,
+                    destination,
+                } => {
+                    match provenance
+                        .call(ProvenanceRequest::UpdateProvenanceRaw {
+                            source_prov,
+                            destination: destination.clone(),
+                        })
+                        .await
+                    {
+                        Ok(ProvenanceResponse::ProvenanceUpdated)
+                        | Ok(ProvenanceResponse::ProvenanceNotUpdated) => {
+                            match sequencer
+                                .call(SequencerRequest::ReleaseFlow {
+                                    source,
+                                    destination,
+                                })
+                                .await
+                            {
+                                Ok(SequencerResponse::FlowReleased) => Ok(M2mResponse::Ack),
+                                Err(e) => Err(e),
+                                _ => Err(TraceabilityError::InternalTrace2eError),
+                            }
+                        }
+                        Err(e) => Err(e),
+                        _ => Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
             }
         })
     }
