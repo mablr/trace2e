@@ -10,7 +10,6 @@ use tower::Service;
 
 #[derive(Debug, Clone)]
 pub struct M2mApiService<S, P, C> {
-    node_id: String,
     sequencer: S,
     provenance: P,
     compliance: C,
@@ -18,12 +17,7 @@ pub struct M2mApiService<S, P, C> {
 
 impl<S, P, C> M2mApiService<S, P, C> {
     pub fn new(sequencer: S, provenance: P, compliance: C) -> Self {
-        Self::new_with_node_id(String::new(), sequencer, provenance, compliance)
-    }
-
-    pub fn new_with_node_id(node_id: String, sequencer: S, provenance: P, compliance: C) -> Self {
         Self {
-            node_id,
             sequencer,
             provenance,
             compliance,
