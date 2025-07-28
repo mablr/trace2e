@@ -36,11 +36,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sequencer = ServiceBuilder::new()
         .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
         .service(SequencerService::default());
-    let provenance = ServiceBuilder::new().service(ProvenanceService::default());
-    let compliance = ServiceBuilder::new().service(ComplianceService::default());
+    let provenance = ProvenanceService::default();
+    let compliance = ComplianceService::default();
 
-    let p2m_service =
-        ServiceBuilder::new().service(P2mApiService::new(sequencer, provenance, compliance));
+    let p2m_service = P2mApiService::new(sequencer, provenance, compliance);
 
     let address = "[::]:8080".parse().unwrap();
     let reflection_service = Builder::configure()

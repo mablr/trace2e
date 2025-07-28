@@ -66,14 +66,13 @@ impl Predicate<P2mRequest> for ResourceValidator {
 
 #[cfg(test)]
 mod tests {
-    use tower::{Service, ServiceBuilder, filter::FilterLayer, layer::layer_fn};
+    use tower::{Service, ServiceBuilder, filter::FilterLayer};
 
     use crate::traceability::{
         api::P2mResponse,
         layers::{
-            compliance::ComplianceService,
-            provenance::ProvenanceService,
-            sequencer::{SequencerService, WaitingQueueService},
+            compliance::ComplianceService, provenance::ProvenanceService,
+            sequencer::SequencerService,
         },
         p2m::P2mApiService,
     };
@@ -82,15 +81,13 @@ mod tests {
 
     #[tokio::test]
     async fn unit_traceability_provenance_service_p2m_validator() {
-        let validator = ResourceValidator::default();
-        let sequencer = ServiceBuilder::new()
-            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
-            .service(SequencerService::default());
-        let provenance = ServiceBuilder::new().service(ProvenanceService::default());
-        let compliance = ServiceBuilder::new().service(ComplianceService::default());
         let mut p2m_service = ServiceBuilder::new()
-            .layer(FilterLayer::new(validator))
-            .service(P2mApiService::new(sequencer, provenance, compliance));
+            .layer(FilterLayer::new(ResourceValidator::default()))
+            .service(P2mApiService::new(
+                SequencerService::default(),
+                ProvenanceService::default(),
+                ComplianceService::default(),
+            ));
 
         assert_eq!(
             p2m_service

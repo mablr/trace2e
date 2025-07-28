@@ -203,13 +203,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use tower::{Service, ServiceBuilder, filter::FilterLayer, layer::layer_fn};
+    use tower::{Service, ServiceBuilder, filter::FilterLayer};
 
     use crate::traceability::{
         layers::{
             compliance::ComplianceService,
             provenance::ProvenanceService,
-            sequencer::{SequencerService, WaitingQueueService},
+            sequencer::SequencerService,
         },
         validation::ResourceValidator,
     };
@@ -218,13 +218,11 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_request_response() {
-        let sequencer = ServiceBuilder::new()
-            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
-            .service(SequencerService::default());
-        let provenance = ServiceBuilder::new().service(ProvenanceService::default());
-        let compliance = ServiceBuilder::new().service(ComplianceService::default());
-        let mut p2m_service =
-            ServiceBuilder::new().service(P2mApiService::new(sequencer, provenance, compliance));
+        let mut p2m_service = P2mApiService::new(
+            SequencerService::default(),
+            ProvenanceService::default(),
+            ComplianceService::default(),
+        );
 
         assert_eq!(
             p2m_service
@@ -301,14 +299,13 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_validated_resources() {
-        let sequencer = ServiceBuilder::new()
-            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
-            .service(SequencerService::default());
-        let provenance = ServiceBuilder::new().service(ProvenanceService::default());
-        let compliance = ServiceBuilder::new().service(ComplianceService::default());
         let mut p2m_service = ServiceBuilder::new()
             .layer(FilterLayer::new(ResourceValidator::default()))
-            .service(P2mApiService::new(sequencer, provenance, compliance));
+            .service(P2mApiService::new(
+                SequencerService::default(),
+                ProvenanceService::default(),
+                ComplianceService::default(),
+            ));
 
         // Test with invalid process
         // This request is supposed to be filtered out by the validator
@@ -341,14 +338,13 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_io_invalid_request() {
-        let sequencer = ServiceBuilder::new()
-            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
-            .service(SequencerService::default());
-        let provenance = ServiceBuilder::new().service(ProvenanceService::default());
-        let compliance = ServiceBuilder::new().service(ComplianceService::default());
         let mut p2m_service = ServiceBuilder::new()
             .layer(FilterLayer::new(ResourceValidator::default()))
-            .service(P2mApiService::new(sequencer, provenance, compliance));
+            .service(P2mApiService::new(
+                SequencerService::default(),
+                ProvenanceService::default(),
+                ComplianceService::default(),
+            ));
 
         // Neither process nor fd are enrolled
         assert_eq!(
@@ -396,14 +392,13 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_io_invalid_report() {
-        let sequencer = ServiceBuilder::new()
-            .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
-            .service(SequencerService::default());
-        let provenance = ServiceBuilder::new().service(ProvenanceService::default());
-        let compliance = ServiceBuilder::new().service(ComplianceService::default());
         let mut p2m_service = ServiceBuilder::new()
             .layer(FilterLayer::new(ResourceValidator::default()))
-            .service(P2mApiService::new(sequencer, provenance, compliance));
+            .service(P2mApiService::new(
+                SequencerService::default(),
+                ProvenanceService::default(),
+                ComplianceService::default(),
+            ));
 
         // Invalid grant id
         assert_eq!(
