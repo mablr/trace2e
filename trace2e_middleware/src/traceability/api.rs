@@ -35,11 +35,11 @@ pub enum P2mResponse {
 }
 
 pub enum M2mRequest {
-    IoRequest {
+    ComplianceRetrieval {
         source: Identifier,
         destination: Identifier,
     },
-    IoReport {
+    ProvenanceUpdate {
         source: Identifier,
         source_prov: HashSet<Identifier>,
         destination: Identifier,
@@ -47,7 +47,7 @@ pub enum M2mRequest {
 }
 
 pub enum M2mResponse {
-    ComplianceToCheck { destination_policy: Policy },
+    Compliance { destination: Policy },
     Ack,
 }
 

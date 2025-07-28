@@ -58,7 +58,7 @@ where
         let mut compliance = std::mem::replace(&mut self.compliance, this.compliance.clone());
         Box::pin(async move {
             match request {
-                M2mRequest::IoRequest {
+                M2mRequest::ComplianceRetrieval {
                     source,
                     destination,
                 } => {
@@ -77,8 +77,8 @@ where
                                 .await
                             {
                                 Ok(ComplianceResponse::Policies(policies)) => {
-                                    Ok(M2mResponse::ComplianceToCheck {
-                                        destination_policy: policies
+                                    Ok(M2mResponse::Compliance {
+                                        destination: policies
                                             .get(&destination)
                                             .cloned()
                                             .unwrap_or_default(),
@@ -92,7 +92,7 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
-                M2mRequest::IoReport {
+                M2mRequest::ProvenanceUpdate {
                     source,
                     source_prov,
                     destination,
