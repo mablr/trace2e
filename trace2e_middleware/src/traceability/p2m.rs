@@ -144,7 +144,10 @@ where
                                             derived_from: _destination_prov,
                                         }),
                                     ) => {
-                                        // Todo: use source_prov and destination_prov to check compliance
+                                        // Todo:
+                                        // 1. get policies for source_prov ids
+                                        // 2. get policies for destination id
+                                        // 3. check compliance with the two sets of policies
                                         match compliance
                                             .call(ComplianceRequest::CheckCompliance {
                                                 source,

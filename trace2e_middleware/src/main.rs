@@ -5,14 +5,16 @@ use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, fmt};
 
 use trace2e_middleware::{
-    Trace2eGrpcService,
-    grpc_proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_server::Trace2eServer},
     traceability::{
         layers::{
             provenance::ProvenanceService,
             sequencer::{SequencerService, WaitingQueueService},
         },
         p2m::P2mApiService,
+    },
+    transport::grpc::{
+        Trace2eGrpcService,
+        proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_server::Trace2eServer},
     },
 };
 

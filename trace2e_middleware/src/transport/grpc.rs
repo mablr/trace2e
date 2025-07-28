@@ -4,7 +4,7 @@ use tower::Service;
 
 pub mod proto {
     tonic::include_proto!("trace2e");
-    pub const MIDDLEWARE_DESCRIPTOR_SET: &[u8] = include_bytes!("../trace2e_descriptor.bin");
+    pub const MIDDLEWARE_DESCRIPTOR_SET: &[u8] = include_bytes!("../../trace2e_descriptor.bin");
 }
 
 use crate::traceability::{
