@@ -9,6 +9,10 @@ service Trace2e {
     rpc P2MRemoteEnroll(RemoteCt) returns (Ack);
     rpc P2MIoRequest(IoInfo) returns (Grant);
     rpc P2MIoReport(IoResult) returns (Ack);
+
+    // Middleware to Middleware operations
+    rpc M2MComplianceRetrieval(ComplianceRetrieval) returns (Compliance);
+    rpc M2MProvenanceUpdate(ProvenanceUpdate) returns (Ack);
 }
 
 // Common Messages
@@ -49,3 +53,64 @@ message IoResult {
 message Grant {
     string id = 1;
 }
+
+
+// M2M specific messages
+message File {
+    string path = 1;
+}
+
+message Stream {
+    string local_socket = 1;
+    string peer_socket = 2;
+}
+
+message Fd {
+    oneof fd {
+        File file = 1;
+        Stream stream = 2;
+    }
+}
+
+message Process {
+    int32 pid = 1;
+    uint64 starttime = 2;
+    string exe_path = 3;
+}
+
+message Resource {
+    oneof resource {
+        Fd fd = 1;
+        Process process = 2;
+    }
+}
+
+message Identifier {
+    string node = 1;
+    Resource resource = 2;
+}
+
+message ComplianceRetrieval {
+    Identifier source = 1;
+    Identifier destination = 2;
+}
+
+enum Confidentiality {
+    CONFIDENTIALITY_PUBLIC = 0;
+    CONFIDENTIALITY_SECRET = 1;
+}
+
+message Policy {
+    Confidentiality confidentiality = 1;
+    uint32 integrity = 2;
+}
+
+message Compliance {
+    Policy policy = 1;
+}
+
+message ProvenanceUpdate {
+    repeated Identifier source_prov = 1;
+    Identifier destination = 2;
+}
+

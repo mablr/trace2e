@@ -24,8 +24,8 @@ pub enum ConfidentialityPolicy {
 
 #[derive(Default, Debug, Clone, Eq, PartialEq)]
 pub struct Policy {
-    confidentiality: ConfidentialityPolicy,
-    integrity: u8,
+    pub confidentiality: ConfidentialityPolicy,
+    pub integrity: u32,
 }
 
 #[derive(Default, Clone)]

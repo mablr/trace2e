@@ -26,10 +26,11 @@ pub struct Process {
     pub exe_path: String,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub enum Resource {
     Fd(Fd),
     Process(Process),
+    #[default]
     None,
 }
 
@@ -70,7 +71,7 @@ impl Resource {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub struct Identifier {
     pub node: String,
     pub resource: Resource,
@@ -79,12 +80,5 @@ pub struct Identifier {
 impl Identifier {
     pub fn new(node: String, resource: Resource) -> Self {
         Self { node, resource }
-    }
-
-    pub fn new_none() -> Self {
-        Self {
-            node: String::default(),
-            resource: Resource::None,
-        }
     }
 }

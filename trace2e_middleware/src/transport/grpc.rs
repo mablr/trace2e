@@ -8,8 +8,10 @@ pub mod proto {
 }
 
 use crate::traceability::{
-    api::{P2mRequest, P2mResponse},
+    api::{M2mRequest, M2mResponse, P2mRequest, P2mResponse},
     error::TraceabilityError,
+    layers::compliance::{ConfidentialityPolicy, Policy},
+    naming::{Fd, File, Identifier, Process, Resource, Stream},
 };
 
 impl From<TraceabilityError> for Status {
@@ -18,18 +20,19 @@ impl From<TraceabilityError> for Status {
     }
 }
 
-pub struct Trace2eGrpcService<P2mApi> {
+pub struct Trace2eGrpcService<P2mApi, M2mApi> {
     p2m: P2mApi,
+    m2m: M2mApi,
 }
 
-impl<P2mApi> Trace2eGrpcService<P2mApi> {
-    pub fn new(p2m: P2mApi) -> Self {
-        Self { p2m }
+impl<P2mApi, M2mApi> Trace2eGrpcService<P2mApi, M2mApi> {
+    pub fn new(p2m: P2mApi, m2m: M2mApi) -> Self {
+        Self { p2m, m2m }
     }
 }
 
 #[tonic::async_trait]
-impl<P2mApi> proto::trace2e_server::Trace2e for Trace2eGrpcService<P2mApi>
+impl<P2mApi, M2mApi> proto::trace2e_server::Trace2e for Trace2eGrpcService<P2mApi, M2mApi>
 where
     P2mApi: Service<P2mRequest, Response = P2mResponse, Error = TraceabilityError>
         + Clone
@@ -37,6 +40,12 @@ where
         + Send
         + 'static,
     P2mApi::Future: Send,
+    M2mApi: Service<M2mRequest, Response = M2mResponse, Error = TraceabilityError>
+        + Clone
+        + Sync
+        + Send
+        + 'static,
+    M2mApi::Future: Send,
 {
     // P2M operations
     async fn p2m_local_enroll(
@@ -44,8 +53,8 @@ where
         request: Request<proto::LocalCt>,
     ) -> Result<Response<proto::Ack>, Status> {
         let req = request.into_inner();
-        let mut inner = self.p2m.clone();
-        match inner
+        let mut p2m = self.p2m.clone();
+        match p2m
             .call(P2mRequest::LocalEnroll {
                 pid: req.process_id,
                 fd: req.file_descriptor,
@@ -63,8 +72,8 @@ where
         request: Request<proto::RemoteCt>,
     ) -> Result<Response<proto::Ack>, Status> {
         let req = request.into_inner();
-        let mut inner = self.p2m.clone();
-        match inner
+        let mut p2m = self.p2m.clone();
+        match p2m
             .call(P2mRequest::RemoteEnroll {
                 pid: req.process_id,
                 fd: req.file_descriptor,
@@ -83,8 +92,8 @@ where
         request: Request<proto::IoInfo>,
     ) -> Result<Response<proto::Grant>, Status> {
         let req = request.into_inner();
-        let mut inner = self.p2m.clone();
-        match inner
+        let mut p2m = self.p2m.clone();
+        match p2m
             .call(P2mRequest::IoRequest {
                 pid: req.process_id,
                 fd: req.file_descriptor,
@@ -102,8 +111,8 @@ where
         request: Request<proto::IoResult>,
     ) -> Result<Response<proto::Ack>, Status> {
         let req = request.into_inner();
-        let mut inner = self.p2m.clone();
-        match inner
+        let mut p2m = self.p2m.clone();
+        match p2m
             .call(P2mRequest::IoReport {
                 pid: req.process_id,
                 fd: req.file_descriptor,
@@ -114,6 +123,194 @@ where
         {
             P2mResponse::Ack => Ok(Response::new(proto::Ack {})),
             _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+
+    // M2M operations
+    async fn m2m_compliance_retrieval(
+        &self,
+        request: Request<proto::ComplianceRetrieval>,
+    ) -> Result<Response<proto::Compliance>, Status> {
+        let req = request.into_inner();
+        let mut m2m = self.m2m.clone();
+        match m2m.call(req.into()).await? {
+            M2mResponse::Compliance { destination } => Ok(Response::new(proto::Compliance {
+                policy: Some(destination.into()),
+            })),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+
+    async fn m2m_provenance_update(
+        &self,
+        request: Request<proto::ProvenanceUpdate>,
+    ) -> Result<Response<proto::Ack>, Status> {
+        let req = request.into_inner();
+        let mut m2m = self.m2m.clone();
+        match m2m.call(req.into()).await? {
+            M2mResponse::Ack => Ok(Response::new(proto::Ack {})),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+}
+
+// Conversion trait implementations
+
+impl From<proto::ComplianceRetrieval> for M2mRequest {
+    fn from(req: proto::ComplianceRetrieval) -> Self {
+        M2mRequest::ComplianceRetrieval {
+            source: req.source.map(|s| s.into()).unwrap_or_default(),
+            destination: req.destination.map(|d| d.into()).unwrap_or_default(),
+        }
+    }
+}
+
+impl From<proto::ProvenanceUpdate> for M2mRequest {
+    fn from(req: proto::ProvenanceUpdate) -> Self {
+        M2mRequest::ProvenanceUpdate {
+            source_prov: req.source_prov.into_iter().map(|s| s.into()).collect(),
+            destination: req.destination.map(|d| d.into()).unwrap_or_default(),
+        }
+    }
+}
+
+impl From<proto::Identifier> for Identifier {
+    fn from(proto_id: proto::Identifier) -> Self {
+        let resource = proto_id.resource.map(|r| r.into()).unwrap_or_default();
+        Identifier::new(proto_id.node, resource)
+    }
+}
+
+impl From<Identifier> for proto::Identifier {
+    fn from(id: Identifier) -> Self {
+        proto::Identifier {
+            node: id.node,
+            resource: Some(id.resource.into()),
+        }
+    }
+}
+
+impl From<proto::Resource> for Resource {
+    fn from(proto_resource: proto::Resource) -> Self {
+        match proto_resource.resource {
+            Some(proto::resource::Resource::Fd(fd)) => Resource::Fd(fd.into()),
+            Some(proto::resource::Resource::Process(process)) => Resource::Process(process.into()),
+            None => Resource::None,
+        }
+    }
+}
+
+impl From<Resource> for proto::Resource {
+    fn from(resource: Resource) -> Self {
+        match resource {
+            Resource::Fd(fd) => proto::Resource {
+                resource: Some(proto::resource::Resource::Fd(fd.into())),
+            },
+            Resource::Process(process) => proto::Resource {
+                resource: Some(proto::resource::Resource::Process(process.into())),
+            },
+            Resource::None => proto::Resource { resource: None },
+        }
+    }
+}
+
+impl From<proto::Fd> for Fd {
+    fn from(proto_fd: proto::Fd) -> Self {
+        match proto_fd.fd {
+            Some(proto::fd::Fd::File(file)) => Fd::File(file.into()),
+            Some(proto::fd::Fd::Stream(stream)) => Fd::Stream(stream.into()),
+            None => Fd::File(File {
+                path: String::new(),
+            }), // Default to empty file
+        }
+    }
+}
+
+impl From<Fd> for proto::Fd {
+    fn from(fd: Fd) -> Self {
+        match fd {
+            Fd::File(file) => proto::Fd {
+                fd: Some(proto::fd::Fd::File(file.into())),
+            },
+            Fd::Stream(stream) => proto::Fd {
+                fd: Some(proto::fd::Fd::Stream(stream.into())),
+            },
+        }
+    }
+}
+
+impl From<proto::File> for File {
+    fn from(proto_file: proto::File) -> Self {
+        File {
+            path: proto_file.path,
+        }
+    }
+}
+
+impl From<File> for proto::File {
+    fn from(file: File) -> Self {
+        proto::File { path: file.path }
+    }
+}
+
+impl From<proto::Stream> for Stream {
+    fn from(proto_stream: proto::Stream) -> Self {
+        Stream {
+            local_socket: proto_stream.local_socket,
+            peer_socket: proto_stream.peer_socket,
+        }
+    }
+}
+
+impl From<Stream> for proto::Stream {
+    fn from(stream: Stream) -> Self {
+        proto::Stream {
+            local_socket: stream.local_socket,
+            peer_socket: stream.peer_socket,
+        }
+    }
+}
+
+impl From<proto::Process> for Process {
+    fn from(proto_process: proto::Process) -> Self {
+        Process {
+            pid: proto_process.pid,
+            starttime: proto_process.starttime,
+            exe_path: proto_process.exe_path,
+        }
+    }
+}
+
+impl From<Process> for proto::Process {
+    fn from(process: Process) -> Self {
+        proto::Process {
+            pid: process.pid,
+            starttime: process.starttime,
+            exe_path: process.exe_path,
+        }
+    }
+}
+
+impl From<Policy> for proto::Policy {
+    fn from(policy: Policy) -> Self {
+        proto::Policy {
+            confidentiality: match policy.confidentiality {
+                ConfidentialityPolicy::Public => proto::Confidentiality::Public as i32,
+                ConfidentialityPolicy::Secret => proto::Confidentiality::Secret as i32,
+            },
+            integrity: policy.integrity,
+        }
+    }
+}
+
+impl From<proto::Policy> for Policy {
+    fn from(proto_policy: proto::Policy) -> Self {
+        Policy {
+            confidentiality: match proto_policy.confidentiality {
+                x if x == proto::Confidentiality::Secret as i32 => ConfidentialityPolicy::Secret,
+                _ => ConfidentialityPolicy::Public,
+            },
+            integrity: proto_policy.integrity,
         }
     }
 }
