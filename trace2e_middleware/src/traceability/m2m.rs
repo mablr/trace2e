@@ -93,7 +93,6 @@ where
                     }
                 }
                 M2mRequest::ProvenanceUpdate {
-                    source,
                     source_prov,
                     destination,
                 } => {
@@ -107,13 +106,10 @@ where
                         Ok(ProvenanceResponse::ProvenanceUpdated)
                         | Ok(ProvenanceResponse::ProvenanceNotUpdated) => {
                             match sequencer
-                                .call(SequencerRequest::ReleaseFlow {
-                                    source,
-                                    destination,
-                                })
+                                .call(SequencerRequest::ReleaseFlow { destination })
                                 .await
                             {
-                                Ok(SequencerResponse::FlowReleased) => Ok(M2mResponse::Ack),
+                                Ok(SequencerResponse::FlowReleased { .. }) => Ok(M2mResponse::Ack),
                                 Err(e) => Err(e),
                                 _ => Err(TraceabilityError::InternalTrace2eError),
                             }

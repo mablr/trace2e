@@ -40,7 +40,6 @@ pub enum M2mRequest {
         destination: Identifier,
     },
     ProvenanceUpdate {
-        source: Identifier,
         source_prov: HashSet<Identifier>,
         destination: Identifier,
     },
@@ -60,10 +59,7 @@ pub enum SequencerRequest {
         destination: Identifier,
     },
     /// Release a flow from source to destination  
-    ReleaseFlow {
-        source: Identifier,
-        destination: Identifier,
-    },
+    ReleaseFlow { destination: Identifier },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -71,9 +67,10 @@ pub enum SequencerResponse {
     /// Flow successfully reserved
     FlowReserved,
     /// Flow successfully released
-    FlowReleased,
-    /// Flow partially released, source is not writable
-    FlowPartiallyReleased,
+    FlowReleased {
+        source: Option<Identifier>,
+        destination: Option<Identifier>,
+    },
 }
 
 /// Provenance-specific API for lineage tracking and data provenance

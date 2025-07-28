@@ -46,12 +46,26 @@ impl SequencerService {
         let mut flows = self.flows.lock().await;
         if let Some(source) = flows.remove(&destination) {
             if flows.values().any(|v| *v == source) {
-                SequencerResponse::FlowPartiallyReleased
+                // Partial release of the flow
+                // source is still reserved as reader, notify the waiting queue of the destination
+                SequencerResponse::FlowReleased {
+                    source: None,
+                    destination: Some(destination),
+                }
             } else {
-                SequencerResponse::FlowReleased
+                // Complete release of the flow
+                // both source and destination are available again, notify both waiting queues
+                SequencerResponse::FlowReleased {
+                    source: Some(source),
+                    destination: Some(destination),
+                }
             }
         } else {
-            SequencerResponse::FlowReleased
+            // Destination is not reserved, nothing to do
+            SequencerResponse::FlowReleased {
+                source: None,
+                destination: None,
+            }
         }
     }
 }
@@ -81,7 +95,7 @@ impl Service<SequencerRequest> for SequencerService {
                         destination,
                     )),
                 },
-                SequencerRequest::ReleaseFlow { destination, .. } => {
+                SequencerRequest::ReleaseFlow { destination } => {
                     Ok(this.drop_flow(destination).await)
                 }
             }
@@ -118,10 +132,12 @@ impl<T> WaitingQueueService<T> {
         rx
     }
 
-    async fn notify_waiting_queue(&self, id: Identifier) {
-        if let Some(queue) = self.waiting_queue.lock().await.get_mut(&id) {
-            if let Some(tx) = queue.pop_front() {
-                tx.send(()).unwrap();
+    async fn notify_waiting_queue(&self, id: Option<Identifier>) {
+        if let Some(id) = id {
+            if let Some(queue) = self.waiting_queue.lock().await.get_mut(&id) {
+                if let Some(tx) = queue.pop_front() {
+                    tx.send(()).unwrap();
+                }
             }
         }
     }
@@ -155,24 +171,18 @@ where
                     Ok(SequencerResponse::FlowReserved) => {
                         return Ok(SequencerResponse::FlowReserved);
                     }
-                    Ok(SequencerResponse::FlowReleased) => {
-                        if let SequencerRequest::ReleaseFlow {
+                    Ok(SequencerResponse::FlowReleased {
+                        source,
+                        destination,
+                    }) => {
+                        join!(
+                            this.notify_waiting_queue(source.clone()),
+                            this.notify_waiting_queue(destination.clone())
+                        );
+                        return Ok(SequencerResponse::FlowReleased {
                             source,
                             destination,
-                        } = req.clone()
-                        {
-                            join!(
-                                this.notify_waiting_queue(source),
-                                this.notify_waiting_queue(destination)
-                            );
-                        }
-                        return Ok(SequencerResponse::FlowReleased);
-                    }
-                    Ok(SequencerResponse::FlowPartiallyReleased) => {
-                        if let SequencerRequest::ReleaseFlow { destination, .. } = req.clone() {
-                            this.notify_waiting_queue(destination).await;
-                        }
-                        return Ok(SequencerResponse::FlowReleased);
+                        });
                     }
                     Err(TraceabilityError::UnavailableSource(id)) => {
                         let rx = this.join_waiting_queue(id).await;
@@ -218,7 +228,10 @@ mod tests {
         );
         assert_eq!(
             sequencer.drop_flow(file.clone()).await,
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(process.clone()),
+                destination: Some(file.clone())
+            }
         );
         assert_eq!(
             sequencer.make_flow(process.clone(), file.clone()).await,
@@ -226,7 +239,10 @@ mod tests {
         );
         assert_eq!(
             sequencer.drop_flow(file.clone()).await,
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(process),
+                destination: Some(file)
+            }
         );
     }
 
@@ -244,12 +260,18 @@ mod tests {
         );
         assert_eq!(
             sequencer.drop_flow(file.clone()).await,
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(process.clone()),
+                destination: Some(file.clone())
+            }
         );
         // Already dropped, source is still available so it return true again
         assert_eq!(
             sequencer.drop_flow(file.clone()).await,
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: None,
+                destination: None
+            }
         );
     }
 
@@ -295,11 +317,17 @@ mod tests {
         // Drop 2 reservations
         assert_eq!(
             sequencer.drop_flow(file2.clone()).await,
-            SequencerResponse::FlowPartiallyReleased
+            SequencerResponse::FlowReleased {
+                source: None,
+                destination: Some(file2)
+            }
         );
         assert_eq!(
             sequencer.drop_flow(file1.clone()).await,
-            SequencerResponse::FlowPartiallyReleased
+            SequencerResponse::FlowReleased {
+                source: None,
+                destination: Some(file1)
+            }
         );
 
         // Must fail because process is still reserved once as reader
@@ -311,7 +339,10 @@ mod tests {
         // Drop last reservation
         assert_eq!(
             sequencer.drop_flow(file3.clone()).await,
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(process.clone()),
+                destination: Some(file3)
+            }
         );
 
         // Must succeed because process is not reserved as reader
@@ -388,12 +419,14 @@ mod tests {
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: process.clone(),
                     destination: file.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(process),
+                destination: Some(file)
+            }
         );
     }
 
@@ -488,12 +521,14 @@ mod tests {
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: file1.clone(),
                     destination: process.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(file1),
+                destination: Some(process.clone())
+            }
         );
 
         assert_eq!(
@@ -510,12 +545,14 @@ mod tests {
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: file2.clone(),
                     destination: process.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(file2),
+                destination: Some(process)
+            }
         );
     }
 
@@ -649,33 +686,39 @@ mod tests {
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: process.clone(),
                     destination: file2.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowPartiallyReleased
+            SequencerResponse::FlowReleased {
+                source: None,
+                destination: Some(file2)
+            }
         );
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: process.clone(),
                     destination: file3.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowPartiallyReleased
+            SequencerResponse::FlowReleased {
+                source: None,
+                destination: Some(file3)
+            }
         );
 
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: process.clone(),
                     destination: file1.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(process),
+                destination: Some(file1)
+            }
         );
     }
 
@@ -790,12 +833,14 @@ mod tests {
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: file1.clone(),
                     destination: process.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(file1),
+                destination: Some(process.clone())
+            }
         );
 
         assert_eq!(res.await.unwrap().unwrap(), SequencerResponse::FlowReserved);
@@ -803,12 +848,14 @@ mod tests {
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: file2.clone(),
                     destination: process.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(file2),
+                destination: Some(process)
+            }
         );
     }
     #[tokio::test]
@@ -874,44 +921,55 @@ mod tests {
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: file.clone(),
                     destination: process1.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: None, // here None means that the source is still reserved as reader
+                destination: Some(process1)
+            }
         );
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: file.clone(),
                     destination: process2.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: None, // here None means that the source is still reserved as reader
+                destination: Some(process2)
+            }
         );
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: file.clone(),
                     destination: process3.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                // now source is available again
+                source: Some(file.clone()),
+                destination: Some(process3)
+            }
         );
 
+        // the pending flow is automatically reserved
         assert_eq!(res.await.unwrap().unwrap(), SequencerResponse::FlowReserved);
+
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: process4.clone(),
                     destination: file.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(process4),
+                destination: Some(file)
+            }
         );
     }
 
@@ -960,12 +1018,14 @@ mod tests {
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: file1.clone(),
                     destination: process.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(file1),
+                destination: Some(process.clone())
+            }
         );
 
         assert_eq!(res.await.unwrap().unwrap(), SequencerResponse::FlowReserved);
@@ -973,12 +1033,14 @@ mod tests {
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReleaseFlow {
-                    source: process.clone(),
                     destination: file2.clone(),
                 })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased
+            SequencerResponse::FlowReleased {
+                source: Some(process),
+                destination: Some(file2)
+            }
         );
     }
 }

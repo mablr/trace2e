@@ -185,7 +185,6 @@ where
                             .await?;
                         sequencer
                             .call(SequencerRequest::ReleaseFlow {
-                                source: source.clone(),
                                 destination: destination.clone(),
                             })
                             .await?;
