@@ -39,4 +39,7 @@ pub enum TraceabilityError {
 
     #[error("Traceability error, direct policy violation")]
     DirectPolicyViolation,
+
+    #[error("Traceability error, failed to contact remote middleware (url: {0})")]
+    FailedToContactRemoteMiddleware(String),
 }

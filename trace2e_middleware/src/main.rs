@@ -15,7 +15,7 @@ use trace2e_middleware::{
         p2m::P2mApiService,
     },
     transport::grpc::{
-        Trace2eRouter,
+        DEFAULT_GRPC_PORT, Trace2eRouter,
         proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_grpc_server::Trace2eGrpcServer},
     },
 };
@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let p2m_service = P2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
     let m2m_service = M2mApiService::new(sequencer, provenance, compliance);
 
-    let address = "[::]:8080".parse().unwrap();
+    let address = format!("[::]:{DEFAULT_GRPC_PORT}").parse().unwrap();
     let reflection_service = Builder::configure()
         .register_encoded_file_descriptor_set(MIDDLEWARE_DESCRIPTOR_SET)
         .build_v1()?;

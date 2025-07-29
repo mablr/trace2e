@@ -34,6 +34,7 @@ pub enum P2mResponse {
     Ack,         // <- P2mRequest::{LocalEnroll, RemoteEnroll, Report}
 }
 
+#[derive(Debug, Clone)]
 pub enum M2mRequest {
     ComplianceRetrieval {
         source: Identifier,
@@ -45,6 +46,7 @@ pub enum M2mRequest {
     },
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum M2mResponse {
     Compliance { destination: Policy },
     Ack,

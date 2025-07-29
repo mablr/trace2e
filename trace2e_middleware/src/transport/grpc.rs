@@ -1,6 +1,10 @@
 //! gRPC service for the Trace2e middleware.
-use tonic::{Request, Response, Status};
+use std::{collections::HashMap, future::Future, net::SocketAddr, pin::Pin, sync::Arc, task::Poll};
+use tokio::sync::Mutex;
+use tonic::{Request, Response, Status, transport::Channel};
 use tower::Service;
+
+pub const DEFAULT_GRPC_PORT: u16 = 50051;
 
 pub mod proto {
     tonic::include_proto!("trace2e");
@@ -17,6 +21,134 @@ use crate::traceability::{
 impl From<TraceabilityError> for Status {
     fn from(error: TraceabilityError) -> Self {
         Status::internal(error.to_string())
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct Trace2eGrpcClient {
+    connected_remotes:
+        Arc<Mutex<HashMap<String, proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>>>>,
+}
+
+impl Trace2eGrpcClient {
+    async fn reconnect_remote(
+        &self,
+        remote_url: String,
+    ) -> Result<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>, TraceabilityError> {
+        match proto::trace2e_grpc_client::Trace2eGrpcClient::connect(remote_url.clone()).await {
+            Ok(client) => {
+                self.connected_remotes
+                    .lock()
+                    .await
+                    .insert(remote_url, client.clone());
+                Ok(client)
+            }
+            Err(_) => Err(TraceabilityError::FailedToContactRemoteMiddleware(
+                remote_url,
+            )),
+        }
+    }
+
+    async fn get_client(
+        &self,
+        remote_url: String,
+    ) -> Option<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> {
+        let connected_remotes = self.connected_remotes.lock().await;
+        connected_remotes.get(&remote_url).cloned()
+    }
+
+    async fn get_client_or_connect(
+        &self,
+        remote_url: String,
+    ) -> Result<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>, TraceabilityError> {
+        match self.get_client(remote_url.clone()).await {
+            Some(client) => Ok(client),
+            None => self.reconnect_remote(remote_url).await,
+        }
+    }
+
+    fn eval_remote_url(&self, req: M2mRequest) -> Option<String> {
+        if let Some(peer_socket) = match req {
+            M2mRequest::ComplianceRetrieval { destination, .. }
+            | M2mRequest::ProvenanceUpdate { destination, .. } => match destination.resource {
+                Resource::Fd(Fd::Stream(stream)) => Some(stream.peer_socket),
+                _ => None,
+            },
+        } {
+            match peer_socket.parse::<SocketAddr>() {
+                Ok(addr) => Some(format!("{}:{}", addr.ip(), DEFAULT_GRPC_PORT)),
+                Err(_) => None,
+            }
+        } else {
+            None
+        }
+    }
+}
+
+impl Service<M2mRequest> for Trace2eGrpcClient {
+    type Response = M2mResponse;
+    type Error = TraceabilityError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+
+    fn call(&mut self, request: M2mRequest) -> Self::Future {
+        let this = self.clone();
+        Box::pin(async move {
+            // Evaluate the remote URL before matching to avoid partial move
+            let remote_url = this.eval_remote_url(request.clone()).unwrap_or_default();
+
+            match request {
+                M2mRequest::ComplianceRetrieval {
+                    source,
+                    destination,
+                } => {
+                    // Get or connect to the remote client
+                    let mut client = this.get_client_or_connect(remote_url).await?;
+
+                    // Create the protobuf request
+                    let proto_req = proto::ComplianceRetrieval {
+                        source: Some(source.into()),
+                        destination: Some(destination.into()),
+                    };
+
+                    // Make the gRPC call
+                    match client
+                        .m2m_compliance_retrieval(Request::new(proto_req))
+                        .await
+                    {
+                        Ok(response) => {
+                            let policy = response.into_inner().policy.unwrap_or_default().into();
+                            Ok(M2mResponse::Compliance {
+                                destination: policy,
+                            })
+                        }
+                        Err(_) => Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
+                M2mRequest::ProvenanceUpdate {
+                    source_prov,
+                    destination,
+                } => {
+                    // Get or connect to the remote client
+                    let mut client = this.get_client_or_connect(remote_url).await?;
+
+                    // Create the protobuf request
+                    let proto_req = proto::ProvenanceUpdate {
+                        source_prov: source_prov.into_iter().map(|s| s.into()).collect(),
+                        destination: Some(destination.into()),
+                    };
+
+                    // Make the gRPC call
+                    match client.m2m_provenance_update(Request::new(proto_req)).await {
+                        Ok(_) => Ok(M2mResponse::Ack),
+                        Err(_) => Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
+            }
+        })
     }
 }
 
