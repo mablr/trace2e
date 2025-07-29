@@ -39,8 +39,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let provenance = ProvenanceService::default();
     let compliance = ComplianceService::default();
 
-    let p2m_service = P2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
-    let m2m_service = M2mApiService::new(sequencer, provenance, compliance);
+    let m2m_service = M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
+    let p2m_service = P2mApiService::new(sequencer, provenance, compliance, m2m_service.clone());
 
     let address = format!("[::]:{DEFAULT_GRPC_PORT}").parse().unwrap();
     let reflection_service = Builder::configure()

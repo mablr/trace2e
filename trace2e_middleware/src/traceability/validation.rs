@@ -68,13 +68,16 @@ impl Predicate<P2mRequest> for ResourceValidator {
 mod tests {
     use tower::{Service, ServiceBuilder, filter::FilterLayer};
 
-    use crate::traceability::{
-        api::P2mResponse,
-        layers::{
-            compliance::ComplianceService, provenance::ProvenanceService,
-            sequencer::SequencerService,
+    use crate::{
+        traceability::{
+            api::P2mResponse,
+            layers::{
+                compliance::ComplianceService, provenance::ProvenanceService,
+                sequencer::SequencerService,
+            },
+            p2m::P2mApiService,
         },
-        p2m::P2mApiService,
+        transport::nop::M2mNop,
     };
 
     use super::*;
@@ -87,6 +90,7 @@ mod tests {
                 SequencerService::default(),
                 ProvenanceService::default(),
                 ComplianceService::default(),
+                M2mNop::default(),
             ));
 
         assert_eq!(

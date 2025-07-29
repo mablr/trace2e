@@ -1,7 +1,7 @@
 use crate::traceability::{
     api::{
-        ComplianceRequest, ComplianceResponse, P2mRequest, P2mResponse, ProvenanceRequest,
-        ProvenanceResponse, SequencerRequest, SequencerResponse,
+        ComplianceRequest, ComplianceResponse, M2mRequest, M2mResponse, P2mRequest, P2mResponse,
+        ProvenanceRequest, ProvenanceResponse, SequencerRequest, SequencerResponse,
     },
     error::TraceabilityError,
     naming::{Identifier, Resource},
@@ -16,21 +16,28 @@ type ResourceMap = HashMap<(i32, i32), (Identifier, Identifier)>;
 type FlowMap = HashMap<u128, (Identifier, Identifier, bool)>;
 
 #[derive(Debug, Clone)]
-pub struct P2mApiService<S, P, C> {
+pub struct P2mApiService<S, P, C, M> {
     node_id: String,
     resource_map: Arc<Mutex<ResourceMap>>,
     flow_map: Arc<Mutex<FlowMap>>,
     sequencer: S,
     provenance: P,
     compliance: C,
+    m2m: M,
 }
 
-impl<S, P, C> P2mApiService<S, P, C> {
-    pub fn new(sequencer: S, provenance: P, compliance: C) -> Self {
-        Self::new_with_node_id(String::new(), sequencer, provenance, compliance)
+impl<S, P, C, M> P2mApiService<S, P, C, M> {
+    pub fn new(sequencer: S, provenance: P, compliance: C, m2m: M) -> Self {
+        Self::new_with_node_id(String::new(), sequencer, provenance, compliance, m2m)
     }
 
-    pub fn new_with_node_id(node_id: String, sequencer: S, provenance: P, compliance: C) -> Self {
+    pub fn new_with_node_id(
+        node_id: String,
+        sequencer: S,
+        provenance: P,
+        compliance: C,
+        m2m: M,
+    ) -> Self {
         Self {
             node_id,
             resource_map: Arc::new(Mutex::new(HashMap::new())),
@@ -38,11 +45,12 @@ impl<S, P, C> P2mApiService<S, P, C> {
             sequencer,
             provenance,
             compliance,
+            m2m,
         }
     }
 }
 
-impl<S, P, C> Service<P2mRequest> for P2mApiService<S, P, C>
+impl<S, P, C, M> Service<P2mRequest> for P2mApiService<S, P, C, M>
 where
     S: Service<SequencerRequest, Response = SequencerResponse, Error = TraceabilityError>
         + Clone
@@ -59,6 +67,11 @@ where
         + Send
         + 'static,
     C::Future: Send,
+    M: Service<M2mRequest, Response = M2mResponse, Error = TraceabilityError>
+        + Clone
+        + Send
+        + 'static,
+    M::Future: Send,
 {
     type Response = P2mResponse;
     type Error = TraceabilityError;
@@ -205,12 +218,15 @@ where
 mod tests {
     use tower::{Service, ServiceBuilder, filter::FilterLayer};
 
-    use crate::traceability::{
-        layers::{
-            compliance::ComplianceService, provenance::ProvenanceService,
-            sequencer::SequencerService,
+    use crate::{
+        traceability::{
+            layers::{
+                compliance::ComplianceService, provenance::ProvenanceService,
+                sequencer::SequencerService,
+            },
+            validation::ResourceValidator,
         },
-        validation::ResourceValidator,
+        transport::nop::M2mNop,
     };
 
     use super::*;
@@ -221,6 +237,7 @@ mod tests {
             SequencerService::default(),
             ProvenanceService::default(),
             ComplianceService::default(),
+            M2mNop::default(),
         );
 
         assert_eq!(
@@ -304,6 +321,7 @@ mod tests {
                 SequencerService::default(),
                 ProvenanceService::default(),
                 ComplianceService::default(),
+                M2mNop::default(),
             ));
 
         // Test with invalid process
@@ -343,6 +361,7 @@ mod tests {
                 SequencerService::default(),
                 ProvenanceService::default(),
                 ComplianceService::default(),
+                M2mNop::default(),
             ));
 
         // Neither process nor fd are enrolled
@@ -397,6 +416,7 @@ mod tests {
                 SequencerService::default(),
                 ProvenanceService::default(),
                 ComplianceService::default(),
+                M2mNop::default(),
             ));
 
         // Invalid grant id
