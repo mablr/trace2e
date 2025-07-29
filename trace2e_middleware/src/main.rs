@@ -15,8 +15,8 @@ use trace2e_middleware::{
         p2m::P2mApiService,
     },
     transport::grpc::{
-        Trace2eGrpcService,
-        proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_server::Trace2eServer},
+        Trace2eRouter,
+        proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_grpc_server::Trace2eGrpcServer},
     },
 };
 
@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_v1()?;
 
     Server::builder()
-        .add_service(Trace2eServer::new(Trace2eGrpcService::new(
+        .add_service(Trace2eGrpcServer::new(Trace2eRouter::new(
             p2m_service,
             m2m_service,
         )))

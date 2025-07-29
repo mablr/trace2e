@@ -3,7 +3,7 @@ syntax = "proto3";
 package trace2e;
 
 // Single service that handles all middleware operations
-service Trace2e {
+service Trace2eGrpc {
     // Process to Middleware operations
     rpc P2MLocalEnroll(LocalCt) returns (Ack);
     rpc P2MRemoteEnroll(RemoteCt) returns (Ack);

@@ -20,19 +20,19 @@ impl From<TraceabilityError> for Status {
     }
 }
 
-pub struct Trace2eGrpcService<P2mApi, M2mApi> {
+pub struct Trace2eRouter<P2mApi, M2mApi> {
     p2m: P2mApi,
     m2m: M2mApi,
 }
 
-impl<P2mApi, M2mApi> Trace2eGrpcService<P2mApi, M2mApi> {
+impl<P2mApi, M2mApi> Trace2eRouter<P2mApi, M2mApi> {
     pub fn new(p2m: P2mApi, m2m: M2mApi) -> Self {
         Self { p2m, m2m }
     }
 }
 
 #[tonic::async_trait]
-impl<P2mApi, M2mApi> proto::trace2e_server::Trace2e for Trace2eGrpcService<P2mApi, M2mApi>
+impl<P2mApi, M2mApi> proto::trace2e_grpc_server::Trace2eGrpc for Trace2eRouter<P2mApi, M2mApi>
 where
     P2mApi: Service<P2mRequest, Response = P2mResponse, Error = TraceabilityError>
         + Clone
