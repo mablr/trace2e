@@ -25,12 +25,12 @@ impl From<TraceabilityError> for Status {
 }
 
 #[derive(Default, Clone)]
-pub struct Trace2eGrpcClient {
+pub struct M2mGrpc {
     connected_remotes:
         Arc<Mutex<HashMap<String, proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>>>>,
 }
 
-impl Trace2eGrpcClient {
+impl M2mGrpc {
     async fn reconnect_remote(
         &self,
         remote_url: String,
@@ -85,7 +85,7 @@ impl Trace2eGrpcClient {
     }
 }
 
-impl Service<M2mRequest> for Trace2eGrpcClient {
+impl Service<M2mRequest> for M2mGrpc {
     type Response = M2mResponse;
     type Error = TraceabilityError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
