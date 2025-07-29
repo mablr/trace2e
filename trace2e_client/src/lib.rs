@@ -19,11 +19,14 @@ mod grpc {
     // The URL for the gRPC service
     const GRPC_URL: &str = "http://[::1]:8080";
 
-    static GRPC_CLIENT: Lazy<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> = Lazy::new(|| {
-        let rt = &*TOKIO_RUNTIME;
-        rt.block_on(proto::trace2e_grpc_client::Trace2eGrpcClient::connect(GRPC_URL))
+    static GRPC_CLIENT: Lazy<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> =
+        Lazy::new(|| {
+            let rt = &*TOKIO_RUNTIME;
+            rt.block_on(proto::trace2e_grpc_client::Trace2eGrpcClient::connect(
+                GRPC_URL,
+            ))
             .unwrap()
-    });
+        });
 
     // Gets an appropriate gRPC client for the current runtime context
     fn get_client() -> proto::trace2e_grpc_client::Trace2eGrpcClient<Channel> {
@@ -38,7 +41,9 @@ mod grpc {
                 cell.get_or_init(|| {
                     task::block_in_place(|| {
                         Handle::current()
-                            .block_on(proto::trace2e_grpc_client::Trace2eGrpcClient::connect(GRPC_URL))
+                            .block_on(proto::trace2e_grpc_client::Trace2eGrpcClient::connect(
+                                GRPC_URL,
+                            ))
                             .unwrap()
                     })
                 })
