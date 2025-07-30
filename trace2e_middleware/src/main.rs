@@ -15,7 +15,7 @@ use trace2e_middleware::{
         p2m::P2mApiService,
     },
     transport::grpc::{
-        DEFAULT_GRPC_PORT, Trace2eRouter,
+        DEFAULT_GRPC_PORT, M2mGrpc, Trace2eRouter,
         proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_grpc_server::Trace2eGrpcServer},
     },
 };
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let compliance = ComplianceService::default();
 
     let m2m_service = M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
-    let p2m_service = P2mApiService::new(sequencer, provenance, compliance, m2m_service.clone());
+    let p2m_service = P2mApiService::new(sequencer, provenance, compliance, M2mGrpc::default());
 
     let address = format!("[::]:{DEFAULT_GRPC_PORT}").parse().unwrap();
     let reflection_service = Builder::configure()
