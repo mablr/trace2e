@@ -1,14 +1,28 @@
-use std::{pin::Pin, task::Poll};
+use std::{collections::HashMap, pin::Pin, sync::Arc, task::Poll};
+use tokio::sync::Mutex;
 use tower::Service;
 
-use crate::traceability::{
+use crate::{traceability::{
     api::{M2mRequest, M2mResponse},
-    error::TraceabilityError,
-};
+    error::TraceabilityError, naming::{Fd, Resource},
+}, transport::eval_remote_ip};
 
 #[derive(Clone, Default)]
 pub struct M2mLoopback<M> {
-    m2m: M,
+    middlewares: Arc<Mutex<HashMap<String, M>>>,
+}
+
+impl<M> M2mLoopback<M>
+where
+    M: Clone,
+{
+    pub async fn register_middleware(&self, ip: String, middleware: M) {
+        self.middlewares.lock().await.insert(ip, middleware);
+    }
+
+    pub async fn get_middleware(&self, ip: String) -> Option<M> {
+        self.middlewares.lock().await.get(&ip).cloned()
+    }
 }
 
 impl<M> Service<M2mRequest> for M2mLoopback<M>
@@ -28,7 +42,15 @@ where
     }
 
     fn call(&mut self, request: M2mRequest) -> Self::Future {
-        let mut this = self.clone();
-        Box::pin(async move { this.m2m.call(request).await })
+        let this = self.clone();
+        Box::pin(async move {
+            let Some(remote_ip) = eval_remote_ip(request.clone()) else {
+                return Err(TraceabilityError::InternalTrace2eError);
+            };
+            let Some(mut middleware) = this.get_middleware(remote_ip).await else {
+                return Err(TraceabilityError::InternalTrace2eError);
+            };
+            middleware.call(request).await
+        })
     }
 }
