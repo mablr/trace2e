@@ -80,9 +80,9 @@ impl Service<ProvenanceRequest> for ProvenanceService {
         let mut this = self.clone();
         Box::pin(async move {
             match req.clone() {
-                ProvenanceRequest::GetProvenance { id } => Ok(ProvenanceResponse::Provenance {
-                    derived_from: this.get_prov(id.clone()).await,
-                }),
+                ProvenanceRequest::GetProvenance { id } => Ok(ProvenanceResponse::Provenance(
+                    this.get_prov(id.clone()).await,
+                )),
                 ProvenanceRequest::UpdateProvenance {
                     source,
                     destination,
@@ -147,9 +147,7 @@ mod tests {
                 })
                 .await
                 .unwrap(),
-            ProvenanceResponse::Provenance {
-                derived_from: HashSet::from([process.clone()]),
-            }
+            ProvenanceResponse::Provenance(HashSet::from([process.clone()]))
         );
 
         assert_eq!(
@@ -181,9 +179,7 @@ mod tests {
                 })
                 .await
                 .unwrap(),
-            ProvenanceResponse::Provenance {
-                derived_from: HashSet::from([file.clone(), process.clone()]),
-            }
+            ProvenanceResponse::Provenance(HashSet::from([file.clone(), process.clone()]))
         );
     }
 }

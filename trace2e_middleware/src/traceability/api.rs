@@ -99,7 +99,7 @@ pub enum ProvenanceRequest {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ProvenanceResponse {
     /// Complete provenance set for the requested resource
-    Provenance { derived_from: HashSet<Identifier> },
+    Provenance(HashSet<Identifier>),
     /// Provenance successfully updated
     ProvenanceUpdated,
     /// Provenance not updated as the source is already in the destination provenance

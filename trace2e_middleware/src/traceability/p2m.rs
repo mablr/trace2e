@@ -171,27 +171,23 @@ where
 
                                 // For the moment, this will only retrieve the source policies available locally
                                 // TODO: Implement remote policies retrieval via m2m
-                                let source_policies =
-                                    if let ProvenanceResponse::Provenance { derived_from } =
-                                        provenance
-                                            .call(ProvenanceRequest::GetProvenance {
-                                                id: source.clone(),
-                                            })
-                                            .await?
+                                let source_policies = if let ProvenanceResponse::Provenance(
+                                    derived_from,
+                                ) = provenance
+                                    .call(ProvenanceRequest::GetProvenance { id: source.clone() })
+                                    .await?
+                                {
+                                    if let ComplianceResponse::Policies(policies) = compliance
+                                        .call(ComplianceRequest::GetPolicies { ids: derived_from })
+                                        .await?
                                     {
-                                        if let ComplianceResponse::Policies(policies) = compliance
-                                            .call(ComplianceRequest::GetPolicies {
-                                                ids: derived_from,
-                                            })
-                                            .await?
-                                        {
-                                            policies
-                                        } else {
-                                            return Err(TraceabilityError::InternalTrace2eError);
-                                        }
+                                        policies
                                     } else {
                                         return Err(TraceabilityError::InternalTrace2eError);
-                                    };
+                                    }
+                                } else {
+                                    return Err(TraceabilityError::InternalTrace2eError);
+                                };
                                 if let ComplianceResponse::Grant = compliance
                                     .call(ComplianceRequest::CheckCompliance {
                                         source_policies,
