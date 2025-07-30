@@ -143,17 +143,18 @@ where
                             .await
                         {
                             Ok(SequencerResponse::FlowReserved) => {
+                                // If destination is a stream, query remote policy via m2m
+                                // else if query local destination policy
+                                // else return error
                                 let destination_policy = if destination.resource.is_stream() {
-                                    if let M2mResponse::Compliance {
-                                        destination: policy,
-                                    } = m2m
-                                        .call(M2mRequest::ComplianceRetrieval {
+                                    if let M2mResponse::Compliance(policies) = m2m
+                                        .call(M2mRequest::GetConsistentCompliance {
                                             source: source.clone(),
                                             destination: destination.clone(),
                                         })
                                         .await?
                                     {
-                                        policy
+                                        policies.iter().next().cloned().unwrap_or_default()
                                     } else {
                                         return Err(TraceabilityError::InternalTrace2eError);
                                     }
@@ -163,10 +164,7 @@ where
                                     })
                                     .await?
                                 {
-                                    policies
-                                        .get(&destination.clone())
-                                        .cloned()
-                                        .unwrap_or_default()
+                                    policies.iter().next().cloned().unwrap_or_default()
                                 } else {
                                     return Err(TraceabilityError::InternalTrace2eError);
                                 };
@@ -187,7 +185,7 @@ where
                                             })
                                             .await?
                                         {
-                                            HashSet::from_iter(policies.values().cloned())
+                                            policies
                                         } else {
                                             return Err(TraceabilityError::InternalTrace2eError);
                                         }

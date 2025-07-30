@@ -1,5 +1,11 @@
 //! gRPC service for the Trace2e middleware.
-use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll};
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    task::Poll,
+};
 use tokio::sync::Mutex;
 use tonic::{Request, Response, Status, transport::Channel};
 use tower::Service;
@@ -90,7 +96,7 @@ impl Service<M2mRequest> for M2mGrpc {
             };
 
             match request {
-                M2mRequest::ComplianceRetrieval {
+                M2mRequest::GetConsistentCompliance {
                     source,
                     destination,
                 } => {
@@ -98,20 +104,47 @@ impl Service<M2mRequest> for M2mGrpc {
                     let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
 
                     // Create the protobuf request
-                    let proto_req = proto::ComplianceRetrieval {
+                    let proto_req = proto::ConsistentCompliance {
                         source: Some(source.into()),
                         destination: Some(destination.into()),
                     };
 
                     // Make the gRPC call
                     let response = client
-                        .m2m_compliance_retrieval(Request::new(proto_req))
+                        .m2m_consistent_compliance(Request::new(proto_req))
                         .await
                         .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
                         .into_inner();
-                    Ok(M2mResponse::Compliance {
-                        destination: response.policy.unwrap_or_default().into(),
-                    })
+                    Ok(M2mResponse::Compliance(
+                        response
+                            .policies
+                            .into_iter()
+                            .map(|policy| policy.into())
+                            .collect(),
+                    ))
+                }
+                M2mRequest::GetLooseCompliance { ids, .. } => {
+                    // Get or connect to the remote client
+                    let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
+
+                    // Create the protobuf request
+                    let proto_req = proto::LooseCompliance {
+                        ids: ids.into_iter().map(|id| id.into()).collect(),
+                    };
+
+                    // Make the gRPC call
+                    let response = client
+                        .m2m_loose_compliance(Request::new(proto_req))
+                        .await
+                        .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
+                        .into_inner();
+                    Ok(M2mResponse::Compliance(
+                        response
+                            .policies
+                            .into_iter()
+                            .map(|policy| policy.into())
+                            .collect(),
+                    ))
                 }
                 M2mRequest::ProvenanceUpdate {
                     source_prov,
@@ -248,16 +281,26 @@ where
     }
 
     // M2M operations
-    async fn m2m_compliance_retrieval(
+    async fn m2m_consistent_compliance(
         &self,
-        request: Request<proto::ComplianceRetrieval>,
+        request: Request<proto::ConsistentCompliance>,
     ) -> Result<Response<proto::Compliance>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
         match m2m.call(req.into()).await? {
-            M2mResponse::Compliance { destination } => Ok(Response::new(proto::Compliance {
-                policy: Some(destination.into()),
-            })),
+            M2mResponse::Compliance(policies) => Ok(Response::new(policies.into())),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+
+    async fn m2m_loose_compliance(
+        &self,
+        request: Request<proto::LooseCompliance>,
+    ) -> Result<Response<proto::Compliance>, Status> {
+        let req = request.into_inner();
+        let mut m2m = self.m2m.clone();
+        match m2m.call(req.into()).await? {
+            M2mResponse::Compliance(policies) => Ok(Response::new(policies.into())),
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
@@ -277,11 +320,20 @@ where
 
 // Conversion trait implementations
 
-impl From<proto::ComplianceRetrieval> for M2mRequest {
-    fn from(req: proto::ComplianceRetrieval) -> Self {
-        M2mRequest::ComplianceRetrieval {
+impl From<proto::ConsistentCompliance> for M2mRequest {
+    fn from(req: proto::ConsistentCompliance) -> Self {
+        M2mRequest::GetConsistentCompliance {
             source: req.source.map(|s| s.into()).unwrap_or_default(),
             destination: req.destination.map(|d| d.into()).unwrap_or_default(),
+        }
+    }
+}
+
+impl From<proto::LooseCompliance> for M2mRequest {
+    fn from(req: proto::LooseCompliance) -> Self {
+        M2mRequest::GetLooseCompliance {
+            authority_ip: String::new(), // Already routed so no authority IP needed
+            ids: req.ids.into_iter().map(|id| id.into()).collect(),
         }
     }
 }
@@ -291,6 +343,14 @@ impl From<proto::ProvenanceUpdate> for M2mRequest {
         M2mRequest::ProvenanceUpdate {
             source_prov: req.source_prov.into_iter().map(|s| s.into()).collect(),
             destination: req.destination.map(|d| d.into()).unwrap_or_default(),
+        }
+    }
+}
+
+impl From<HashSet<Policy>> for proto::Compliance {
+    fn from(policies: HashSet<Policy>) -> Self {
+        proto::Compliance {
+            policies: policies.into_iter().map(|policy| policy.into()).collect(),
         }
     }
 }

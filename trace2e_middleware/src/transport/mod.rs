@@ -11,11 +11,12 @@ pub mod nop;
 
 fn eval_remote_ip(req: M2mRequest) -> Option<String> {
     if let Some(peer_socket) = match req {
-        M2mRequest::ComplianceRetrieval { destination, .. }
+        M2mRequest::GetConsistentCompliance { destination, .. }
         | M2mRequest::ProvenanceUpdate { destination, .. } => match destination.resource {
             Resource::Fd(Fd::Stream(stream)) => Some(stream.peer_socket),
             _ => None,
         },
+        M2mRequest::GetLooseCompliance { authority_ip, .. } => Some(authority_ip),
     } {
         match peer_socket.parse::<SocketAddr>() {
             Ok(addr) => Some(addr.ip().to_string()),

@@ -44,16 +44,16 @@ impl ComplianceService {
 
     /// Get the policies for a specific resource
     /// Returns the default policy if the resource is not found
-    async fn get_policies(&self, ids: HashSet<Identifier>) -> HashMap<Identifier, Policy> {
+    async fn get_policies(&self, ids: HashSet<Identifier>) -> HashSet<Policy> {
         let policies = self.policies.lock().await;
-        let mut policies_map = HashMap::new();
+        let mut policies_set = HashSet::new();
         for id in ids {
             // If the resource is local, get the policy from the local policies
             if id.node == self.node_id && !id.resource.is_stream() {
-                policies_map.insert(id.clone(), policies.get(&id).cloned().unwrap_or_default());
+                policies_set.insert(policies.get(&id).cloned().unwrap_or_default());
             }
         }
-        policies_map
+        policies_set
     }
 
     /// Set the policy for a specific resource
@@ -392,9 +392,7 @@ mod tests {
 
         let policies = compliance.get_policies(ids).await;
 
-        assert_eq!(policies.len(), 2);
-        assert_eq!(policies.get(&process).unwrap(), &Policy::default());
-        assert_eq!(policies.get(&file).unwrap(), &Policy::default());
+        assert_eq!(policies, HashSet::from([Policy::default()]));
     }
 
     #[tokio::test]
@@ -414,8 +412,7 @@ mod tests {
 
         let policies = compliance.get_policies(ids).await;
 
-        assert_eq!(policies.len(), 1);
-        assert_eq!(policies.get(&process).unwrap(), &policy);
+        assert_eq!(policies, HashSet::from([policy]));
     }
 
     #[tokio::test]
@@ -450,9 +447,7 @@ mod tests {
 
         let policies = compliance.get_policies(ids).await;
 
-        assert_eq!(policies.len(), 2);
-        assert_eq!(policies.get(&process).unwrap(), &process_policy);
-        assert_eq!(policies.get(&file).unwrap(), &file_policy);
+        assert_eq!(policies, HashSet::from([process_policy, file_policy]));
     }
 
     #[tokio::test]
@@ -480,9 +475,7 @@ mod tests {
 
         let policies = compliance.get_policies(ids).await;
 
-        assert_eq!(policies.len(), 2);
-        assert_eq!(policies.get(&process).unwrap(), &process_policy);
-        assert_eq!(policies.get(&file).unwrap(), &Policy::default());
+        assert_eq!(policies, HashSet::from([process_policy, Policy::default()]));
     }
 
     #[tokio::test]
@@ -511,19 +504,16 @@ mod tests {
         };
 
         // Set initial policy
-        compliance.set_policy(process.clone(), initial_policy).await;
+        compliance
+            .set_policy(process.clone(), initial_policy.clone())
+            .await;
 
         let mut ids = HashSet::new();
         ids.insert(process.clone());
 
         // Verify initial policy
         let policies = compliance.get_policies(ids.clone()).await;
-        assert_eq!(policies.len(), 1);
-        assert_eq!(policies.get(&process).unwrap().integrity, 2);
-        assert_eq!(
-            policies.get(&process).unwrap().confidentiality,
-            ConfidentialityPolicy::Public
-        );
+        assert_eq!(policies, HashSet::from([initial_policy]));
 
         // Update policy
         compliance
@@ -532,27 +522,39 @@ mod tests {
 
         // Verify updated policy
         let policies = compliance.get_policies(ids).await;
-        assert_eq!(policies.len(), 1);
-        assert_eq!(policies.get(&process).unwrap(), &updated_policy);
+        assert_eq!(policies, HashSet::from([updated_policy]));
     }
 
     #[tokio::test]
     async fn unit_compliance_get_policies_filter_local_resources() {
         let compliance = ComplianceService::default();
-        let process = Identifier::new(String::default(), Resource::new_process(0));
         let file = Identifier::new(
+            String::default(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
+        let file_remote = Identifier::new(
             "remote".to_string(),
             Resource::new_file("/tmp/test".to_string()),
         );
 
+        // In reality, the remote policy is set by the remote node but for testing purposes,
+        // we set it here to prove later the proper filtering of local resources
+        compliance
+            .set_policy(
+                file_remote.clone(),
+                Policy {
+                    confidentiality: ConfidentialityPolicy::Secret,
+                    integrity: 0,
+                },
+            )
+            .await;
+
         let mut ids = HashSet::new();
-        ids.insert(process.clone());
         ids.insert(file.clone());
+        ids.insert(file_remote.clone());
 
         let policies = compliance.get_policies(ids).await;
 
-        assert_eq!(policies.len(), 1);
-        assert_eq!(policies.get(&process).is_some(), true);
-        assert_eq!(policies.get(&file).is_none(), true);
+        assert_eq!(policies, HashSet::from([Policy::default()]));
     }
 }

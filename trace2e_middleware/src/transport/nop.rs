@@ -1,4 +1,4 @@
-use std::{pin::Pin, task::Poll};
+use std::{collections::HashSet, pin::Pin, task::Poll};
 use tower::Service;
 
 use crate::traceability::{
@@ -22,9 +22,10 @@ impl Service<M2mRequest> for M2mNop {
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         Box::pin(async move {
             Ok(match request {
-                M2mRequest::ComplianceRetrieval { .. } => M2mResponse::Compliance {
-                    destination: Policy::default(),
-                },
+                M2mRequest::GetConsistentCompliance { .. } => {
+                    M2mResponse::Compliance(HashSet::from([Policy::default()]))
+                }
+                M2mRequest::GetLooseCompliance { .. } => M2mResponse::Compliance(HashSet::new()),
                 M2mRequest::ProvenanceUpdate { .. } => M2mResponse::Ack,
             })
         })

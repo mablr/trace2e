@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use super::{layers::compliance::Policy, naming::Identifier};
 
@@ -36,9 +36,13 @@ pub enum P2mResponse {
 
 #[derive(Debug, Clone)]
 pub enum M2mRequest {
-    ComplianceRetrieval {
+    GetConsistentCompliance {
         source: Identifier,
         destination: Identifier,
+    },
+    GetLooseCompliance {
+        authority_ip: String,
+        ids: HashSet<Identifier>,
     },
     ProvenanceUpdate {
         source_prov: HashSet<Identifier>,
@@ -48,7 +52,7 @@ pub enum M2mRequest {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum M2mResponse {
-    Compliance { destination: Policy },
+    Compliance(HashSet<Policy>),
     Ack,
 }
 
@@ -121,7 +125,7 @@ pub enum ComplianceResponse {
     /// Flow is compliant and authorized
     Grant,
     /// Policies for the requested resources
-    Policies(HashMap<Identifier, Policy>),
+    Policies(HashSet<Policy>),
     /// Policy successfully set
     PolicyUpdated,
 }

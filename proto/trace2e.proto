@@ -11,7 +11,8 @@ service Trace2eGrpc {
     rpc P2MIoReport(IoResult) returns (Ack);
 
     // Middleware to Middleware operations
-    rpc M2MComplianceRetrieval(ComplianceRetrieval) returns (Compliance);
+    rpc M2MConsistentCompliance(ConsistentCompliance) returns (Compliance);
+    rpc M2MLooseCompliance(LooseCompliance) returns (Compliance);
     rpc M2MProvenanceUpdate(ProvenanceUpdate) returns (Ack);
 }
 
@@ -90,9 +91,13 @@ message Identifier {
     Resource resource = 2;
 }
 
-message ComplianceRetrieval {
+message ConsistentCompliance {
     Identifier source = 1;
     Identifier destination = 2;
+}
+
+message LooseCompliance {
+    repeated Identifier ids = 1;
 }
 
 enum Confidentiality {
@@ -106,7 +111,7 @@ message Policy {
 }
 
 message Compliance {
-    Policy policy = 1;
+    repeated Policy policies = 1;
 }
 
 message ProvenanceUpdate {
