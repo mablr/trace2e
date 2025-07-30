@@ -107,8 +107,8 @@ pub enum ProvenanceResponse {
 pub enum ComplianceRequest {
     /// Check if a flow from source to destination is compliant with policies
     CheckCompliance {
-        source: Identifier,
-        destination: Identifier,
+        source_policies: HashSet<Policy>,
+        destination_policy: Policy,
     },
     /// Get policy for a specific resource
     GetPolicies { ids: HashSet<Identifier> },

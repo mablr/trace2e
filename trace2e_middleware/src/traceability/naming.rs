@@ -69,6 +69,18 @@ impl Resource {
             })
         }
     }
+
+    pub fn is_file(&self) -> bool {
+        matches!(self, Resource::Fd(Fd::File(_)))
+    }
+
+    pub fn is_stream(&self) -> bool {
+        matches!(self, Resource::Fd(Fd::Stream(_)))
+    }
+
+    pub fn is_process(&self) -> bool {
+        matches!(self, Resource::Process(_))
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]

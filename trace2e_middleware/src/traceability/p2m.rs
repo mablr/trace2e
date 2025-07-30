@@ -7,7 +7,12 @@ use crate::traceability::{
     naming::{Identifier, Resource},
 };
 use std::{
-    collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll, time::SystemTime,
+    collections::{HashMap, HashSet},
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    task::Poll,
+    time::SystemTime,
 };
 use tokio::sync::Mutex;
 use tower::Service;
@@ -86,6 +91,7 @@ where
         let mut sequencer = std::mem::replace(&mut self.sequencer, this.sequencer.clone());
         let mut provenance = std::mem::replace(&mut self.provenance, this.provenance.clone());
         let mut compliance = std::mem::replace(&mut self.compliance, this.compliance.clone());
+        let mut m2m = std::mem::replace(&mut self.m2m, this.m2m.clone());
         Box::pin(async move {
             match request.clone() {
                 P2mRequest::LocalEnroll { pid, fd, path } => {
@@ -137,48 +143,71 @@ where
                             .await
                         {
                             Ok(SequencerResponse::FlowReserved) => {
-                                match (
-                                    provenance
-                                        .call(ProvenanceRequest::GetProvenance {
-                                            id: source.clone(),
+                                let destination_policy = if destination.resource.is_stream() {
+                                    if let M2mResponse::Compliance {
+                                        destination: policy,
+                                    } = m2m
+                                        .call(M2mRequest::ComplianceRetrieval {
+                                            source: source.clone(),
+                                            destination: destination.clone(),
                                         })
-                                        .await,
-                                    provenance
-                                        .call(ProvenanceRequest::GetProvenance {
-                                            id: destination.clone(),
-                                        })
-                                        .await,
-                                ) {
-                                    (
-                                        Ok(ProvenanceResponse::Provenance {
-                                            derived_from: _source_prov,
-                                        }),
-                                        Ok(ProvenanceResponse::Provenance {
-                                            derived_from: _destination_prov,
-                                        }),
-                                    ) => {
-                                        // Todo:
-                                        // 1. get policies for source_prov ids
-                                        // 2. get policies for destination id
-                                        // 3. check compliance with the two sets of policies
-                                        match compliance
-                                            .call(ComplianceRequest::CheckCompliance {
-                                                source,
-                                                destination,
-                                            })
-                                            .await
-                                        {
-                                            Ok(ComplianceResponse::Grant) => {
-                                                Ok(P2mResponse::Grant(flow_id))
-                                            }
-                                            Err(e) => Err(e),
-                                            _ => Err(TraceabilityError::InternalTrace2eError),
-                                        }
+                                        .await?
+                                    {
+                                        policy
+                                    } else {
+                                        return Err(TraceabilityError::InternalTrace2eError);
                                     }
-                                    _ => Err(TraceabilityError::InternalTrace2eError),
+                                } else {
+                                    if let ComplianceResponse::Policies(policies) = compliance
+                                        .call(ComplianceRequest::GetPolicies {
+                                            ids: HashSet::from([destination.clone()]),
+                                        })
+                                        .await?
+                                    {
+                                        policies
+                                            .get(&destination.clone())
+                                            .cloned()
+                                            .unwrap_or_default()
+                                    } else {
+                                        return Err(TraceabilityError::InternalTrace2eError);
+                                    }
+                                };
+
+                                // For the moment, this will only retrieve the source policies available locally
+                                // TODO: Implement remote policies retrieval via m2m
+                                let source_policies =
+                                    if let ProvenanceResponse::Provenance { derived_from } =
+                                        provenance
+                                            .call(ProvenanceRequest::GetProvenance {
+                                                id: source.clone(),
+                                            })
+                                            .await?
+                                    {
+                                        if let ComplianceResponse::Policies(policies) = compliance
+                                            .call(ComplianceRequest::GetPolicies {
+                                                ids: derived_from,
+                                            })
+                                            .await?
+                                        {
+                                            HashSet::from_iter(policies.values().cloned())
+                                        } else {
+                                            return Err(TraceabilityError::InternalTrace2eError);
+                                        }
+                                    } else {
+                                        return Err(TraceabilityError::InternalTrace2eError);
+                                    };
+                                if let ComplianceResponse::Grant = compliance
+                                    .call(ComplianceRequest::CheckCompliance {
+                                        source_policies,
+                                        destination_policy,
+                                    })
+                                    .await?
+                                {
+                                    Ok(P2mResponse::Grant(flow_id))
+                                } else {
+                                    Err(TraceabilityError::DirectPolicyViolation)
                                 }
                             }
-                            Err(e) => Err(e),
                             _ => Err(TraceabilityError::InternalTrace2eError),
                         }
                     } else {
