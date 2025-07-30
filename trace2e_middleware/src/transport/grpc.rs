@@ -35,7 +35,7 @@ impl M2mGrpc {
         &self,
         remote_ip: String,
     ) -> Result<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>, TraceabilityError> {
-        match proto::trace2e_grpc_client::Trace2eGrpcClient::connect(format!("{}:{}", remote_ip, DEFAULT_GRPC_PORT)).await {
+        match proto::trace2e_grpc_client::Trace2eGrpcClient::connect(format!("{remote_ip}:{DEFAULT_GRPC_PORT}")).await {
             Ok(client) => {
                 self.connected_remotes
                     .lock()
@@ -126,7 +126,7 @@ impl Service<M2mRequest> for M2mGrpc {
                         .m2m_provenance_update(Request::new(proto_req))
                         .await
                         .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?;
-                    
+
                     Ok(M2mResponse::Ack)
                 }
             }

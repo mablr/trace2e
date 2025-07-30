@@ -157,20 +157,18 @@ where
                                     } else {
                                         return Err(TraceabilityError::InternalTrace2eError);
                                     }
+                                } else if let ComplianceResponse::Policies(policies) = compliance
+                                    .call(ComplianceRequest::GetPolicies {
+                                        ids: HashSet::from([destination.clone()]),
+                                    })
+                                    .await?
+                                {
+                                    policies
+                                        .get(&destination.clone())
+                                        .cloned()
+                                        .unwrap_or_default()
                                 } else {
-                                    if let ComplianceResponse::Policies(policies) = compliance
-                                        .call(ComplianceRequest::GetPolicies {
-                                            ids: HashSet::from([destination.clone()]),
-                                        })
-                                        .await?
-                                    {
-                                        policies
-                                            .get(&destination.clone())
-                                            .cloned()
-                                            .unwrap_or_default()
-                                    } else {
-                                        return Err(TraceabilityError::InternalTrace2eError);
-                                    }
+                                    return Err(TraceabilityError::InternalTrace2eError);
                                 };
 
                                 // For the moment, this will only retrieve the source policies available locally
