@@ -4,7 +4,7 @@ use tower::Service;
 
 use crate::{traceability::{
     api::{M2mRequest, M2mResponse},
-    error::TraceabilityError, naming::{Fd, Resource},
+    error::TraceabilityError,
 }, transport::eval_remote_ip};
 
 #[derive(Clone, Default)]
@@ -45,10 +45,10 @@ where
         let this = self.clone();
         Box::pin(async move {
             let Some(remote_ip) = eval_remote_ip(request.clone()) else {
-                return Err(TraceabilityError::InternalTrace2eError);
+                return Err(TraceabilityError::TransportFailedToEvaluateRemote);
             };
-            let Some(mut middleware) = this.get_middleware(remote_ip).await else {
-                return Err(TraceabilityError::InternalTrace2eError);
+            let Some(mut middleware) = this.get_middleware(remote_ip.clone()).await else {
+                return Err(TraceabilityError::TransportFailedToContactRemote(remote_ip));
             };
             middleware.call(request).await
         })

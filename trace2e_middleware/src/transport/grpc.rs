@@ -43,7 +43,7 @@ impl M2mGrpc {
                     .insert(remote_ip, client.clone());
                 Ok(client)
             }
-            Err(_) => Err(TraceabilityError::FailedToContactRemoteMiddleware(
+            Err(_) => Err(TraceabilityError::TransportFailedToContactRemote(
                 remote_ip,
             )),
         }
@@ -81,7 +81,7 @@ impl Service<M2mRequest> for M2mGrpc {
         let this = self.clone();
         Box::pin(async move {
             let Some(remote_ip) = eval_remote_ip(request.clone()) else {
-                return Err(TraceabilityError::InternalTrace2eError);
+                return Err(TraceabilityError::TransportFailedToEvaluateRemote);
             };
 
             match request {
@@ -90,7 +90,7 @@ impl Service<M2mRequest> for M2mGrpc {
                     destination,
                 } => {
                     // Get or connect to the remote client
-                    let mut client = this.get_client_or_connect(remote_ip).await?;
+                    let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
 
                     // Create the protobuf request
                     let proto_req = proto::ComplianceRetrieval {
@@ -99,25 +99,21 @@ impl Service<M2mRequest> for M2mGrpc {
                     };
 
                     // Make the gRPC call
-                    match client
+                    let response = client
                         .m2m_compliance_retrieval(Request::new(proto_req))
                         .await
-                    {
-                        Ok(response) => {
-                            let policy = response.into_inner().policy.unwrap_or_default().into();
-                            Ok(M2mResponse::Compliance {
-                                destination: policy,
-                            })
-                        }
-                        Err(_) => Err(TraceabilityError::InternalTrace2eError),
-                    }
+                        .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
+                        .into_inner();
+                    Ok(M2mResponse::Compliance {
+                        destination: response.policy.unwrap_or_default().into(),
+                    })
                 }
                 M2mRequest::ProvenanceUpdate {
                     source_prov,
                     destination,
                 } => {
                     // Get or connect to the remote client
-                    let mut client = this.get_client_or_connect(remote_ip).await?;
+                    let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
 
                     // Create the protobuf request
                     let proto_req = proto::ProvenanceUpdate {
@@ -126,10 +122,12 @@ impl Service<M2mRequest> for M2mGrpc {
                     };
 
                     // Make the gRPC call
-                    match client.m2m_provenance_update(Request::new(proto_req)).await {
-                        Ok(_) => Ok(M2mResponse::Ack),
-                        Err(_) => Err(TraceabilityError::InternalTrace2eError),
-                    }
+                    client
+                        .m2m_provenance_update(Request::new(proto_req))
+                        .await
+                        .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?;
+                    
+                    Ok(M2mResponse::Ack)
                 }
             }
         })
