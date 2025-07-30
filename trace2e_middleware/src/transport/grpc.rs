@@ -11,12 +11,15 @@ pub mod proto {
     pub const MIDDLEWARE_DESCRIPTOR_SET: &[u8] = include_bytes!("../../trace2e_descriptor.bin");
 }
 
-use crate::{traceability::{
-    api::{M2mRequest, M2mResponse, P2mRequest, P2mResponse},
-    error::TraceabilityError,
-    layers::compliance::{ConfidentialityPolicy, Policy},
-    naming::{Fd, File, Identifier, Process, Resource, Stream},
-}, transport::eval_remote_ip};
+use crate::{
+    traceability::{
+        api::{M2mRequest, M2mResponse, P2mRequest, P2mResponse},
+        error::TraceabilityError,
+        layers::compliance::{ConfidentialityPolicy, Policy},
+        naming::{Fd, File, Identifier, Process, Resource, Stream},
+    },
+    transport::eval_remote_ip,
+};
 
 impl From<TraceabilityError> for Status {
     fn from(error: TraceabilityError) -> Self {
@@ -35,7 +38,11 @@ impl M2mGrpc {
         &self,
         remote_ip: String,
     ) -> Result<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>, TraceabilityError> {
-        match proto::trace2e_grpc_client::Trace2eGrpcClient::connect(format!("{remote_ip}:{DEFAULT_GRPC_PORT}")).await {
+        match proto::trace2e_grpc_client::Trace2eGrpcClient::connect(format!(
+            "{remote_ip}:{DEFAULT_GRPC_PORT}"
+        ))
+        .await
+        {
             Ok(client) => {
                 self.connected_remotes
                     .lock()
@@ -43,9 +50,7 @@ impl M2mGrpc {
                     .insert(remote_ip, client.clone());
                 Ok(client)
             }
-            Err(_) => Err(TraceabilityError::TransportFailedToContactRemote(
-                remote_ip,
-            )),
+            Err(_) => Err(TraceabilityError::TransportFailedToContactRemote(remote_ip)),
         }
     }
 
@@ -125,7 +130,9 @@ impl Service<M2mRequest> for M2mGrpc {
                     client
                         .m2m_provenance_update(Request::new(proto_req))
                         .await
-                        .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?;
+                        .map_err(|_| {
+                            TraceabilityError::TransportFailedToContactRemote(remote_ip)
+                        })?;
 
                     Ok(M2mResponse::Ack)
                 }

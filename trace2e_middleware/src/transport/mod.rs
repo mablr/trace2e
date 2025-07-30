@@ -1,6 +1,9 @@
 use std::net::SocketAddr;
 
-use crate::traceability::{api::M2mRequest, naming::{Fd, Resource}};
+use crate::traceability::{
+    api::M2mRequest,
+    naming::{Fd, Resource},
+};
 
 pub mod grpc;
 pub mod loopback;

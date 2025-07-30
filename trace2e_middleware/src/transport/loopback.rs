@@ -2,10 +2,13 @@ use std::{collections::HashMap, pin::Pin, sync::Arc, task::Poll};
 use tokio::sync::Mutex;
 use tower::Service;
 
-use crate::{traceability::{
-    api::{M2mRequest, M2mResponse},
-    error::TraceabilityError,
-}, transport::eval_remote_ip};
+use crate::{
+    traceability::{
+        api::{M2mRequest, M2mResponse},
+        error::TraceabilityError,
+    },
+    transport::eval_remote_ip,
+};
 
 #[derive(Clone, Default)]
 pub struct M2mLoopback<M> {
