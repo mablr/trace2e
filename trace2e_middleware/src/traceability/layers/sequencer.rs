@@ -14,18 +14,18 @@ use tower::Service;
 use crate::traceability::{
     api::{SequencerRequest, SequencerResponse},
     error::TraceabilityError,
-    naming::Identifier,
+    naming::Resource,
 };
 
 #[derive(Clone, Default)]
 pub struct SequencerService {
-    flows: Arc<Mutex<HashMap<Identifier, Identifier>>>,
+    flows: Arc<Mutex<HashMap<Resource, Resource>>>,
 }
 
 impl SequencerService {
     /// Make a flow
     /// Returns the availability state of the source and destination before the attempt
-    async fn make_flow(&self, source: Identifier, destination: Identifier) -> (bool, bool) {
+    async fn make_flow(&self, source: Resource, destination: Resource) -> (bool, bool) {
         let mut flows = self.flows.lock().await;
         // source is not already reserved by a writer
         let source_available = !flows.contains_key(&source);
@@ -42,7 +42,7 @@ impl SequencerService {
 
     /// Drop a flow
     /// Returns the SequencerResponse to the caller
-    async fn drop_flow(&self, destination: Identifier) -> SequencerResponse {
+    async fn drop_flow(&self, destination: Resource) -> SequencerResponse {
         let mut flows = self.flows.lock().await;
         if let Some(source) = flows.remove(&destination) {
             if flows.values().any(|v| *v == source) {
@@ -106,7 +106,7 @@ impl Service<SequencerRequest> for SequencerService {
 #[derive(Clone)]
 pub struct WaitingQueueService<T> {
     inner: T,
-    waiting_queue: Arc<Mutex<HashMap<Identifier, VecDeque<oneshot::Sender<()>>>>>,
+    waiting_queue: Arc<Mutex<HashMap<Resource, VecDeque<oneshot::Sender<()>>>>>,
     max_retries: u32,
 }
 
@@ -120,7 +120,7 @@ impl<T> WaitingQueueService<T> {
         }
     }
 
-    async fn join_waiting_queue(&self, id: Identifier) -> oneshot::Receiver<()> {
+    async fn join_waiting_queue(&self, id: Resource) -> oneshot::Receiver<()> {
         let (tx, rx) = oneshot::channel();
         if let Some(queue) = self.waiting_queue.lock().await.get_mut(&id) {
             queue.push_back(tx);
@@ -132,13 +132,12 @@ impl<T> WaitingQueueService<T> {
         rx
     }
 
-    async fn notify_waiting_queue(&self, id: Option<Identifier>) {
-        if let Some(id) = id {
-            if let Some(queue) = self.waiting_queue.lock().await.get_mut(&id) {
-                if let Some(tx) = queue.pop_front() {
-                    tx.send(()).unwrap();
-                }
-            }
+    async fn notify_waiting_queue(&self, id: Option<Resource>) {
+        if let Some(id) = id
+            && let Some(queue) = self.waiting_queue.lock().await.get_mut(&id)
+            && let Some(tx) = queue.pop_front()
+        {
+            tx.send(()).unwrap();
         }
     }
 }
@@ -217,11 +216,8 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_impl_flow() {
         let sequencer = SequencerService::default();
-        let process = Identifier::new("test".to_string(), Resource::new_process(0));
-        let file = Identifier::new(
-            "test".to_string(),
-            Resource::new_file("/tmp/test".to_string()),
-        );
+        let process = Resource::new_process(0);
+        let file = Resource::new_file("/tmp/test".to_string());
         assert_eq!(
             sequencer.make_flow(process.clone(), file.clone()).await,
             (true, true)
@@ -249,11 +245,8 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_impl_flow_drop_already_dropped() {
         let sequencer = SequencerService::default();
-        let process = Identifier::new("test".to_string(), Resource::new_process(0));
-        let file = Identifier::new(
-            "test".to_string(),
-            Resource::new_file("/tmp/test".to_string()),
-        );
+        let process = Resource::new_process(0);
+        let file = Resource::new_file("/tmp/test".to_string());
         assert_eq!(
             sequencer.make_flow(process.clone(), file.clone()).await,
             (true, true)
@@ -278,23 +271,11 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_impl_flow_readers_drop() {
         let sequencer = SequencerService::default();
-        let process = Identifier::new("test".to_string(), Resource::new_process(0));
-        let file1 = Identifier::new(
-            "test".to_string(),
-            Resource::new_file("/tmp/test1".to_string()),
-        );
-        let file2 = Identifier::new(
-            "test".to_string(),
-            Resource::new_file("/tmp/test2".to_string()),
-        );
-        let file3 = Identifier::new(
-            "test".to_string(),
-            Resource::new_file("/tmp/test3".to_string()),
-        );
-        let file4 = Identifier::new(
-            "test".to_string(),
-            Resource::new_file("/tmp/test4".to_string()),
-        );
+        let process = Resource::new_process(0);
+        let file1 = Resource::new_file("/tmp/test1".to_string());
+        let file2 = Resource::new_file("/tmp/test2".to_string());
+        let file3 = Resource::new_file("/tmp/test3".to_string());
+        let file4 = Resource::new_file("/tmp/test4".to_string());
         assert_eq!(
             sequencer.make_flow(process.clone(), file1.clone()).await,
             (true, true)
@@ -355,16 +336,10 @@ mod tests {
     #[tokio::test]
     async fn unit_sequencer_impl_flow_interference() {
         let sequencer = SequencerService::default();
-        let process1 = Identifier::new("test".to_string(), Resource::new_process(1));
-        let process2 = Identifier::new("test".to_string(), Resource::new_process(2));
-        let file1 = Identifier::new(
-            "test".to_string(),
-            Resource::new_file("/tmp/test1".to_string()),
-        );
-        let file2 = Identifier::new(
-            "test".to_string(),
-            Resource::new_file("/tmp/test2".to_string()),
-        );
+        let process1 = Resource::new_process(1);
+        let process2 = Resource::new_process(2);
+        let file1 = Resource::new_file("/tmp/test1".to_string());
+        let file2 = Resource::new_file("/tmp/test2".to_string());
 
         assert_eq!(
             sequencer.make_flow(file1.clone(), process1.clone()).await,
@@ -399,11 +374,10 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow() {
-        let node_id = "test".to_string();
         let mut sequencer = SequencerService::default();
 
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let process = Resource::new_process(0);
+        let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
             sequencer
@@ -432,11 +406,10 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow_interference() {
-        let node_id = "test".to_string();
         let mut sequencer = SequencerService::default();
 
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let process = Resource::new_process(0);
+        let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
             sequencer
@@ -463,11 +436,10 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow_circular() {
-        let node_id = "test".to_string();
         let mut sequencer = SequencerService::default();
 
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let process = Resource::new_process(0);
+        let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
             sequencer
@@ -494,18 +466,11 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence() {
-        let node_id = "test".to_string();
         let mut sequencer = SequencerService::default();
 
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file1 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test1".to_string()),
-        );
-        let file2 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test2".to_string()),
-        );
+        let process = Resource::new_process(0);
+        let file1 = Resource::new_file("/tmp/test1".to_string());
+        let file2 = Resource::new_file("/tmp/test2".to_string());
 
         assert_eq!(
             sequencer
@@ -558,19 +523,12 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence_interference() {
-        let node_id = "test".to_string();
         let mut sequencer = SequencerService::default();
 
-        let process1 = Identifier::new(node_id.clone(), Resource::new_process(1));
-        let process2 = Identifier::new(node_id.clone(), Resource::new_process(2));
-        let file1 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test1".to_string()),
-        );
-        let file2 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test2".to_string()),
-        );
+        let process1 = Resource::new_process(1);
+        let process2 = Resource::new_process(2);
+        let file1 = Resource::new_file("/tmp/test1".to_string());
+        let file2 = Resource::new_file("/tmp/test2".to_string());
 
         assert_eq!(
             sequencer
@@ -633,22 +591,12 @@ mod tests {
     }
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence_interference_multiple_share_releases() {
-        let node_id = "test".to_string();
         let mut sequencer = SequencerService::default();
 
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file1 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test1".to_string()),
-        );
-        let file2 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test2".to_string()),
-        );
-        let file3 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test3".to_string()),
-        );
+        let process = Resource::new_process(0);
+        let file1 = Resource::new_file("/tmp/test1".to_string());
+        let file2 = Resource::new_file("/tmp/test2".to_string());
+        let file3 = Resource::new_file("/tmp/test3".to_string());
 
         assert_eq!(
             sequencer
@@ -724,14 +672,13 @@ mod tests {
 
     #[tokio::test]
     async fn unit_waiting_queue_layer_flow_interference() {
-        let node_id = "test".to_string();
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(1)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
             .service(SequencerService::default());
 
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let process = Resource::new_process(0);
+        let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
             sequencer
@@ -757,14 +704,13 @@ mod tests {
 
     #[tokio::test]
     async fn unit_waiting_queue_layer_flow_circular() {
-        let node_id = "test".to_string();
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(1)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
             .service(SequencerService::default());
 
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let process = Resource::new_process(0);
+        let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
             sequencer
@@ -790,21 +736,14 @@ mod tests {
 
     #[tokio::test]
     async fn unit_waiting_queue_layer_writers_interference_resolution() {
-        let node_id = "test".to_string();
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(10)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, Some(1))))
             .service(SequencerService::default());
 
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file1 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test1".to_string()),
-        );
-        let file2 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test2".to_string()),
-        );
+        let process = Resource::new_process(0);
+        let file1 = Resource::new_file("/tmp/test1".to_string());
+        let file2 = Resource::new_file("/tmp/test2".to_string());
 
         assert_eq!(
             sequencer
@@ -860,17 +799,16 @@ mod tests {
     }
     #[tokio::test]
     async fn unit_waiting_queue_layer_writer_readers_interference_resolution() {
-        let node_id = "test".to_string();
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(2)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, Some(1))))
             .service(SequencerService::default());
 
-        let process1 = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let process2 = Identifier::new(node_id.clone(), Resource::new_process(1));
-        let process3 = Identifier::new(node_id.clone(), Resource::new_process(2));
-        let process4 = Identifier::new(node_id.clone(), Resource::new_process(3));
-        let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let process1 = Resource::new_process(0);
+        let process2 = Resource::new_process(1);
+        let process3 = Resource::new_process(2);
+        let process4 = Resource::new_process(3);
+        let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
             sequencer
@@ -975,21 +913,14 @@ mod tests {
 
     #[tokio::test]
     async fn unit_waiting_queue_layer_reader_writer_interference_resolution() {
-        let node_id = "test".to_string();
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(2)))
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, Some(1))))
             .service(SequencerService::default());
 
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file1 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test1".to_string()),
-        );
-        let file2 = Identifier::new(
-            node_id.clone(),
-            Resource::new_file("/tmp/test2".to_string()),
-        );
+        let process = Resource::new_process(0);
+        let file1 = Resource::new_file("/tmp/test1".to_string());
+        let file2 = Resource::new_file("/tmp/test2".to_string());
 
         assert_eq!(
             sequencer

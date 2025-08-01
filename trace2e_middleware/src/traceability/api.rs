@@ -1,6 +1,8 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use super::{layers::compliance::Policy, naming::Identifier};
+use crate::traceability::naming::Resource;
+
+use super::layers::compliance::Policy;
 
 #[derive(Debug, Clone)]
 pub enum P2mRequest {
@@ -37,16 +39,16 @@ pub enum P2mResponse {
 #[derive(Debug, Clone)]
 pub enum M2mRequest {
     GetConsistentCompliance {
-        source: Identifier,
-        destination: Identifier,
+        source: Resource,
+        destination: Resource,
     },
     GetLooseCompliance {
         authority_ip: String,
-        ids: HashSet<Identifier>,
+        resources: HashSet<Resource>,
     },
     ProvenanceUpdate {
-        source_prov: HashSet<Identifier>,
-        destination: Identifier,
+        source_prov: HashMap<String, HashSet<Resource>>,
+        destination: Resource,
     },
 }
 
@@ -61,11 +63,11 @@ pub enum M2mResponse {
 pub enum SequencerRequest {
     /// Reserve a flow from source to destination
     ReserveFlow {
-        source: Identifier,
-        destination: Identifier,
+        source: Resource,
+        destination: Resource,
     },
     /// Release a flow from source to destination  
-    ReleaseFlow { destination: Identifier },
+    ReleaseFlow { destination: Resource },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -74,8 +76,8 @@ pub enum SequencerResponse {
     FlowReserved,
     /// Flow successfully released
     FlowReleased {
-        source: Option<Identifier>,
-        destination: Option<Identifier>,
+        source: Option<Resource>,
+        destination: Option<Resource>,
     },
 }
 
@@ -83,23 +85,27 @@ pub enum SequencerResponse {
 #[derive(Debug, Clone)]
 pub enum ProvenanceRequest {
     /// Get the complete provenance (lineage) of a resource
-    GetProvenance { id: Identifier },
+    GetLocalReferences(Resource),
+    /// Get the remote references of a resource
+    GetRemoteReferences(Resource),
     /// Update provenance when data flows from source to destination
     UpdateProvenance {
-        source: Identifier,
-        destination: Identifier,
+        source: Resource,
+        destination: Resource,
     },
-    /// Update destination provenance with raw sourceprovenance
+    /// Update destination provenance with raw source provenance
     UpdateProvenanceRaw {
-        source_prov: HashSet<Identifier>,
-        destination: Identifier,
+        source_prov: HashMap<String, HashSet<Resource>>,
+        destination: Resource,
     },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ProvenanceResponse {
     /// Complete provenance set for the requested resource
-    Provenance(HashSet<Identifier>),
+    LocalReferences(HashSet<Resource>),
+    /// Complete provenance set for the requested resource
+    RemoteReferences(HashMap<String, HashSet<Resource>>),
     /// Provenance successfully updated
     ProvenanceUpdated,
     /// Provenance not updated as the source is already in the destination provenance
@@ -111,13 +117,14 @@ pub enum ProvenanceResponse {
 pub enum ComplianceRequest {
     /// Check if a flow from source to destination is compliant with policies
     CheckCompliance {
-        source_policies: HashSet<Policy>,
+        local_source_policies: HashSet<Policy>,
+        remote_source_policies: HashMap<String, HashSet<Policy>>,
         destination_policy: Policy,
     },
-    /// Get policy for a specific resource
-    GetPolicies { ids: HashSet<Identifier> },
+    /// Get policies for a specific set of resources
+    GetPolicies(HashSet<Resource>),
     /// Set policy for a specific resource
-    SetPolicy { id: Identifier, policy: Policy },
+    SetPolicy { resource: Resource, policy: Policy },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

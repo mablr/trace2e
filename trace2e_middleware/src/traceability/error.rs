@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use crate::traceability::naming::Identifier;
+use crate::traceability::naming::Resource;
 
 #[derive(Debug, Error, PartialEq)]
 pub enum TraceabilityError {
@@ -26,13 +26,13 @@ pub enum TraceabilityError {
     NotFoundFlow(u128),
 
     #[error("Traceability error, destination unavailable")]
-    UnavailableDestination(Identifier),
+    UnavailableDestination(Resource),
 
     #[error("Traceability error, source unavailable")]
-    UnavailableSource(Identifier),
+    UnavailableSource(Resource),
 
     #[error("Traceability error, source and destination unavailable")]
-    UnavailableSourceAndDestination(Identifier, Identifier),
+    UnavailableSourceAndDestination(Resource, Resource),
 
     #[error("Traceability error, reached max retries waiting queue")]
     ReachedMaxRetriesWaitingQueue,

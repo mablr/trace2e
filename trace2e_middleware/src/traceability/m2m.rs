@@ -5,7 +5,7 @@ use crate::traceability::{
     },
     error::TraceabilityError,
 };
-use std::{future::Future, pin::Pin, task::Poll};
+use std::{collections::HashSet, future::Future, pin::Pin, task::Poll};
 use tower::Service;
 
 #[derive(Debug, Clone)]
@@ -71,9 +71,9 @@ where
                     {
                         Ok(SequencerResponse::FlowReserved) => {
                             match compliance
-                                .call(ComplianceRequest::GetPolicies {
-                                    ids: [destination.clone()].into(),
-                                })
+                                .call(ComplianceRequest::GetPolicies(HashSet::from([
+                                    destination.clone()
+                                ])))
                                 .await
                             {
                                 Ok(ComplianceResponse::Policies(policies)) => {
@@ -87,9 +87,9 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
-                M2mRequest::GetLooseCompliance { ids, .. } => {
+                M2mRequest::GetLooseCompliance { resources, .. } => {
                     let ComplianceResponse::Policies(policies) = compliance
-                        .call(ComplianceRequest::GetPolicies { ids })
+                        .call(ComplianceRequest::GetPolicies(resources))
                         .await?
                     else {
                         return Err(TraceabilityError::InternalTrace2eError);

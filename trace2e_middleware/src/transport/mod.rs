@@ -12,7 +12,7 @@ pub mod nop;
 fn eval_remote_ip(req: M2mRequest) -> Option<String> {
     if let Some(peer_socket) = match req {
         M2mRequest::GetConsistentCompliance { destination, .. }
-        | M2mRequest::ProvenanceUpdate { destination, .. } => match destination.resource {
+        | M2mRequest::ProvenanceUpdate { destination, .. } => match destination {
             Resource::Fd(Fd::Stream(stream)) => Some(stream.peer_socket),
             _ => None,
         },

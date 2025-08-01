@@ -22,7 +22,7 @@ use crate::{
         api::{M2mRequest, M2mResponse, P2mRequest, P2mResponse},
         error::TraceabilityError,
         layers::compliance::{ConfidentialityPolicy, Policy},
-        naming::{Fd, File, Identifier, Process, Resource, Stream},
+        naming::{Fd, File, Process, Resource, Stream},
     },
     transport::eval_remote_ip,
 };
@@ -123,13 +123,13 @@ impl Service<M2mRequest> for M2mGrpc {
                             .collect(),
                     ))
                 }
-                M2mRequest::GetLooseCompliance { ids, .. } => {
+                M2mRequest::GetLooseCompliance { resources, .. } => {
                     // Get or connect to the remote client
                     let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
 
                     // Create the protobuf request
                     let proto_req = proto::LooseCompliance {
-                        ids: ids.into_iter().map(|id| id.into()).collect(),
+                        resources: resources.into_iter().map(|r| r.into()).collect(),
                     };
 
                     // Make the gRPC call
@@ -333,8 +333,17 @@ impl From<proto::LooseCompliance> for M2mRequest {
     fn from(req: proto::LooseCompliance) -> Self {
         M2mRequest::GetLooseCompliance {
             authority_ip: String::new(), // Already routed so no authority IP needed
-            ids: req.ids.into_iter().map(|id| id.into()).collect(),
+            resources: req.resources.into_iter().map(|r| r.into()).collect(),
         }
+    }
+}
+
+impl From<proto::References> for (String, HashSet<Resource>) {
+    fn from(references: proto::References) -> Self {
+        (
+            references.node,
+            references.resources.into_iter().map(|r| r.into()).collect(),
+        )
     }
 }
 
@@ -355,18 +364,11 @@ impl From<HashSet<Policy>> for proto::Compliance {
     }
 }
 
-impl From<proto::Identifier> for Identifier {
-    fn from(proto_id: proto::Identifier) -> Self {
-        let resource = proto_id.resource.map(|r| r.into()).unwrap_or_default();
-        Identifier::new(proto_id.node, resource)
-    }
-}
-
-impl From<Identifier> for proto::Identifier {
-    fn from(id: Identifier) -> Self {
-        proto::Identifier {
-            node: id.node,
-            resource: Some(id.resource.into()),
+impl From<(String, HashSet<Resource>)> for proto::References {
+    fn from((node, resources): (String, HashSet<Resource>)) -> Self {
+        proto::References {
+            node,
+            resources: resources.into_iter().map(|r| r.into()).collect(),
         }
     }
 }

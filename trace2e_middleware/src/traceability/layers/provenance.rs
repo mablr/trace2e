@@ -4,7 +4,7 @@ use tower::Service;
 use crate::traceability::{
     api::{ProvenanceRequest, ProvenanceResponse},
     error::TraceabilityError,
-    naming::{Fd, Identifier, Resource},
+    naming::Resource,
 };
 use std::{
     collections::{HashMap, HashSet},
@@ -13,34 +13,64 @@ use std::{
     task::Poll,
 };
 
-fn init_provenance(id: Identifier) -> HashSet<Identifier> {
-    match id.resource {
-        Resource::Process(_) | Resource::Fd(Fd::File(_)) => HashSet::from([id]),
-        _ => HashSet::new(),
-    }
-}
+type ProvenanceMap = HashMap<Resource, HashMap<String, HashSet<Resource>>>;
 
 #[derive(Debug, Default, Clone)]
 pub struct ProvenanceService {
-    derived_from_map: Arc<Mutex<HashMap<Identifier, HashSet<Identifier>>>>,
+    provenance: Arc<Mutex<ProvenanceMap>>,
 }
 
 impl ProvenanceService {
-    /// Get the provenance of an identifier
-    async fn get_prov(&self, id: Identifier) -> HashSet<Identifier> {
-        self.derived_from_map
-            .lock()
+    fn init_provenance(resource: Resource) -> HashMap<String, HashSet<Resource>> {
+        if resource.is_file() || resource.is_process() {
+            HashMap::from([(String::new(), HashSet::from([resource]))])
+        } else {
+            // Streams have no impact on provenance
+            HashMap::new()
+        }
+    }
+
+    /// Get the provenance of a resource
+    ///
+    /// This function returns a map of node IDs to the provenance of the resource for that node.
+    /// If the resource is not found, it returns an empty map.
+    async fn get_prov(&self, resource: Resource) -> HashMap<String, HashSet<Resource>> {
+        let provenance = self.provenance.lock().await;
+        provenance
+            .get(&resource)
+            .unwrap_or(&Self::init_provenance(resource))
+            .clone()
+    }
+
+    /// Set the provenance of a resource
+    async fn set_prov(&mut self, resource: Resource, prov: HashMap<String, HashSet<Resource>>) {
+        self.provenance.lock().await.insert(resource, prov);
+    }
+
+    /// Get the local references of a resource
+    pub async fn get_local_references(&self, resource: Resource) -> HashSet<Resource> {
+        self.get_prov(resource)
             .await
-            .get(&id)
+            .get(&String::new())
             .cloned()
-            .unwrap_or(init_provenance(id))
+            .unwrap_or_default()
+    }
+
+    /// Get the remote references of a resource
+    pub async fn get_remote_references(
+        &self,
+        resource: Resource,
+    ) -> HashMap<String, HashSet<Resource>> {
+        let mut prov = self.get_prov(resource).await;
+        prov.remove(&String::new()); // Remove the local references
+        prov
     }
 
     /// Update the provenance of the destination with the source
     ///
     /// Note that this function does not guarantee sequential consistency,
     /// this is the role of the sequencer.
-    async fn update(&mut self, source: Identifier, destination: Identifier) -> ProvenanceResponse {
+    async fn update(&mut self, source: Resource, destination: Resource) -> ProvenanceResponse {
         let source_prov = self.get_prov(source.clone()).await;
         self.update_raw(source_prov, destination).await
     }
@@ -51,18 +81,27 @@ impl ProvenanceService {
     /// this is the role of the sequencer.
     async fn update_raw(
         &mut self,
-        source_prov: HashSet<Identifier>,
-        destination: Identifier,
+        source_prov: HashMap<String, HashSet<Resource>>,
+        destination: Resource,
     ) -> ProvenanceResponse {
-        let destination_prov = self.get_prov(destination.clone()).await;
-        if destination_prov.is_superset(&source_prov) {
-            ProvenanceResponse::ProvenanceNotUpdated
-        } else {
-            self.derived_from_map.lock().await.insert(
-                destination,
-                destination_prov.union(&source_prov).cloned().collect(),
-            );
+        let mut updated = false;
+        let mut destination_prov = self.get_prov(destination.clone()).await;
+        for (node_id, node_source_prov) in source_prov.clone() {
+            if let Some(node_destination_prov) = destination_prov.get_mut(&node_id) {
+                if !node_destination_prov.is_superset(&node_source_prov) {
+                    node_destination_prov.extend(node_source_prov);
+                    updated = true;
+                }
+            } else {
+                destination_prov.insert(node_id, node_source_prov);
+                updated = true;
+            }
+        }
+        if updated {
+            self.set_prov(destination, destination_prov).await;
             ProvenanceResponse::ProvenanceUpdated
+        } else {
+            ProvenanceResponse::ProvenanceNotUpdated
         }
     }
 }
@@ -80,9 +119,16 @@ impl Service<ProvenanceRequest> for ProvenanceService {
         let mut this = self.clone();
         Box::pin(async move {
             match req.clone() {
-                ProvenanceRequest::GetProvenance { id } => Ok(ProvenanceResponse::Provenance(
-                    this.get_prov(id.clone()).await,
-                )),
+                ProvenanceRequest::GetLocalReferences(resource) => {
+                    Ok(ProvenanceResponse::LocalReferences(
+                        this.get_local_references(resource.clone()).await,
+                    ))
+                }
+                ProvenanceRequest::GetRemoteReferences(resource) => {
+                    Ok(ProvenanceResponse::RemoteReferences(
+                        this.get_remote_references(resource.clone()).await,
+                    ))
+                }
                 ProvenanceRequest::UpdateProvenance {
                     source,
                     destination,
@@ -103,15 +149,13 @@ mod tests {
     #[tokio::test]
     async fn unit_provenance_update_simple() {
         let mut provenance = ProvenanceService::default();
-        let node_id = "test".to_string();
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let process = Resource::new_process(0);
+        let file = Resource::new_file("/tmp/test".to_string());
 
         provenance.update(file.clone(), process.clone()).await;
-
         // Check that the process is now derived from the file
         assert_eq!(
-            provenance.get_prov(process.clone()).await,
+            provenance.get_local_references(process.clone()).await,
             HashSet::from([file.clone(), process.clone()])
         );
     }
@@ -119,35 +163,31 @@ mod tests {
     #[tokio::test]
     async fn unit_provenance_update_circular() {
         let mut provenance = ProvenanceService::default();
-        let node_id = "test".to_string();
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let process = Resource::new_process(0);
+        let file = Resource::new_file("/tmp/test".to_string());
 
         provenance.update(process.clone(), file.clone()).await;
         provenance.update(file.clone(), process.clone()).await;
 
         // Check the proper handling of circular dependencies
         assert_eq!(
-            provenance.get_prov(file.clone()).await,
-            provenance.get_prov(process.clone()).await
+            provenance.get_local_references(file.clone()).await,
+            provenance.get_local_references(process.clone()).await
         );
     }
 
     #[tokio::test]
     async fn unit_provenance_service_flow_simple() {
         let mut provenance = ProvenanceService::default();
-        let node_id = "test".to_string();
-        let process = Identifier::new(node_id.clone(), Resource::new_process(0));
-        let file = Identifier::new(node_id.clone(), Resource::new_file("/tmp/test".to_string()));
+        let process = Resource::new_process(0);
+        let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
             provenance
-                .call(ProvenanceRequest::GetProvenance {
-                    id: process.clone()
-                })
+                .call(ProvenanceRequest::GetLocalReferences(process.clone()))
                 .await
                 .unwrap(),
-            ProvenanceResponse::Provenance(HashSet::from([process.clone()]))
+            ProvenanceResponse::LocalReferences(HashSet::from([process.clone()]))
         );
 
         assert_eq!(
@@ -174,12 +214,10 @@ mod tests {
 
         assert_eq!(
             provenance
-                .call(ProvenanceRequest::GetProvenance {
-                    id: process.clone()
-                })
+                .call(ProvenanceRequest::GetLocalReferences(process.clone()))
                 .await
                 .unwrap(),
-            ProvenanceResponse::Provenance(HashSet::from([file.clone(), process.clone()]))
+            ProvenanceResponse::LocalReferences(HashSet::from([file.clone(), process.clone()]))
         );
     }
 }

@@ -86,18 +86,13 @@ message Resource {
     }
 }
 
-message Identifier {
-    string node = 1;
-    Resource resource = 2;
-}
-
 message ConsistentCompliance {
-    Identifier source = 1;
-    Identifier destination = 2;
+    Resource source = 1;
+    Resource destination = 2;
 }
 
 message LooseCompliance {
-    repeated Identifier ids = 1;
+    repeated Resource resources = 1;
 }
 
 enum Confidentiality {
@@ -114,8 +109,13 @@ message Compliance {
     repeated Policy policies = 1;
 }
 
+message References {
+    string node = 1;
+    repeated Resource resources = 2;
+}
+
 message ProvenanceUpdate {
-    repeated Identifier source_prov = 1;
-    Identifier destination = 2;
+    repeated References source_prov = 1;
+    Resource destination = 2;
 }
 
