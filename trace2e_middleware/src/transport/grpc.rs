@@ -40,7 +40,7 @@ pub struct M2mGrpc {
 }
 
 impl M2mGrpc {
-    async fn reconnect_remote(
+    async fn connect_remote(
         &self,
         remote_ip: String,
     ) -> Result<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>, TraceabilityError> {
@@ -74,7 +74,7 @@ impl M2mGrpc {
     ) -> Result<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>, TraceabilityError> {
         match self.get_client(remote_ip.clone()).await {
             Some(client) => Ok(client),
-            None => self.reconnect_remote(remote_ip).await,
+            None => self.connect_remote(remote_ip).await,
         }
     }
 }
@@ -91,18 +91,13 @@ impl Service<M2mRequest> for M2mGrpc {
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         let this = self.clone();
         Box::pin(async move {
-            let Some(remote_ip) = eval_remote_ip(request.clone()) else {
-                return Err(TraceabilityError::TransportFailedToEvaluateRemote);
-            };
-
+            let remote_ip = eval_remote_ip(request.clone())?;
+            let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
             match request {
                 M2mRequest::GetConsistentCompliance {
                     source,
                     destination,
                 } => {
-                    // Get or connect to the remote client
-                    let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
-
                     // Create the protobuf request
                     let proto_req = proto::ConsistentCompliance {
                         source: Some(source.into()),
@@ -124,9 +119,6 @@ impl Service<M2mRequest> for M2mGrpc {
                     ))
                 }
                 M2mRequest::GetLooseCompliance { resources, .. } => {
-                    // Get or connect to the remote client
-                    let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
-
                     // Create the protobuf request
                     let proto_req = proto::LooseCompliance {
                         resources: resources.into_iter().map(|r| r.into()).collect(),
@@ -150,9 +142,6 @@ impl Service<M2mRequest> for M2mGrpc {
                     source_prov,
                     destination,
                 } => {
-                    // Get or connect to the remote client
-                    let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
-
                     // Create the protobuf request
                     let proto_req = proto::ProvenanceUpdate {
                         source_prov: source_prov.into_iter().map(|s| s.into()).collect(),

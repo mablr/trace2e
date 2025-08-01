@@ -23,8 +23,13 @@ where
         self.middlewares.lock().await.insert(ip, middleware);
     }
 
-    pub async fn get_middleware(&self, ip: String) -> Option<M> {
-        self.middlewares.lock().await.get(&ip).cloned()
+    pub async fn get_middleware(&self, ip: String) -> Result<M, TraceabilityError> {
+        self.middlewares
+            .lock()
+            .await
+            .get(&ip)
+            .cloned()
+            .ok_or(TraceabilityError::TransportFailedToContactRemote(ip))
     }
 }
 
@@ -47,13 +52,10 @@ where
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         let this = self.clone();
         Box::pin(async move {
-            let Some(remote_ip) = eval_remote_ip(request.clone()) else {
-                return Err(TraceabilityError::TransportFailedToEvaluateRemote);
-            };
-            let Some(mut middleware) = this.get_middleware(remote_ip.clone()).await else {
-                return Err(TraceabilityError::TransportFailedToContactRemote(remote_ip));
-            };
-            middleware.call(request).await
+            this.get_middleware(eval_remote_ip(request.clone())?)
+                .await?
+                .call(request)
+                .await
         })
     }
 }

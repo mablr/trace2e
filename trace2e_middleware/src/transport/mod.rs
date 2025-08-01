@@ -2,6 +2,7 @@ use std::net::SocketAddr;
 
 use crate::traceability::{
     api::M2mRequest,
+    error::TraceabilityError,
     naming::{Fd, Resource},
 };
 
@@ -9,7 +10,7 @@ pub mod grpc;
 pub mod loopback;
 pub mod nop;
 
-fn eval_remote_ip(req: M2mRequest) -> Option<String> {
+fn eval_remote_ip(req: M2mRequest) -> Result<String, TraceabilityError> {
     if let Some(peer_socket) = match req {
         M2mRequest::GetConsistentCompliance { destination, .. }
         | M2mRequest::ProvenanceUpdate { destination, .. } => match destination {
@@ -19,10 +20,10 @@ fn eval_remote_ip(req: M2mRequest) -> Option<String> {
         M2mRequest::GetLooseCompliance { authority_ip, .. } => Some(authority_ip),
     } {
         match peer_socket.parse::<SocketAddr>() {
-            Ok(addr) => Some(addr.ip().to_string()),
-            Err(_) => None,
+            Ok(addr) => Ok(addr.ip().to_string()),
+            Err(_) => Err(TraceabilityError::TransportFailedToEvaluateRemote),
         }
     } else {
-        None
+        Err(TraceabilityError::TransportFailedToEvaluateRemote)
     }
 }
