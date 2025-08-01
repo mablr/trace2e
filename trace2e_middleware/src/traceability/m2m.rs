@@ -64,16 +64,14 @@ where
                 } => {
                     match sequencer
                         .call(SequencerRequest::ReserveFlow {
-                            source: source.clone(),
+                            source,
                             destination: destination.clone(),
                         })
                         .await
                     {
                         Ok(SequencerResponse::FlowReserved) => {
                             match compliance
-                                .call(ComplianceRequest::GetPolicies(HashSet::from([
-                                    destination.clone()
-                                ])))
+                                .call(ComplianceRequest::GetPolicies(HashSet::from([destination])))
                                 .await
                             {
                                 Ok(ComplianceResponse::Policies(policies)) => {

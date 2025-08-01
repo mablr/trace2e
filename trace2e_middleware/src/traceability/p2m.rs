@@ -81,7 +81,7 @@ where
         let mut compliance = std::mem::replace(&mut self.compliance, this.compliance.clone());
         let mut m2m = std::mem::replace(&mut self.m2m, this.m2m.clone());
         Box::pin(async move {
-            match request.clone() {
+            match request {
                 P2mRequest::LocalEnroll { pid, fd, path } => {
                     this.resource_map.lock().await.insert(
                         (pid, fd),
@@ -134,7 +134,7 @@ where
                                     if let M2mResponse::Compliance(policies) = m2m
                                         .call(M2mRequest::GetConsistentCompliance {
                                             source: source.clone(),
-                                            destination: destination.clone(),
+                                            destination,
                                         })
                                         .await?
                                     {
@@ -144,7 +144,7 @@ where
                                     }
                                 } else if let ComplianceResponse::Policies(policies) = compliance
                                     .call(ComplianceRequest::GetPolicies(HashSet::from([
-                                        destination.clone(),
+                                        destination,
                                     ])))
                                     .await?
                                 {
@@ -176,7 +176,7 @@ where
                                 };
 
                                 let remote_source_policies = match provenance
-                                    .call(ProvenanceRequest::GetRemoteReferences(source.clone()))
+                                    .call(ProvenanceRequest::GetRemoteReferences(source))
                                     .await?
                                 {
                                     ProvenanceResponse::RemoteReferences(aggregated_resources) => {
@@ -185,7 +185,7 @@ where
                                             match m2m
                                                 .call(M2mRequest::GetLooseCompliance {
                                                     authority_ip: node_id.clone(),
-                                                    resources: resources.clone(),
+                                                    resources,
                                                 })
                                                 .await?
                                             {
@@ -227,21 +227,16 @@ where
                 P2mRequest::IoReport { grant_id, .. } => {
                     let mut flow_map = this.flow_map.lock().await;
                     if let Some((process, fd, output)) = flow_map.remove(&grant_id) {
-                        let (source, destination) = if output {
-                            (process.clone(), fd.clone())
-                        } else {
-                            (fd.clone(), process.clone())
-                        };
+                        let (source, destination) =
+                            if output { (process, fd) } else { (fd, process) };
                         provenance
                             .call(ProvenanceRequest::UpdateProvenance {
-                                source: source.clone(),
+                                source,
                                 destination: destination.clone(),
                             })
                             .await?;
                         sequencer
-                            .call(SequencerRequest::ReleaseFlow {
-                                destination: destination.clone(),
-                            })
+                            .call(SequencerRequest::ReleaseFlow { destination })
                             .await?;
                         Ok(P2mResponse::Ack)
                     } else {
