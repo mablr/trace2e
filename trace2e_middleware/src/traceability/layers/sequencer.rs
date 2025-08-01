@@ -25,7 +25,11 @@ pub struct SequencerService {
 impl SequencerService {
     /// Make a flow
     /// Returns the availability state of the source and destination before the attempt
-    async fn make_flow(&self, source: Resource, destination: Resource) -> (bool, bool) {
+    async fn make_flow(
+        &self,
+        source: Resource,
+        destination: Resource,
+    ) -> Result<SequencerResponse, TraceabilityError> {
         let mut flows = self.flows.lock().await;
         // source is not already reserved by a writer
         let source_available = !flows.contains_key(&source);
@@ -36,28 +40,37 @@ impl SequencerService {
         // if both are available, create a flow
         if source_available && destination_available {
             flows.insert(destination, source);
+            Ok(SequencerResponse::FlowReserved)
+        } else if source_available {
+            Err(TraceabilityError::UnavailableDestination(destination))
+        } else if destination_available {
+            Err(TraceabilityError::UnavailableSource(source))
+        } else {
+            Err(TraceabilityError::UnavailableSourceAndDestination(
+                source,
+                destination,
+            ))
         }
-        (source_available, destination_available)
     }
 
     /// Drop a flow
     /// Returns the SequencerResponse to the caller
-    async fn drop_flow(&self, destination: Resource) -> SequencerResponse {
+    async fn drop_flow(&self, destination: &Resource) -> SequencerResponse {
         let mut flows = self.flows.lock().await;
-        if let Some(source) = flows.remove(&destination) {
+        if let Some(source) = flows.remove(destination) {
             if flows.values().any(|v| *v == source) {
                 // Partial release of the flow
                 // source is still reserved as reader, notify the waiting queue of the destination
                 SequencerResponse::FlowReleased {
                     source: None,
-                    destination: Some(destination),
+                    destination: Some(destination.clone()),
                 }
             } else {
                 // Complete release of the flow
                 // both source and destination are available again, notify both waiting queues
                 SequencerResponse::FlowReleased {
                     source: Some(source),
-                    destination: Some(destination),
+                    destination: Some(destination.clone()),
                 }
             }
         } else {
@@ -79,24 +92,16 @@ impl Service<SequencerRequest> for SequencerService {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: SequencerRequest) -> Self::Future {
+    fn call(&mut self, request: SequencerRequest) -> Self::Future {
         let this = self.clone();
         Box::pin(async move {
-            match req.clone() {
+            match request {
                 SequencerRequest::ReserveFlow {
                     source,
                     destination,
-                } => match this.make_flow(source.clone(), destination.clone()).await {
-                    (true, true) => Ok(SequencerResponse::FlowReserved),
-                    (true, false) => Err(TraceabilityError::UnavailableDestination(destination)),
-                    (false, true) => Err(TraceabilityError::UnavailableSource(source)),
-                    (false, false) => Err(TraceabilityError::UnavailableSourceAndDestination(
-                        source,
-                        destination,
-                    )),
-                },
+                } => this.make_flow(source, destination).await,
                 SequencerRequest::ReleaseFlow { destination } => {
-                    Ok(this.drop_flow(destination).await)
+                    Ok(this.drop_flow(&destination).await)
                 }
             }
         })
@@ -120,21 +125,24 @@ impl<T> WaitingQueueService<T> {
         }
     }
 
-    async fn join_waiting_queue(&self, id: Resource) -> oneshot::Receiver<()> {
+    async fn join_waiting_queue(&self, resource: &Resource) -> oneshot::Receiver<()> {
         let (tx, rx) = oneshot::channel();
-        if let Some(queue) = self.waiting_queue.lock().await.get_mut(&id) {
+        if let Some(queue) = self.waiting_queue.lock().await.get_mut(resource) {
             queue.push_back(tx);
         } else {
             let mut queue = VecDeque::new();
             queue.push_back(tx);
-            self.waiting_queue.lock().await.insert(id, queue);
+            self.waiting_queue
+                .lock()
+                .await
+                .insert(resource.clone(), queue);
         }
         rx
     }
 
-    async fn notify_waiting_queue(&self, id: Option<Resource>) {
-        if let Some(id) = id
-            && let Some(queue) = self.waiting_queue.lock().await.get_mut(&id)
+    async fn notify_waiting_queue(&self, resource: &Option<Resource>) {
+        if let Some(resource) = resource
+            && let Some(queue) = self.waiting_queue.lock().await.get_mut(resource)
             && let Some(tx) = queue.pop_front()
         {
             tx.send(()).unwrap();
@@ -175,25 +183,28 @@ where
                         destination,
                     }) => {
                         join!(
-                            this.notify_waiting_queue(source.clone()),
-                            this.notify_waiting_queue(destination.clone())
+                            this.notify_waiting_queue(&source),
+                            this.notify_waiting_queue(&destination)
                         );
                         return Ok(SequencerResponse::FlowReleased {
                             source,
                             destination,
                         });
                     }
-                    Err(TraceabilityError::UnavailableSource(id)) => {
-                        let rx = this.join_waiting_queue(id).await;
+                    Err(TraceabilityError::UnavailableSource(source)) => {
+                        let rx = this.join_waiting_queue(&source).await;
                         let _ = rx.await;
                     }
-                    Err(TraceabilityError::UnavailableDestination(id)) => {
-                        let rx = this.join_waiting_queue(id).await;
+                    Err(TraceabilityError::UnavailableDestination(destination)) => {
+                        let rx = this.join_waiting_queue(&destination).await;
                         let _ = rx.await;
                     }
-                    Err(TraceabilityError::UnavailableSourceAndDestination(id1, id2)) => {
-                        let rx1 = this.join_waiting_queue(id1).await;
-                        let rx2 = this.join_waiting_queue(id2).await;
+                    Err(TraceabilityError::UnavailableSourceAndDestination(
+                        source,
+                        destination,
+                    )) => {
+                        let rx1 = this.join_waiting_queue(&source).await;
+                        let rx2 = this.join_waiting_queue(&destination).await;
                         let (_, _) = join!(rx1, rx2);
                     }
                     Err(e) => return Err(e),
@@ -220,10 +231,10 @@ mod tests {
         let file = Resource::new_file("/tmp/test".to_string());
         assert_eq!(
             sequencer.make_flow(process.clone(), file.clone()).await,
-            (true, true)
+            Ok(SequencerResponse::FlowReserved)
         );
         assert_eq!(
-            sequencer.drop_flow(file.clone()).await,
+            sequencer.drop_flow(&file).await,
             SequencerResponse::FlowReleased {
                 source: Some(process.clone()),
                 destination: Some(file.clone())
@@ -231,10 +242,10 @@ mod tests {
         );
         assert_eq!(
             sequencer.make_flow(process.clone(), file.clone()).await,
-            (true, true)
+            Ok(SequencerResponse::FlowReserved)
         );
         assert_eq!(
-            sequencer.drop_flow(file.clone()).await,
+            sequencer.drop_flow(&file).await,
             SequencerResponse::FlowReleased {
                 source: Some(process),
                 destination: Some(file)
@@ -249,18 +260,18 @@ mod tests {
         let file = Resource::new_file("/tmp/test".to_string());
         assert_eq!(
             sequencer.make_flow(process.clone(), file.clone()).await,
-            (true, true)
+            Ok(SequencerResponse::FlowReserved)
         );
         assert_eq!(
-            sequencer.drop_flow(file.clone()).await,
+            sequencer.drop_flow(&file).await,
             SequencerResponse::FlowReleased {
-                source: Some(process.clone()),
+                source: Some(process),
                 destination: Some(file.clone())
             }
         );
         // Already dropped, source is still available so it return true again
         assert_eq!(
-            sequencer.drop_flow(file.clone()).await,
+            sequencer.drop_flow(&file).await,
             SequencerResponse::FlowReleased {
                 source: None,
                 destination: None
@@ -278,33 +289,33 @@ mod tests {
         let file4 = Resource::new_file("/tmp/test4".to_string());
         assert_eq!(
             sequencer.make_flow(process.clone(), file1.clone()).await,
-            (true, true)
+            Ok(SequencerResponse::FlowReserved)
         );
         assert_eq!(
             sequencer.make_flow(process.clone(), file2.clone()).await,
-            (true, true)
+            Ok(SequencerResponse::FlowReserved)
         );
         assert_eq!(
             sequencer.make_flow(process.clone(), file3.clone()).await,
-            (true, true)
+            Ok(SequencerResponse::FlowReserved)
         );
 
         // Must fail because process is already reserved 3 times as reader
         assert_eq!(
             sequencer.make_flow(file4.clone(), process.clone()).await,
-            (true, false)
+            Err(TraceabilityError::UnavailableDestination(process.clone()))
         );
 
         // Drop 2 reservations
         assert_eq!(
-            sequencer.drop_flow(file2.clone()).await,
+            sequencer.drop_flow(&file2).await,
             SequencerResponse::FlowReleased {
                 source: None,
                 destination: Some(file2)
             }
         );
         assert_eq!(
-            sequencer.drop_flow(file1.clone()).await,
+            sequencer.drop_flow(&file1).await,
             SequencerResponse::FlowReleased {
                 source: None,
                 destination: Some(file1)
@@ -314,12 +325,12 @@ mod tests {
         // Must fail because process is still reserved once as reader
         assert_eq!(
             sequencer.make_flow(file4.clone(), process.clone()).await,
-            (true, false)
+            Err(TraceabilityError::UnavailableDestination(process.clone()))
         );
 
         // Drop last reservation
         assert_eq!(
-            sequencer.drop_flow(file3.clone()).await,
+            sequencer.drop_flow(&file3).await,
             SequencerResponse::FlowReleased {
                 source: Some(process.clone()),
                 destination: Some(file3)
@@ -328,8 +339,8 @@ mod tests {
 
         // Must succeed because process is not reserved as reader
         assert_eq!(
-            sequencer.make_flow(file4.clone(), process.clone()).await,
-            (true, true)
+            sequencer.make_flow(file4, process).await,
+            Ok(SequencerResponse::FlowReserved)
         );
     }
 
@@ -343,32 +354,34 @@ mod tests {
 
         assert_eq!(
             sequencer.make_flow(file1.clone(), process1.clone()).await,
-            (true, true)
+            Ok(SequencerResponse::FlowReserved)
         );
 
         // Fails because try get write of write lock
         // (this case may be released in the future, this flow already exists)
         assert_eq!(
             sequencer.make_flow(file1.clone(), process1.clone()).await,
-            (true, false)
+            Err(TraceabilityError::UnavailableDestination(process1.clone()))
         );
 
         // Fails because try get write on read lock
         assert_eq!(
-            sequencer.make_flow(process2.clone(), file1.clone()).await,
-            (true, false)
+            sequencer.make_flow(process2, file1.clone()).await,
+            Err(TraceabilityError::UnavailableDestination(file1.clone()))
         );
 
         // Fails because try get read on write lock
         assert_eq!(
-            sequencer.make_flow(process1.clone(), file2.clone()).await,
-            (false, true)
+            sequencer.make_flow(process1.clone(), file2).await,
+            Err(TraceabilityError::UnavailableSource(process1.clone()))
         );
 
         // Fails because circular flow (get read on write lock & get write on read lock)
         assert_eq!(
             sequencer.make_flow(process1.clone(), file1.clone()).await,
-            (false, false)
+            Err(TraceabilityError::UnavailableSourceAndDestination(
+                process1, file1
+            ))
         );
     }
 
@@ -425,12 +438,12 @@ mod tests {
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReserveFlow {
-                    source: process.clone(),
+                    source: process,
                     destination: file.clone(),
                 })
                 .await
                 .unwrap_err(),
-            TraceabilityError::UnavailableDestination(file.clone())
+            TraceabilityError::UnavailableDestination(file)
         );
     }
 
@@ -557,7 +570,7 @@ mod tests {
         assert_eq!(
             sequencer
                 .call(SequencerRequest::ReserveFlow {
-                    source: process2.clone(),
+                    source: process2,
                     destination: file1.clone(),
                 })
                 .await
@@ -570,7 +583,7 @@ mod tests {
             sequencer
                 .call(SequencerRequest::ReserveFlow {
                     source: process1.clone(),
-                    destination: file2.clone(),
+                    destination: file2,
                 })
                 .await
                 .unwrap_err(),
@@ -586,7 +599,7 @@ mod tests {
                 })
                 .await
                 .unwrap_err(),
-            TraceabilityError::UnavailableSourceAndDestination(process1.clone(), file1.clone())
+            TraceabilityError::UnavailableSourceAndDestination(process1, file1)
         );
     }
     #[tokio::test]
@@ -694,8 +707,8 @@ mod tests {
         assert!(
             sequencer
                 .call(SequencerRequest::ReserveFlow {
-                    source: process.clone(),
-                    destination: file.clone(),
+                    source: process,
+                    destination: file,
                 })
                 .await
                 .is_err(),
@@ -726,8 +739,8 @@ mod tests {
         assert!(
             sequencer
                 .call(SequencerRequest::ReserveFlow {
-                    source: file.clone(),
-                    destination: process.clone(),
+                    source: file,
+                    destination: process,
                 })
                 .await
                 .is_err(),

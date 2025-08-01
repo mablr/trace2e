@@ -96,10 +96,10 @@ impl Service<ComplianceRequest> for ComplianceService {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: ComplianceRequest) -> Self::Future {
+    fn call(&mut self, request: ComplianceRequest) -> Self::Future {
         let this = self.clone();
         Box::pin(async move {
-            match req.clone() {
+            match request {
                 ComplianceRequest::CheckCompliance {
                     local_source_policies,
                     remote_source_policies,
@@ -148,7 +148,12 @@ mod tests {
         };
 
         // First time setting policy should return None
-        assert!(compliance.set_policy(process.clone(), policy.clone()).await.is_none());
+        assert!(
+            compliance
+                .set_policy(process.clone(), policy.clone())
+                .await
+                .is_none()
+        );
 
         let new_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
@@ -156,7 +161,10 @@ mod tests {
         };
 
         // Second time setting policy should return the old policy
-        assert_eq!(compliance.set_policy(process.clone(), new_policy).await, Some(policy));
+        assert_eq!(
+            compliance.set_policy(process, new_policy).await,
+            Some(policy)
+        );
     }
 
     #[tokio::test]
@@ -300,7 +308,10 @@ mod tests {
             destination_policy: dest_policy,
         };
 
-        assert_eq!(compliance.call(request).await.unwrap(), ComplianceResponse::Grant);
+        assert_eq!(
+            compliance.call(request).await.unwrap(),
+            ComplianceResponse::Grant
+        );
     }
 
     #[tokio::test]
@@ -323,7 +334,10 @@ mod tests {
             destination_policy: dest_policy,
         };
 
-        assert_eq!(compliance.call(request).await.unwrap_err(), TraceabilityError::DirectPolicyViolation);
+        assert_eq!(
+            compliance.call(request).await.unwrap_err(),
+            TraceabilityError::DirectPolicyViolation
+        );
     }
 
     #[tokio::test]
@@ -348,10 +362,16 @@ mod tests {
         // High -> Medium: Should pass (integrity 10 >= 5, secret -> public is blocked but this is reverse)
         let request1 = ComplianceRequest::CheckCompliance {
             local_source_policies: HashSet::from([Policy::default()]),
-            remote_source_policies: HashMap::from([("10.0.0.1".to_string(), HashSet::from([high_policy.clone()]))]),
+            remote_source_policies: HashMap::from([(
+                "10.0.0.1".to_string(),
+                HashSet::from([high_policy.clone()]),
+            )]),
             destination_policy: medium_policy.clone(),
         };
-        assert_eq!(compliance.call(request1).await.unwrap_err(), TraceabilityError::DirectPolicyViolation); // Secret -> Public fails
+        assert_eq!(
+            compliance.call(request1).await.unwrap_err(),
+            TraceabilityError::DirectPolicyViolation
+        ); // Secret -> Public fails
 
         // Medium -> Low: Should pass (integrity 5 >= 1, public -> public)
         let request2 = ComplianceRequest::CheckCompliance {
@@ -359,7 +379,10 @@ mod tests {
             remote_source_policies: HashMap::new(),
             destination_policy: low_policy.clone(),
         };
-        assert_eq!(compliance.call(request2).await.unwrap(), ComplianceResponse::Grant);
+        assert_eq!(
+            compliance.call(request2).await.unwrap(),
+            ComplianceResponse::Grant
+        );
 
         // Low -> High: Should fail (integrity 1 < 10)
         let request3 = ComplianceRequest::CheckCompliance {
@@ -367,7 +390,10 @@ mod tests {
             remote_source_policies: HashMap::new(),
             destination_policy: high_policy,
         };
-        assert_eq!(compliance.call(request3).await.unwrap_err(), TraceabilityError::DirectPolicyViolation);
+        assert_eq!(
+            compliance.call(request3).await.unwrap_err(),
+            TraceabilityError::DirectPolicyViolation
+        );
     }
 
     #[tokio::test]
@@ -376,7 +402,12 @@ mod tests {
         let process = Resource::new_process(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
-        assert_eq!(compliance.get_policies(HashSet::from([process.clone(), file.clone()])).await, HashSet::from([Policy::default()]));
+        assert_eq!(
+            compliance
+                .get_policies(HashSet::from([process, file]))
+                .await,
+            HashSet::from([Policy::default()])
+        );
     }
 
     #[tokio::test]
@@ -391,7 +422,10 @@ mod tests {
 
         compliance.set_policy(process.clone(), policy.clone()).await;
 
-        assert_eq!(compliance.get_policies(HashSet::from([process.clone()])).await, HashSet::from([policy]));
+        assert_eq!(
+            compliance.get_policies(HashSet::from([process])).await,
+            HashSet::from([policy])
+        );
     }
 
     #[tokio::test]
@@ -417,7 +451,12 @@ mod tests {
             .set_policy(file.clone(), file_policy.clone())
             .await;
 
-        assert_eq!(compliance.get_policies(HashSet::from([process.clone(), file.clone()])).await, HashSet::from([process_policy, file_policy]));
+        assert_eq!(
+            compliance
+                .get_policies(HashSet::from([process, file]))
+                .await,
+            HashSet::from([process_policy, file_policy])
+        );
     }
 
     #[tokio::test]
@@ -436,7 +475,12 @@ mod tests {
             .set_policy(process.clone(), process_policy.clone())
             .await;
 
-        assert_eq!(compliance.get_policies(HashSet::from([process.clone(), file.clone()])).await, HashSet::from([process_policy, Policy::default()]));
+        assert_eq!(
+            compliance
+                .get_policies(HashSet::from([process, file]))
+                .await,
+            HashSet::from([process_policy, Policy::default()])
+        );
     }
 
     #[tokio::test]
@@ -466,7 +510,12 @@ mod tests {
             .await;
 
         // Verify initial policy
-        assert_eq!(compliance.get_policies(HashSet::from([process.clone()])).await, HashSet::from([initial_policy]));
+        assert_eq!(
+            compliance
+                .get_policies(HashSet::from([process.clone()]))
+                .await,
+            HashSet::from([initial_policy])
+        );
 
         // Update policy
         compliance
@@ -474,6 +523,9 @@ mod tests {
             .await;
 
         // Verify updated policy
-        assert_eq!(compliance.get_policies(HashSet::from([process.clone()])).await, HashSet::from([updated_policy]));
+        assert_eq!(
+            compliance.get_policies(HashSet::from([process])).await,
+            HashSet::from([updated_policy])
+        );
     }
 }

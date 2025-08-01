@@ -21,12 +21,12 @@ pub struct ProvenanceService {
 }
 
 impl ProvenanceService {
-    fn init_provenance(resource: Resource) -> HashMap<String, HashSet<Resource>> {
+    fn init_provenance(resource: &Resource) -> HashMap<String, HashSet<Resource>> {
         if resource.is_file() || resource.is_process() {
-            HashMap::from([(String::new(), HashSet::from([resource]))])
+            HashMap::from([(String::new(), HashSet::from([resource.clone()]))])
         } else {
             // Streams have no impact on provenance
-            HashMap::new()
+            HashMap::from([(String::new(), HashSet::new())])
         }
     }
 
@@ -34,10 +34,10 @@ impl ProvenanceService {
     ///
     /// This function returns a map of node IDs to the provenance of the resource for that node.
     /// If the resource is not found, it returns an empty map.
-    async fn get_prov(&self, resource: Resource) -> HashMap<String, HashSet<Resource>> {
+    async fn get_prov(&self, resource: &Resource) -> HashMap<String, HashSet<Resource>> {
         let provenance = self.provenance.lock().await;
         provenance
-            .get(&resource)
+            .get(resource)
             .unwrap_or(&Self::init_provenance(resource))
             .clone()
     }
@@ -48,7 +48,7 @@ impl ProvenanceService {
     }
 
     /// Get the local references of a resource
-    pub async fn get_local_references(&self, resource: Resource) -> HashSet<Resource> {
+    pub async fn get_local_references(&self, resource: &Resource) -> HashSet<Resource> {
         self.get_prov(resource)
             .await
             .get(&String::new())
@@ -59,7 +59,7 @@ impl ProvenanceService {
     /// Get the remote references of a resource
     pub async fn get_remote_references(
         &self,
-        resource: Resource,
+        resource: &Resource,
     ) -> HashMap<String, HashSet<Resource>> {
         let mut prov = self.get_prov(resource).await;
         prov.remove(&String::new()); // Remove the local references
@@ -70,8 +70,8 @@ impl ProvenanceService {
     ///
     /// Note that this function does not guarantee sequential consistency,
     /// this is the role of the sequencer.
-    async fn update(&mut self, source: Resource, destination: Resource) -> ProvenanceResponse {
-        let source_prov = self.get_prov(source.clone()).await;
+    async fn update(&mut self, source: &Resource, destination: &Resource) -> ProvenanceResponse {
+        let source_prov = self.get_prov(source).await;
         self.update_raw(source_prov, destination).await
     }
 
@@ -82,11 +82,11 @@ impl ProvenanceService {
     async fn update_raw(
         &mut self,
         source_prov: HashMap<String, HashSet<Resource>>,
-        destination: Resource,
+        destination: &Resource,
     ) -> ProvenanceResponse {
         let mut updated = false;
-        let mut destination_prov = self.get_prov(destination.clone()).await;
-        for (node_id, node_source_prov) in source_prov.clone() {
+        let mut destination_prov = self.get_prov(destination).await;
+        for (node_id, node_source_prov) in source_prov {
             if let Some(node_destination_prov) = destination_prov.get_mut(&node_id) {
                 if !node_destination_prov.is_superset(&node_source_prov) {
                     node_destination_prov.extend(node_source_prov);
@@ -98,7 +98,7 @@ impl ProvenanceService {
             }
         }
         if updated {
-            self.set_prov(destination, destination_prov).await;
+            self.set_prov(destination.clone(), destination_prov).await;
             ProvenanceResponse::ProvenanceUpdated
         } else {
             ProvenanceResponse::ProvenanceNotUpdated
@@ -115,28 +115,26 @@ impl Service<ProvenanceRequest> for ProvenanceService {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: ProvenanceRequest) -> Self::Future {
+    fn call(&mut self, request: ProvenanceRequest) -> Self::Future {
         let mut this = self.clone();
         Box::pin(async move {
-            match req.clone() {
-                ProvenanceRequest::GetLocalReferences(resource) => {
-                    Ok(ProvenanceResponse::LocalReferences(
-                        this.get_local_references(resource.clone()).await,
-                    ))
-                }
+            match request {
+                ProvenanceRequest::GetLocalReferences(resource) => Ok(
+                    ProvenanceResponse::LocalReferences(this.get_local_references(&resource).await),
+                ),
                 ProvenanceRequest::GetRemoteReferences(resource) => {
                     Ok(ProvenanceResponse::RemoteReferences(
-                        this.get_remote_references(resource.clone()).await,
+                        this.get_remote_references(&resource).await,
                     ))
                 }
                 ProvenanceRequest::UpdateProvenance {
                     source,
                     destination,
-                } => Ok(this.update(source, destination).await),
+                } => Ok(this.update(&source, &destination).await),
                 ProvenanceRequest::UpdateProvenanceRaw {
                     source_prov,
                     destination,
-                } => Ok(this.update_raw(source_prov, destination).await),
+                } => Ok(this.update_raw(source_prov, &destination).await),
             }
         })
     }
@@ -152,11 +150,11 @@ mod tests {
         let process = Resource::new_process(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
-        provenance.update(file.clone(), process.clone()).await;
+        provenance.update(&file, &process).await;
         // Check that the process is now derived from the file
         assert_eq!(
-            provenance.get_local_references(process.clone()).await,
-            HashSet::from([file.clone(), process.clone()])
+            provenance.get_local_references(&process).await,
+            HashSet::from([file, process])
         );
     }
 
@@ -166,13 +164,13 @@ mod tests {
         let process = Resource::new_process(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
-        provenance.update(process.clone(), file.clone()).await;
-        provenance.update(file.clone(), process.clone()).await;
+        provenance.update(&process, &file).await;
+        provenance.update(&file, &process).await;
 
         // Check the proper handling of circular dependencies
         assert_eq!(
-            provenance.get_local_references(file.clone()).await,
-            provenance.get_local_references(process.clone()).await
+            provenance.get_local_references(&file).await,
+            provenance.get_local_references(&process).await
         );
     }
 
@@ -185,12 +183,12 @@ mod tests {
         let stream =
             Resource::new_stream("127.0.0.1:8080".to_string(), "127.0.0.1:8081".to_string());
 
-        provenance.update(process0.clone(), stream.clone()).await;
-        provenance.update(stream.clone(), process1.clone()).await;
+        provenance.update(&process0, &stream).await;
+        provenance.update(&stream, &process1).await;
 
         assert_eq!(
-            provenance.get_local_references(process1.clone()).await,
-            HashSet::from([process0.clone(), process1.clone()]) // Streams have no impact on provenance
+            provenance.get_local_references(&process1).await,
+            HashSet::from([process0, process1]) // Streams have no impact on provenance
         );
     }
 
@@ -207,7 +205,7 @@ mod tests {
                     ("10.0.0.1".to_string(), HashSet::from([process0.clone()])),
                     ("10.0.0.2".to_string(), HashSet::from([process0.clone()])),
                 ]),
-                process0.clone(),
+                &process0,
             )
             .await;
         provenance
@@ -219,12 +217,12 @@ mod tests {
                         HashSet::from([file0.clone(), process1.clone()]),
                     ),
                 ]),
-                process0.clone(),
+                &process0,
             )
             .await;
 
         assert_eq!(
-            provenance.get_remote_references(process0.clone()).await,
+            provenance.get_remote_references(&process0).await,
             HashMap::from([
                 (
                     "10.0.0.1".to_string(),
@@ -238,12 +236,12 @@ mod tests {
         );
 
         assert_eq!(
-            provenance.get_local_references(process0.clone()).await,
+            provenance.get_local_references(&process0).await,
             HashSet::from([process0.clone()])
         );
 
         assert_eq!(
-            provenance.get_prov(process0.clone()).await,
+            provenance.get_prov(&process0).await,
             HashMap::from([
                 (String::new(), HashSet::from([process0.clone()])),
                 (
@@ -252,7 +250,7 @@ mod tests {
                 ),
                 (
                     "10.0.0.2".to_string(),
-                    HashSet::from([file0.clone(), process0.clone(), process1.clone()])
+                    HashSet::from([file0, process0, process1])
                 )
             ])
         );
@@ -299,7 +297,7 @@ mod tests {
                 .call(ProvenanceRequest::GetLocalReferences(process.clone()))
                 .await
                 .unwrap(),
-            ProvenanceResponse::LocalReferences(HashSet::from([file.clone(), process.clone()]))
+            ProvenanceResponse::LocalReferences(HashSet::from([file, process]))
         );
     }
 }
