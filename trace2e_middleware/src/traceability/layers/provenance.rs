@@ -177,6 +177,88 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn unit_provenance_update_stream_idempotent() {
+        let mut provenance = ProvenanceService::default();
+        let process0 = Resource::new_process(0);
+        let process1 = Resource::new_process(1);
+
+        let stream =
+            Resource::new_stream("127.0.0.1:8080".to_string(), "127.0.0.1:8081".to_string());
+
+        provenance.update(process0.clone(), stream.clone()).await;
+        provenance.update(stream.clone(), process1.clone()).await;
+
+        assert_eq!(
+            provenance.get_local_references(process1.clone()).await,
+            HashSet::from([process0.clone(), process1.clone()]) // Streams have no impact on provenance
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_provenance_update_multiple_nodes() {
+        let mut provenance = ProvenanceService::default();
+        let process0 = Resource::new_process(0);
+        let process1 = Resource::new_process(1);
+        let file0 = Resource::new_file("/tmp/test0".to_string());
+
+        provenance
+            .update_raw(
+                HashMap::from([
+                    ("10.0.0.1".to_string(), HashSet::from([process0.clone()])),
+                    ("10.0.0.2".to_string(), HashSet::from([process0.clone()])),
+                ]),
+                process0.clone(),
+            )
+            .await;
+        provenance
+            .update_raw(
+                HashMap::from([
+                    ("10.0.0.1".to_string(), HashSet::from([process1.clone()])),
+                    (
+                        "10.0.0.2".to_string(),
+                        HashSet::from([file0.clone(), process1.clone()]),
+                    ),
+                ]),
+                process0.clone(),
+            )
+            .await;
+
+        assert_eq!(
+            provenance.get_remote_references(process0.clone()).await,
+            HashMap::from([
+                (
+                    "10.0.0.1".to_string(),
+                    HashSet::from([process0.clone(), process1.clone()])
+                ),
+                (
+                    "10.0.0.2".to_string(),
+                    HashSet::from([file0.clone(), process0.clone(), process1.clone()])
+                )
+            ])
+        );
+
+        assert_eq!(
+            provenance.get_local_references(process0.clone()).await,
+            HashSet::from([process0.clone()])
+        );
+
+        assert_eq!(
+            provenance.get_prov(process0.clone()).await,
+            HashMap::from([
+                (String::new(), HashSet::from([process0.clone()])),
+                (
+                    "10.0.0.1".to_string(),
+                    HashSet::from([process0.clone(), process1.clone()])
+                ),
+                (
+                    "10.0.0.2".to_string(),
+                    HashSet::from([file0.clone(), process0.clone(), process1.clone()])
+                )
+            ])
+        );
+    }
+
+    #[tokio::test]
     async fn unit_provenance_service_flow_simple() {
         let mut provenance = ProvenanceService::default();
         let process = Resource::new_process(0);
