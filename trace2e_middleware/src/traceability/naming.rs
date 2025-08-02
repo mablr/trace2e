@@ -82,15 +82,3 @@ impl Resource {
         matches!(self, Resource::Process(_))
     }
 }
-
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
-pub struct Identifier {
-    pub node: String,
-    pub resource: Resource,
-}
-
-impl Identifier {
-    pub fn new(node: String, resource: Resource) -> Self {
-        Self { node, resource }
-    }
-}
