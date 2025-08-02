@@ -75,15 +75,16 @@ where
     }
 
     fn call(&mut self, request: P2mRequest) -> Self::Future {
-        let this = self.clone();
-        let mut sequencer = std::mem::replace(&mut self.sequencer, this.sequencer.clone());
-        let mut provenance = std::mem::replace(&mut self.provenance, this.provenance.clone());
-        let mut compliance = std::mem::replace(&mut self.compliance, this.compliance.clone());
-        let mut m2m = std::mem::replace(&mut self.m2m, this.m2m.clone());
+        let resource_map = self.resource_map.clone();
+        let flow_map = self.flow_map.clone();
+        let mut sequencer = self.sequencer.clone();
+        let mut provenance = self.provenance.clone();
+        let mut compliance = self.compliance.clone();
+        let mut m2m = self.m2m.clone();
         Box::pin(async move {
             match request {
                 P2mRequest::LocalEnroll { pid, fd, path } => {
-                    this.resource_map.lock().await.insert(
+                    resource_map.lock().await.insert(
                         (pid, fd),
                         (Resource::new_process(pid), Resource::new_file(path)),
                     );
@@ -95,7 +96,7 @@ where
                     local_socket,
                     peer_socket,
                 } => {
-                    this.resource_map.lock().await.insert(
+                    resource_map.lock().await.insert(
                         (pid, fd),
                         (
                             Resource::new_process(pid),
@@ -105,8 +106,8 @@ where
                     Ok(P2mResponse::Ack)
                 }
                 P2mRequest::IoRequest { pid, fd, output } => {
-                    if let Some((process, fd)) = this.resource_map.lock().await.get(&(pid, fd)) {
-                        let mut flow_map = this.flow_map.lock().await;
+                    if let Some((process, fd)) = resource_map.lock().await.get(&(pid, fd)) {
+                        let mut flow_map = flow_map.lock().await;
                         let flow_id = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
                         {
                             Ok(n) => n.as_nanos(),
@@ -225,7 +226,7 @@ where
                     }
                 }
                 P2mRequest::IoReport { grant_id, .. } => {
-                    let mut flow_map = this.flow_map.lock().await;
+                    let mut flow_map = flow_map.lock().await;
                     if let Some((process, fd, output)) = flow_map.remove(&grant_id) {
                         let (source, destination) =
                             if output { (process, fd) } else { (fd, process) };

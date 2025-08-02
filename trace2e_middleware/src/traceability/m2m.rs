@@ -52,10 +52,9 @@ where
     }
 
     fn call(&mut self, request: M2mRequest) -> Self::Future {
-        let this = self.clone();
-        let mut sequencer = std::mem::replace(&mut self.sequencer, this.sequencer.clone());
-        let mut provenance = std::mem::replace(&mut self.provenance, this.provenance.clone());
-        let mut compliance = std::mem::replace(&mut self.compliance, this.compliance.clone());
+        let mut sequencer = self.sequencer.clone();
+        let mut provenance = self.provenance.clone();
+        let mut compliance = self.compliance.clone();
         Box::pin(async move {
             match request {
                 M2mRequest::GetConsistentCompliance {
