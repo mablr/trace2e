@@ -154,8 +154,6 @@ where
                                     return Err(TraceabilityError::InternalTrace2eError);
                                 };
 
-                                // For the moment, this will only retrieve the source policies available locally
-                                // TODO: Implement remote policies retrieval via m2m
                                 let local_source_policies = match provenance
                                     .call(ProvenanceRequest::GetLocalReferences(source.clone()))
                                     .await?
@@ -181,15 +179,30 @@ where
                                     .await?
                                 {
                                     ProvenanceResponse::RemoteReferences(aggregated_resources) => {
-                                        let mut remote_source_policies = HashMap::new();
+                                        // Collect all futures without awaiting them
+                                        let mut tasks = Vec::new();
                                         for (node_id, resources) in aggregated_resources {
-                                            match m2m
-                                                .call(M2mRequest::GetLooseCompliance {
-                                                    authority_ip: node_id.clone(),
-                                                    resources,
-                                                })
-                                                .await?
-                                            {
+                                            let mut m2m_clone = m2m.clone();
+                                            let node_id_clone = node_id.clone();
+                                            let task = tokio::spawn(async move {
+                                                let result = m2m_clone
+                                                    .call(M2mRequest::GetLooseCompliance {
+                                                        authority_ip: node_id_clone.clone(),
+                                                        resources,
+                                                    })
+                                                    .await;
+                                                (node_id_clone, result)
+                                            });
+                                            tasks.push(task);
+                                        }
+
+                                        // Await all requests concurrently
+                                        let mut remote_source_policies = HashMap::new();
+                                        for task in tasks {
+                                            let (node_id, result) = task.await.map_err(|_| {
+                                                TraceabilityError::InternalTrace2eError
+                                            })?;
+                                            match result? {
                                                 M2mResponse::Compliance(policies) => {
                                                     remote_source_policies
                                                         .insert(node_id, policies);
