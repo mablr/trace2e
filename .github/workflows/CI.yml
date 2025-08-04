@@ -23,6 +23,9 @@ jobs:
     - name: Code formatting check
       run: cargo fmt --check
       shell: bash
-    - name: Run unit tests
-      run: cargo test unit
+    - name: Run clippy (trace2e_middleware)
+      run: cargo clippy -p trace2e_middleware
+      shell: bash
+    - name: Run tests
+      run: cargo test
       shell: bash
