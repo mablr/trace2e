@@ -277,7 +277,7 @@ mod tests {
 
     use crate::{
         traceability::{
-            layers::{
+            core::{
                 compliance::ComplianceService, provenance::ProvenanceService,
                 sequencer::SequencerService,
             },

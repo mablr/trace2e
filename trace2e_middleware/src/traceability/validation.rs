@@ -71,7 +71,7 @@ mod tests {
     use crate::{
         traceability::{
             api::P2mResponse,
-            layers::{
+            core::{
                 compliance::ComplianceService, provenance::ProvenanceService,
                 sequencer::SequencerService,
             },

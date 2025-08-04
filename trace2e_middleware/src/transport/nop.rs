@@ -3,8 +3,8 @@ use tower::Service;
 
 use crate::traceability::{
     api::{M2mRequest, M2mResponse},
+    core::compliance::Policy,
     error::TraceabilityError,
-    layers::compliance::Policy,
 };
 
 #[derive(Clone, Default)]

@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::traceability::naming::Resource;
 
-use super::layers::compliance::Policy;
+use super::core::compliance::Policy;
 
 #[derive(Debug, Clone)]
 pub enum P2mRequest {
