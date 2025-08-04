@@ -1,8 +1,8 @@
 .PHONY: fmt clippy test pre-commit clean
 
-# Format code using nightly formatter
+# Format code
 fmt:
-	cargo +nightly fmt
+	cargo fmt
 
 # Run clippy on the middleware package
 clippy:
@@ -23,7 +23,7 @@ clean:
 # Help target
 help:
 	@echo "Available targets:"
-	@echo "  fmt        - Format code using nightly formatter"
+	@echo "  fmt        - Format code"
 	@echo "  clippy     - Run clippy on trace2e_middleware package"
 	@echo "  test       - Run all tests"
 	@echo "  pr         - Run all pre-commit checks (fmt + clippy + test)"
