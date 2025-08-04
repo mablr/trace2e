@@ -1,3 +1,8 @@
+#[macro_use]
+mod fixtures;
+
+use fixtures::{FileMapping, StreamMapping};
+
 use std::time::Duration;
 
 use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
@@ -13,42 +18,17 @@ use crate::{
 #[tokio::test]
 async fn integration_init_middleware() {
     let (_, mut p2m_service) = init_middleware(None, M2mNop::default());
-    assert_eq!(
-        p2m_service
-            .call(P2mRequest::RemoteEnroll {
-                pid: 1,
-                fd: 3,
-                local_socket: "127.0.0.1:8080".to_string(),
-                peer_socket: "127.0.0.1:8081".to_string(),
-            })
-            .await
-            .unwrap(),
-        P2mResponse::Ack
-    );
-    let P2mResponse::Grant(flow_id) = p2m_service
-        .call(P2mRequest::IoRequest {
-            pid: 1,
-            fd: 3,
-            output: true,
-        })
-        .await
-        .unwrap()
-    else {
-        panic!("Expected P2mResponse::Grant");
-    };
 
-    assert_eq!(
-        p2m_service
-            .call(P2mRequest::IoReport {
-                pid: 1,
-                fd: 3,
-                grant_id: flow_id,
-                result: true,
-            })
-            .await
-            .unwrap(),
-        P2mResponse::Ack
-    );
+    let file = FileMapping::new(1, 3, "/tmp/test.txt");
+    let stream = StreamMapping::new(1, 4, "127.0.0.1:8080", "127.0.0.1:8081");
+
+    local_enroll!(p2m_service, file);
+    remote_enroll!(p2m_service, stream);
+
+    write!(p2m_service, file);
+    write!(p2m_service, stream);
+    read!(p2m_service, file);
+    read!(p2m_service, stream);
 }
 
 #[tokio::test]
@@ -67,78 +47,12 @@ async fn integration_spawn_loopback_middlewares() {
     let mut p2m_2 = middlewares.pop().unwrap();
     let mut p2m_1 = middlewares.pop().unwrap();
 
-    assert_eq!(
-        p2m_1
-            .call(P2mRequest::RemoteEnroll {
-                pid: 1,
-                fd: 3,
-                local_socket: "10.0.0.1:1337".to_string(),
-                peer_socket: "10.0.0.2:1338".to_string(),
-            })
-            .await
-            .unwrap(),
-        P2mResponse::Ack
-    );
+    let stream1 = StreamMapping::new(1, 3, "10.0.0.1:1337", "10.0.0.2:1338");
+    let stream2 = StreamMapping::new(1, 3, "10.0.0.2:1338", "10.0.0.1:1337");
 
-    assert_eq!(
-        p2m_2
-            .call(P2mRequest::RemoteEnroll {
-                pid: 1,
-                fd: 3,
-                local_socket: "10.0.0.2:1338".to_string(),
-                peer_socket: "10.0.0.1:1337".to_string(),
-            })
-            .await
-            .unwrap(),
-        P2mResponse::Ack
-    );
+    remote_enroll!(p2m_1, stream1);
+    remote_enroll!(p2m_2, stream2);
 
-    let P2mResponse::Grant(flow_id) = p2m_1
-        .call(P2mRequest::IoRequest {
-            pid: 1,
-            fd: 3,
-            output: true,
-        })
-        .await
-        .unwrap()
-    else {
-        panic!("Expected P2mResponse::Grant");
-    };
-
-    assert_eq!(
-        p2m_1
-            .call(P2mRequest::IoReport {
-                pid: 1,
-                fd: 3,
-                grant_id: flow_id,
-                result: true,
-            })
-            .await
-            .unwrap(),
-        P2mResponse::Ack
-    );
-    let P2mResponse::Grant(flow_id) = p2m_2
-        .call(P2mRequest::IoRequest {
-            pid: 1,
-            fd: 3,
-            output: false,
-        })
-        .await
-        .unwrap()
-    else {
-        panic!("Expected P2mResponse::Grant");
-    };
-
-    assert_eq!(
-        p2m_2
-            .call(P2mRequest::IoReport {
-                pid: 1,
-                fd: 3,
-                grant_id: flow_id,
-                result: true,
-            })
-            .await
-            .unwrap(),
-        P2mResponse::Ack
-    );
+    write!(p2m_1, stream1);
+    read!(p2m_2, stream2);
 }
