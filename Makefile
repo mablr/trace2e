@@ -6,7 +6,7 @@ fmt:
 
 # Run clippy on the middleware package
 clippy:
-	cargo clippy -p trace2e_middleware
+	cargo clippy -p trace2e_middleware -- -D warnings
 
 # Run all tests
 test:
