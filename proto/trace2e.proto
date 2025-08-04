@@ -13,7 +13,7 @@ service Trace2eGrpc {
     // Middleware to Middleware operations
     rpc M2MConsistentCompliance(ConsistentCompliance) returns (Compliance);
     rpc M2MLooseCompliance(LooseCompliance) returns (Compliance);
-    rpc M2MProvenanceUpdate(ProvenanceUpdate) returns (Ack);
+    rpc M2MUpdateProvenance(UpdateProvenance) returns (Ack);
 }
 
 // Common Messages
@@ -114,7 +114,7 @@ message References {
     repeated Resource resources = 2;
 }
 
-message ProvenanceUpdate {
+message UpdateProvenance {
     repeated References source_prov = 1;
     Resource destination = 2;
 }

@@ -26,7 +26,7 @@ impl Service<M2mRequest> for M2mNop {
                     M2mResponse::Compliance(HashSet::from([Policy::default()]))
                 }
                 M2mRequest::GetLooseCompliance { .. } => M2mResponse::Compliance(HashSet::new()),
-                M2mRequest::ProvenanceUpdate { .. } => M2mResponse::Ack,
+                M2mRequest::UpdateProvenance { .. } => M2mResponse::Ack,
             })
         })
     }

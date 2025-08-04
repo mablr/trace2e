@@ -243,12 +243,21 @@ where
                     if let Some((process, fd, output)) = flow_map.remove(&grant_id) {
                         let (source, destination) =
                             if output { (process, fd) } else { (fd, process) };
-                        provenance
-                            .call(ProvenanceRequest::UpdateProvenance {
-                                source,
+
+                        if destination.is_stream() {
+                            m2m.call(M2mRequest::UpdateProvenance {
+                                source_prov: HashMap::new(),
                                 destination: destination.clone(),
                             })
                             .await?;
+                        } else {
+                            provenance
+                                .call(ProvenanceRequest::UpdateProvenance {
+                                    source,
+                                    destination: destination.clone(),
+                                })
+                                .await?;
+                        }
                         sequencer
                             .call(SequencerRequest::ReleaseFlow { destination })
                             .await?;

@@ -66,34 +66,36 @@ where
                             source,
                             destination: destination.clone(),
                         })
-                        .await
+                        .await?
                     {
-                        Ok(SequencerResponse::FlowReserved) => {
+                        SequencerResponse::FlowReserved => {
                             match compliance
-                                .call(ComplianceRequest::GetPolicies(HashSet::from([destination])))
-                                .await
+                                .call(ComplianceRequest::GetPolicies(HashSet::from([
+                                    destination.clone()
+                                ])))
+                                .await?
                             {
-                                Ok(ComplianceResponse::Policies(policies)) => {
+                                ComplianceResponse::Policies(policies) => {
                                     Ok(M2mResponse::Compliance(policies))
                                 }
-                                Err(e) => Err(e),
                                 _ => Err(TraceabilityError::InternalTrace2eError),
                             }
                         }
-                        Err(e) => Err(e),
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
                 M2mRequest::GetLooseCompliance { resources, .. } => {
-                    let ComplianceResponse::Policies(policies) = compliance
+                    match compliance
                         .call(ComplianceRequest::GetPolicies(resources))
                         .await?
-                    else {
-                        return Err(TraceabilityError::InternalTrace2eError);
-                    };
-                    Ok(M2mResponse::Compliance(policies))
+                    {
+                        ComplianceResponse::Policies(policies) => {
+                            Ok(M2mResponse::Compliance(policies))
+                        }
+                        _ => Err(TraceabilityError::InternalTrace2eError),
+                    }
                 }
-                M2mRequest::ProvenanceUpdate {
+                M2mRequest::UpdateProvenance {
                     source_prov,
                     destination,
                 } => {
@@ -102,20 +104,18 @@ where
                             source_prov,
                             destination: destination.clone(),
                         })
-                        .await
+                        .await?
                     {
-                        Ok(ProvenanceResponse::ProvenanceUpdated)
-                        | Ok(ProvenanceResponse::ProvenanceNotUpdated) => {
+                        ProvenanceResponse::ProvenanceUpdated
+                        | ProvenanceResponse::ProvenanceNotUpdated => {
                             match sequencer
                                 .call(SequencerRequest::ReleaseFlow { destination })
-                                .await
+                                .await?
                             {
-                                Ok(SequencerResponse::FlowReleased { .. }) => Ok(M2mResponse::Ack),
-                                Err(e) => Err(e),
+                                SequencerResponse::FlowReleased { .. } => Ok(M2mResponse::Ack),
                                 _ => Err(TraceabilityError::InternalTrace2eError),
                             }
                         }
-                        Err(e) => Err(e),
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }

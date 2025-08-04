@@ -4,26 +4,39 @@ use tower::Service;
 
 use crate::{
     traceability::{
+        M2mApiDefaultStack, P2mApiDefaultStack,
         api::{M2mRequest, M2mResponse},
         error::TraceabilityError,
+        init_middleware,
     },
     transport::eval_remote_ip,
 };
 
-#[derive(Clone, Default)]
-pub struct M2mLoopback<M> {
-    middlewares: Arc<Mutex<HashMap<String, M>>>,
+pub async fn spawn_loopback_middlewares(ips: Vec<String>) -> Vec<P2mApiDefaultStack<M2mLoopback>> {
+    let m2m_loopback = M2mLoopback::default();
+    let mut middlewares = Vec::new();
+    for ip in ips {
+        let (m2m, p2m) = init_middleware(None, m2m_loopback.clone());
+        m2m_loopback.register_middleware(ip.clone(), m2m).await;
+        middlewares.push(p2m);
+    }
+    middlewares
 }
 
-impl<M> M2mLoopback<M>
-where
-    M: Clone,
-{
-    pub async fn register_middleware(&self, ip: String, middleware: M) {
+#[derive(Clone, Default)]
+pub struct M2mLoopback {
+    middlewares: Arc<Mutex<HashMap<String, M2mApiDefaultStack>>>,
+}
+
+impl M2mLoopback {
+    pub async fn register_middleware(&self, ip: String, middleware: M2mApiDefaultStack) {
         self.middlewares.lock().await.insert(ip, middleware);
     }
 
-    pub async fn get_middleware(&self, ip: String) -> Result<M, TraceabilityError> {
+    pub async fn get_middleware(
+        &self,
+        ip: String,
+    ) -> Result<M2mApiDefaultStack, TraceabilityError> {
         self.middlewares
             .lock()
             .await
@@ -33,14 +46,7 @@ where
     }
 }
 
-impl<M> Service<M2mRequest> for M2mLoopback<M>
-where
-    M: Service<M2mRequest, Response = M2mResponse, Error = TraceabilityError>
-        + Clone
-        + Send
-        + 'static,
-    M::Future: Send,
-{
+impl Service<M2mRequest> for M2mLoopback {
     type Response = M2mResponse;
     type Error = TraceabilityError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;

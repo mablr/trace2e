@@ -46,7 +46,7 @@ pub enum M2mRequest {
         authority_ip: String,
         resources: HashSet<Resource>,
     },
-    ProvenanceUpdate {
+    UpdateProvenance {
         source_prov: HashMap<String, HashSet<Resource>>,
         destination: Resource,
     },

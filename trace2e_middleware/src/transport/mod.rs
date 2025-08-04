@@ -13,7 +13,7 @@ pub mod nop;
 fn eval_remote_ip(req: M2mRequest) -> Result<String, TraceabilityError> {
     if let Some(peer_socket) = match req {
         M2mRequest::GetConsistentCompliance { destination, .. }
-        | M2mRequest::ProvenanceUpdate { destination, .. } => match destination {
+        | M2mRequest::UpdateProvenance { destination, .. } => match destination {
             Resource::Fd(Fd::Stream(stream)) => Some(stream.peer_socket),
             _ => None,
         },

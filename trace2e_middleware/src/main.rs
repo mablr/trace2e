@@ -1,19 +1,10 @@
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
-use tower::{ServiceBuilder, layer::layer_fn};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{EnvFilter, fmt};
 
 use trace2e_middleware::{
-    traceability::{
-        layers::{
-            compliance::ComplianceService,
-            provenance::ProvenanceService,
-            sequencer::{SequencerService, WaitingQueueService},
-        },
-        m2m::M2mApiService,
-        p2m::P2mApiService,
-    },
+    traceability::init_middleware,
     transport::grpc::{
         DEFAULT_GRPC_PORT, M2mGrpc, Trace2eRouter,
         proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_grpc_server::Trace2eGrpcServer},
@@ -33,14 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(fmt_layer)
         .init();
 
-    let sequencer = ServiceBuilder::new()
-        .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
-        .service(SequencerService::default());
-    let provenance = ProvenanceService::default();
-    let compliance = ComplianceService::default();
-
-    let m2m_service = M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
-    let p2m_service = P2mApiService::new(sequencer, provenance, compliance, M2mGrpc::default());
+    let (m2m_service, p2m_service) = init_middleware(None, M2mGrpc::default());
 
     let address = format!("[::]:{DEFAULT_GRPC_PORT}").parse().unwrap();
     let reflection_service = Builder::configure()

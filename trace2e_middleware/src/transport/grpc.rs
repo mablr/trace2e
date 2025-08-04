@@ -138,19 +138,19 @@ impl Service<M2mRequest> for M2mGrpc {
                             .collect(),
                     ))
                 }
-                M2mRequest::ProvenanceUpdate {
+                M2mRequest::UpdateProvenance {
                     source_prov,
                     destination,
                 } => {
                     // Create the protobuf request
-                    let proto_req = proto::ProvenanceUpdate {
+                    let proto_req = proto::UpdateProvenance {
                         source_prov: source_prov.into_iter().map(|s| s.into()).collect(),
                         destination: Some(destination.into()),
                     };
 
                     // Make the gRPC call
                     client
-                        .m2m_provenance_update(Request::new(proto_req))
+                        .m2m_update_provenance(Request::new(proto_req))
                         .await
                         .map_err(|_| {
                             TraceabilityError::TransportFailedToContactRemote(remote_ip)
@@ -294,9 +294,9 @@ where
         }
     }
 
-    async fn m2m_provenance_update(
+    async fn m2m_update_provenance(
         &self,
-        request: Request<proto::ProvenanceUpdate>,
+        request: Request<proto::UpdateProvenance>,
     ) -> Result<Response<proto::Ack>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
@@ -336,9 +336,9 @@ impl From<proto::References> for (String, HashSet<Resource>) {
     }
 }
 
-impl From<proto::ProvenanceUpdate> for M2mRequest {
-    fn from(req: proto::ProvenanceUpdate) -> Self {
-        M2mRequest::ProvenanceUpdate {
+impl From<proto::UpdateProvenance> for M2mRequest {
+    fn from(req: proto::UpdateProvenance) -> Self {
+        M2mRequest::UpdateProvenance {
             source_prov: req.source_prov.into_iter().map(|s| s.into()).collect(),
             destination: req.destination.map(|d| d.into()).unwrap_or_default(),
         }

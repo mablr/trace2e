@@ -13,5 +13,8 @@
 //!
 //! [`tonic`]: https://docs.rs/tonic
 
+#[cfg(test)]
+pub mod tests;
+
 pub mod traceability;
 pub mod transport;
