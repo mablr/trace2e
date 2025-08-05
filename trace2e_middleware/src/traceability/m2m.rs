@@ -70,9 +70,7 @@ where
                     {
                         SequencerResponse::FlowReserved => {
                             match compliance
-                                .call(ComplianceRequest::GetPolicies(HashSet::from([
-                                    destination
-                                ])))
+                                .call(ComplianceRequest::GetPolicies(HashSet::from([destination])))
                                 .await?
                             {
                                 ComplianceResponse::Policies(policies) => {
