@@ -71,7 +71,7 @@ where
                         SequencerResponse::FlowReserved => {
                             match compliance
                                 .call(ComplianceRequest::GetPolicies(HashSet::from([
-                                    destination.clone()
+                                    destination
                                 ])))
                                 .await?
                             {

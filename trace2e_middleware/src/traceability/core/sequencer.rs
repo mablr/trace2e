@@ -168,8 +168,7 @@ where
     }
 
     fn call(&mut self, req: SequencerRequest) -> Self::Future {
-        let inner_clone = self.inner.clone();
-        let mut inner = std::mem::replace(&mut self.inner, inner_clone);
+        let mut inner = self.inner.clone();
         let max_tries = self.max_retries + 1;
         let this = self.clone();
         Box::pin(async move {
