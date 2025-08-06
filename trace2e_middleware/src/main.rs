@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(fmt_layer)
         .init();
 
-    let (m2m_service, p2m_service) = init_middleware(None, M2mGrpc::default());
+    let (m2m_service, p2m_service, _) = init_middleware(None, M2mGrpc::default());
 
     let address = format!("[::]:{DEFAULT_GRPC_PORT}").parse().unwrap();
     let reflection_service = Builder::configure()

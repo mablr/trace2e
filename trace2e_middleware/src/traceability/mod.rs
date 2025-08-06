@@ -4,6 +4,7 @@ pub mod core;
 pub mod error;
 pub mod m2m;
 pub mod naming;
+pub mod o2m;
 pub mod p2m;
 pub mod validation;
 
@@ -20,13 +21,20 @@ pub type P2mApiDefaultStack<M> = p2m::P2mApiService<
     M,
 >;
 
+pub type O2mApiDefaultStack =
+    o2m::O2mApiService<core::provenance::ProvenanceService, core::compliance::ComplianceService>;
+
 /// Helper function to initialize the middleware stack.
 ///
 /// This function initializes the middleware stack with the given max_retries and m2m_client.
 pub fn init_middleware<M>(
     max_retries: Option<u32>,
     m2m_client: M,
-) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>)
+) -> (
+    M2mApiDefaultStack,
+    P2mApiDefaultStack<M>,
+    O2mApiDefaultStack,
+)
 where
     M: tower::Service<
             api::M2mRequest,
@@ -48,8 +56,14 @@ where
     let m2m_service: M2mApiDefaultStack =
         m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
 
-    let p2m_service: P2mApiDefaultStack<M> =
-        p2m::P2mApiService::new(sequencer, provenance, compliance, m2m_client);
+    let p2m_service: P2mApiDefaultStack<M> = p2m::P2mApiService::new(
+        sequencer,
+        provenance.clone(),
+        compliance.clone(),
+        m2m_client,
+    );
 
-    (m2m_service, p2m_service)
+    let o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
+
+    (m2m_service, p2m_service, o2m_service)
 }

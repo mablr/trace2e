@@ -3,13 +3,13 @@ mod fixtures;
 
 use fixtures::{FileMapping, StreamMapping};
 
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 
 use crate::{
     traceability::{
-        api::{P2mRequest, P2mResponse},
+        api::{O2mRequest, O2mResponse, P2mRequest, P2mResponse},
         init_middleware,
     },
     transport::{loopback::spawn_loopback_middlewares, nop::M2mNop},
@@ -17,7 +17,7 @@ use crate::{
 
 #[tokio::test]
 async fn integration_init_middleware() {
-    let (_, mut p2m_service) = init_middleware(None, M2mNop::default());
+    let (_, mut p2m_service, _) = init_middleware(None, M2mNop::default());
 
     let file = FileMapping::new(1, 3, "/tmp/test.txt");
     let stream = StreamMapping::new(1, 4, "127.0.0.1:8080", "127.0.0.1:8081");
@@ -37,15 +37,18 @@ async fn integration_spawn_loopback_middlewares() {
     let mut middlewares = spawn_loopback_middlewares(ips.clone())
         .await
         .into_iter()
-        .map(|p2m| {
-            ServiceBuilder::new()
-                .layer(TimeoutLayer::new(Duration::from_millis(1)))
-                .service(p2m)
+        .map(|(p2m, o2m)| {
+            (
+                ServiceBuilder::new()
+                    .layer(TimeoutLayer::new(Duration::from_millis(1)))
+                    .service(p2m),
+                o2m,
+            )
         })
         .collect::<Vec<_>>();
 
-    let mut p2m_2 = middlewares.pop().unwrap();
-    let mut p2m_1 = middlewares.pop().unwrap();
+    let (mut p2m_2, _) = middlewares.pop().unwrap();
+    let (mut p2m_1, _) = middlewares.pop().unwrap();
 
     let stream1 = StreamMapping::new(1, 3, "10.0.0.1:1337", "10.0.0.2:1338");
     let stream2 = StreamMapping::new(1, 3, "10.0.0.2:1338", "10.0.0.1:1337");
@@ -55,4 +58,35 @@ async fn integration_spawn_loopback_middlewares() {
 
     write!(p2m_1, stream1);
     read!(p2m_2, stream2);
+}
+
+#[tokio::test]
+async fn integration_o2m_local_provenance() {
+    let (_, mut p2m_service, mut o2m_service) = init_middleware(None, M2mNop::default());
+
+    let fd1 = FileMapping::new(1, 3, "/tmp/test1.txt");
+    let fd2 = FileMapping::new(1, 4, "/tmp/test2.txt");
+
+    local_enroll!(p2m_service, fd1);
+    local_enroll!(p2m_service, fd2);
+
+    read!(p2m_service, fd1);
+    write!(p2m_service, fd2);
+
+    assert_local_provenance!(o2m_service, fd1.file(), HashSet::from([fd1.file()]));
+    assert_local_provenance!(
+        o2m_service,
+        fd1.process(),
+        HashSet::from([fd1.process(), fd1.file()])
+    );
+    assert_local_provenance!(
+        o2m_service,
+        fd2.process(),
+        HashSet::from([fd1.process(), fd1.file()])
+    );
+    assert_local_provenance!(
+        o2m_service,
+        fd2.file(),
+        HashSet::from([fd2.file(), fd1.process(), fd1.file()])
+    );
 }

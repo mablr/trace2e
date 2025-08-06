@@ -58,6 +58,29 @@ pub enum M2mResponse {
     Ack,
 }
 
+pub enum O2mRequest {
+    /// Get policies for a specific set of resources
+    GetPolicies(HashSet<Resource>),
+    /// Set policy for a specific resource
+    SetPolicy { resource: Resource, policy: Policy },
+    /// Get the complete provenance (lineage) of a resource
+    GetLocalReferences(Resource),
+    /// Get the remote references of a resource
+    GetRemoteReferences(Resource),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum O2mResponse {
+    /// Policies for the requested resources
+    Policies(HashSet<Policy>),
+    /// Policy successfully set
+    Ack,
+    /// Local provenance set for the requested resource
+    LocalReferences(HashSet<Resource>),
+    /// Remote provenance set for the requested resource
+    RemoteReferences(HashMap<String, HashSet<Resource>>),
+}
+
 /// Sequencer-specific API for resource management and flow control
 #[derive(Debug, Clone)]
 pub enum SequencerRequest {
@@ -102,9 +125,9 @@ pub enum ProvenanceRequest {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ProvenanceResponse {
-    /// Complete provenance set for the requested resource
+    /// Local provenance set for the requested resource
     LocalReferences(HashSet<Resource>),
-    /// Complete provenance set for the requested resource
+    /// Remote provenance set for the requested resource
     RemoteReferences(HashMap<String, HashSet<Resource>>),
     /// Provenance successfully updated
     ProvenanceUpdated,

@@ -4,7 +4,7 @@ use tower::Service;
 
 use crate::{
     traceability::{
-        M2mApiDefaultStack, P2mApiDefaultStack,
+        M2mApiDefaultStack, O2mApiDefaultStack, P2mApiDefaultStack,
         api::{M2mRequest, M2mResponse},
         error::TraceabilityError,
         init_middleware,
@@ -12,13 +12,15 @@ use crate::{
     transport::eval_remote_ip,
 };
 
-pub async fn spawn_loopback_middlewares(ips: Vec<String>) -> Vec<P2mApiDefaultStack<M2mLoopback>> {
+pub async fn spawn_loopback_middlewares(
+    ips: Vec<String>,
+) -> Vec<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
     let m2m_loopback = M2mLoopback::default();
     let mut middlewares = Vec::new();
     for ip in ips {
-        let (m2m, p2m) = init_middleware(None, m2m_loopback.clone());
+        let (m2m, p2m, o2m) = init_middleware(None, m2m_loopback.clone());
         m2m_loopback.register_middleware(ip.clone(), m2m).await;
-        middlewares.push(p2m);
+        middlewares.push((p2m, o2m));
     }
     middlewares
 }
