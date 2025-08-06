@@ -3,7 +3,10 @@ mod fixtures;
 
 use fixtures::{FileMapping, StreamMapping};
 
-use std::{collections::HashSet, time::Duration};
+use std::{
+    collections::{HashSet, VecDeque},
+    time::Duration,
+};
 
 use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 
@@ -45,10 +48,10 @@ async fn integration_spawn_loopback_middlewares() {
                 o2m,
             )
         })
-        .collect::<Vec<_>>();
+        .collect::<VecDeque<_>>();
 
-    let (mut p2m_2, _) = middlewares.pop().unwrap();
-    let (mut p2m_1, _) = middlewares.pop().unwrap();
+    let (mut p2m_1, _) = middlewares.pop_front().unwrap();
+    let (mut p2m_2, _) = middlewares.pop_front().unwrap();
 
     let stream1 = StreamMapping::new(1, 3, "10.0.0.1:1337", "10.0.0.2:1338");
     let stream2 = StreamMapping::new(1, 3, "10.0.0.2:1338", "10.0.0.1:1337");

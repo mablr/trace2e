@@ -1,4 +1,9 @@
-use std::{collections::HashMap, pin::Pin, sync::Arc, task::Poll};
+use std::{
+    collections::{HashMap, VecDeque},
+    pin::Pin,
+    sync::Arc,
+    task::Poll,
+};
 use tokio::sync::Mutex;
 use tower::Service;
 
@@ -14,13 +19,13 @@ use crate::{
 
 pub async fn spawn_loopback_middlewares(
     ips: Vec<String>,
-) -> Vec<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
+) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
     let m2m_loopback = M2mLoopback::default();
-    let mut middlewares = Vec::new();
+    let mut middlewares = VecDeque::new();
     for ip in ips {
         let (m2m, p2m, o2m) = init_middleware(None, m2m_loopback.clone());
         m2m_loopback.register_middleware(ip.clone(), m2m).await;
-        middlewares.push((p2m, o2m));
+        middlewares.push_back((p2m, o2m));
     }
     middlewares
 }
