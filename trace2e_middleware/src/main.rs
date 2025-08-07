@@ -1,7 +1,5 @@
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::{EnvFilter, fmt};
 
 use trace2e_middleware::{
     traceability::init_middleware,
@@ -14,15 +12,8 @@ use trace2e_middleware::{
 #[cfg(not(tarpaulin_include))]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let fmt_layer = fmt::layer().with_target(false);
-    let filter_layer = EnvFilter::try_from_default_env()
-        .or_else(|_| EnvFilter::try_new("off"))
-        .unwrap();
-
-    tracing_subscriber::registry()
-        .with(filter_layer)
-        .with(fmt_layer)
-        .init();
+    #[cfg(feature = "trace2e_tracing")]
+    trace2e_middleware::trace2e_tracing::init();
 
     let (m2m_service, p2m_service, _) = init_middleware(None, M2mGrpc::default());
 

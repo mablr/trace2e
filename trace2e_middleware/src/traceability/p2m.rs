@@ -16,6 +16,8 @@ use std::{
 };
 use tokio::sync::Mutex;
 use tower::Service;
+#[cfg(feature = "trace2e_tracing")]
+use tracing::info;
 
 type ResourceMap = HashMap<(i32, i32), (Resource, Resource)>;
 type FlowMap = HashMap<u128, (Resource, Resource, bool)>;
@@ -84,6 +86,11 @@ where
         Box::pin(async move {
             match request {
                 P2mRequest::LocalEnroll { pid, fd, path } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[p2m] LocalEnroll: pid: {}, fd: {}, path: {}",
+                        pid, fd, path
+                    );
                     resource_map.lock().await.insert(
                         (pid, fd),
                         (Resource::new_process(pid), Resource::new_file(path)),
@@ -96,6 +103,11 @@ where
                     local_socket,
                     peer_socket,
                 } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[p2m] RemoteEnroll: pid: {}, fd: {}, local_socket: {}, peer_socket: {}",
+                        pid, fd, local_socket, peer_socket
+                    );
                     resource_map.lock().await.insert(
                         (pid, fd),
                         (
@@ -120,6 +132,11 @@ where
                         } else {
                             (fd.clone(), process.clone())
                         };
+                        #[cfg(feature = "trace2e_tracing")]
+                        info!(
+                            "[p2m] IoRequest: source: {:?}, destination: {:?}",
+                            source, destination
+                        );
                         match sequencer
                             .call(SequencerRequest::ReserveFlow {
                                 source: source.clone(),
@@ -243,7 +260,11 @@ where
                     if let Some((process, fd, output)) = flow_map.remove(&grant_id) {
                         let (source, destination) =
                             if output { (process, fd) } else { (fd, process) };
-
+                        #[cfg(feature = "trace2e_tracing")]
+                        info!(
+                            "[p2m] IoReport: source: {:?}, destination: {:?}",
+                            source, destination
+                        );
                         if destination.is_stream() {
                             m2m.call(M2mRequest::UpdateProvenance {
                                 source_prov: HashMap::new(),
@@ -290,6 +311,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_request_response() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut p2m_service = P2mApiService::new(
             SequencerService::default(),
             ProvenanceService::default(),
@@ -372,6 +395,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_validated_resources() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut p2m_service = ServiceBuilder::new()
             .layer(FilterLayer::new(ResourceValidator::default()))
             .service(P2mApiService::new(
@@ -412,6 +437,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_io_invalid_request() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut p2m_service = ServiceBuilder::new()
             .layer(FilterLayer::new(ResourceValidator::default()))
             .service(P2mApiService::new(
@@ -467,6 +494,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_io_invalid_report() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut p2m_service = ServiceBuilder::new()
             .layer(FilterLayer::new(ResourceValidator::default()))
             .service(P2mApiService::new(

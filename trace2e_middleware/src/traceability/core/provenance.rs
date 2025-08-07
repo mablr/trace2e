@@ -1,5 +1,7 @@
 use tokio::sync::Mutex;
 use tower::Service;
+#[cfg(feature = "trace2e_tracing")]
+use tracing::info;
 
 use crate::traceability::{
     api::{ProvenanceRequest, ProvenanceResponse},
@@ -119,10 +121,16 @@ impl Service<ProvenanceRequest> for ProvenanceService {
         let mut this = self.clone();
         Box::pin(async move {
             match request {
-                ProvenanceRequest::GetLocalReferences(resource) => Ok(
-                    ProvenanceResponse::LocalReferences(this.get_local_references(&resource).await),
-                ),
+                ProvenanceRequest::GetLocalReferences(resource) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[provenance] GetLocalReferences: resource: {:?}", resource);
+                    Ok(
+                        ProvenanceResponse::LocalReferences(this.get_local_references(&resource).await),
+                    )
+                }
                 ProvenanceRequest::GetRemoteReferences(resource) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[provenance] GetRemoteReferences: resource: {:?}", resource);
                     Ok(ProvenanceResponse::RemoteReferences(
                         this.get_remote_references(&resource).await,
                     ))
@@ -130,11 +138,19 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                 ProvenanceRequest::UpdateProvenance {
                     source,
                     destination,
-                } => Ok(this.update(&source, &destination).await),
+                } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[provenance] UpdateProvenance: source: {:?}, destination: {:?}", source, destination);
+                    Ok(this.update(&source, &destination).await)
+                }
                 ProvenanceRequest::UpdateProvenanceRaw {
                     source_prov,
                     destination,
-                } => Ok(this.update_raw(source_prov, &destination).await),
+                } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[provenance] UpdateProvenanceRaw: source_prov: {:?}, destination: {:?}", source_prov, destination);
+                    Ok(this.update_raw(source_prov, &destination).await)
+                }
             }
         })
     }
@@ -146,6 +162,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_provenance_update_simple() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
         let process = Resource::new_process(0);
         let file = Resource::new_file("/tmp/test".to_string());
@@ -160,6 +178,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_provenance_update_circular() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
         let process = Resource::new_process(0);
         let file = Resource::new_file("/tmp/test".to_string());
@@ -176,6 +196,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_provenance_update_stream_idempotent() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
         let process0 = Resource::new_process(0);
         let process1 = Resource::new_process(1);
@@ -194,6 +216,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_provenance_update_multiple_nodes() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
         let process0 = Resource::new_process(0);
         let process1 = Resource::new_process(1);
@@ -258,6 +282,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_provenance_service_flow_simple() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
         let process = Resource::new_process(0);
         let file = Resource::new_file("/tmp/test".to_string());

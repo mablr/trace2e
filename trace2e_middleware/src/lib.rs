@@ -18,3 +18,30 @@ pub mod tests;
 
 pub mod traceability;
 pub mod transport;
+
+
+#[cfg(feature = "trace2e_tracing")]
+pub mod trace2e_tracing {
+    use std::sync::Once;
+    use tracing_subscriber::{fmt, EnvFilter};
+
+    static INIT: Once = Once::new();
+
+    /// Initialize tracing for tests
+    /// This sets up a tracing subscriber that will display logs during test execution.
+    /// Call this at the beginning of tests that need to see tracing output.
+    pub fn init() {
+        INIT.call_once(|| {
+            let filter = EnvFilter::try_from_default_env()
+                .or_else(|_| EnvFilter::try_new("off"))
+                .unwrap();
+
+            fmt()
+                .with_target(false)
+                .with_test_writer()
+                .with_env_filter(filter)
+                .init();
+        });
+    }
+
+}

@@ -8,6 +8,8 @@ use std::{
 
 use tokio::sync::Mutex;
 use tower::Service;
+#[cfg(feature = "trace2e_tracing")]
+use tracing::info;
 
 use crate::traceability::{
     api::{ComplianceRequest, ComplianceResponse},
@@ -105,6 +107,8 @@ impl Service<ComplianceRequest> for ComplianceService {
                     remote_source_policies,
                     destination_policy,
                 } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[compliance] CheckCompliance: local_source_policies: {:?}, remote_source_policies: {:?}, destination_policy: {:?}", local_source_policies, remote_source_policies, destination_policy);
                     if this
                         .compliance_check(
                             local_source_policies,
@@ -119,10 +123,14 @@ impl Service<ComplianceRequest> for ComplianceService {
                     }
                 }
                 ComplianceRequest::GetPolicies(resources) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[compliance] GetPolicies: resources: {:?}", resources);
                     let policies = this.get_policies(resources).await;
                     Ok(ComplianceResponse::Policies(policies))
                 }
                 ComplianceRequest::SetPolicy { resource, policy } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[compliance] SetPolicy: resource: {:?}, policy: {:?}", resource, policy);
                     this.set_policy(resource, policy).await;
                     Ok(ComplianceResponse::PolicyUpdated)
                 }
@@ -139,6 +147,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_set_policy_basic() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
         let process = Resource::new_process(0);
 
@@ -169,6 +179,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_check_integrity_pass() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
 
         let source_policy = Policy {
@@ -190,6 +202,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_check_integrity_fail() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
 
         let source_policy = Policy {
@@ -211,6 +225,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_check_confidentiality_pass() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
 
         let source_policy = Policy {
@@ -232,6 +248,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_check_confidentiality_fail() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
 
         let source_policy = Policy {
@@ -253,6 +271,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_check_default_policies() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
 
         // Both should use default policies (Public, integrity 0)
@@ -269,6 +289,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_check_mixed_default_explicit() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
 
         let dest_policy = Policy {
@@ -290,6 +312,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_service_request_grant() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut compliance = ComplianceService::default();
 
         let source_policy = Policy {
@@ -316,6 +340,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_service_request_deny() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut compliance = ComplianceService::default();
 
         let source_policy = Policy {
@@ -342,6 +368,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_service_complex_policy_scenario() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut compliance = ComplianceService::default();
 
         let high_policy = Policy {
@@ -398,6 +426,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_get_policies_empty() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
         let process = Resource::new_process(0);
         let file = Resource::new_file("/tmp/test".to_string());
@@ -412,6 +442,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_get_policies_single_resource() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
         let process = Resource::new_process(0);
 
@@ -430,6 +462,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_get_policies_multiple_resources() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
         let process = Resource::new_process(0);
         let file = Resource::new_file("/tmp/test".to_string());
@@ -461,6 +495,8 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_get_policies_mixed_existing_default() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
         let process = Resource::new_process(0);
         let file = Resource::new_file("/tmp/test".to_string());
@@ -485,12 +521,16 @@ mod tests {
 
     #[tokio::test]
     async fn unit_compliance_get_policies_empty_request() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
         assert_eq!(compliance.get_policies(HashSet::new()).await.len(), 0);
     }
 
     #[tokio::test]
     async fn unit_compliance_get_policies_after_update() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
         let process = Resource::new_process(0);
 

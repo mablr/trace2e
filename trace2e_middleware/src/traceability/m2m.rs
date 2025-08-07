@@ -7,6 +7,8 @@ use crate::traceability::{
 };
 use std::{collections::HashSet, future::Future, pin::Pin, task::Poll};
 use tower::Service;
+#[cfg(feature = "trace2e_tracing")]
+use tracing::info;
 
 #[derive(Debug, Clone)]
 pub struct M2mApiService<S, P, C> {
@@ -61,6 +63,8 @@ where
                     source,
                     destination,
                 } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[m2m] GetConsistentCompliance: source: {:?}, destination: {:?}", source, destination);
                     match sequencer
                         .call(SequencerRequest::ReserveFlow {
                             source,
@@ -83,6 +87,8 @@ where
                     }
                 }
                 M2mRequest::GetLooseCompliance { resources, .. } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[m2m] GetLooseCompliance: resources: {:?}", resources);
                     match compliance
                         .call(ComplianceRequest::GetPolicies(resources))
                         .await?
@@ -97,6 +103,8 @@ where
                     source_prov,
                     destination,
                 } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[m2m] UpdateProvenance: source_prov: {:?}, destination: {:?}", source_prov, destination);
                     match provenance
                         .call(ProvenanceRequest::UpdateProvenanceRaw {
                             source_prov,
