@@ -9,8 +9,13 @@ clippy:
 	cargo clippy -p trace2e_middleware -- -D warnings
 
 # Run all tests
-test:
-	cargo test
+test: test-middleware test-lib
+
+test-middleware:
+	cargo test -p trace2e_middleware
+
+test-lib:
+	./test-lib.sh
 
 # Run all pre-commit checks
 pr: fmt clippy test
@@ -23,9 +28,11 @@ clean:
 # Help target
 help:
 	@echo "Available targets:"
-	@echo "  fmt        - Format code"
-	@echo "  clippy     - Run clippy on trace2e_middleware package"
-	@echo "  test       - Run all tests"
-	@echo "  pr         - Run all pre-commit checks (fmt + clippy + test)"
-	@echo "  clean      - Clean build artifacts"
+	@echo "  fmt             - Format code"
+	@echo "  clippy          - Run clippy on trace2e_middleware package"
+	@echo "  test            - Run all tests (middleware + custom lib)"
+	@echo "  test-middleware - Run middleware tests"
+	@echo "  test-lib        - Run custom lib tests"
+	@echo "  pr              - Run all pre-commit checks (fmt + clippy + test)"
+	@echo "  clean           - Clean build artifacts"
 	@echo "  help       - Show this help message"
