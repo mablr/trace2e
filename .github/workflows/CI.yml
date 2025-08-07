@@ -26,6 +26,9 @@ jobs:
     - name: Run clippy (trace2e_middleware)
       run: cargo clippy -p trace2e_middleware
       shell: bash
-    - name: Run tests
-      run: cargo test
+    - name: Run middleware tests
+      run: cargo test -p trace2e_middleware
+      shell: bash
+    - name: Run custom lib tests
+      run: cargo run --release -p trace2e_middleware & ; TRACE2E_PID=$! ; cargo test -p stde2e; kill ${TRACE2E_PID}
       shell: bash

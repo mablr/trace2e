@@ -6,7 +6,10 @@ mod proto {
 mod grpc {
     use super::*;
     use once_cell::sync::Lazy;
-    use tokio::{runtime::Handle, task};
+    use tokio::{
+        runtime::Handle,
+        task::{self, block_in_place},
+    };
     use tonic::transport::Channel;
 
     static TOKIO_RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
@@ -17,7 +20,7 @@ mod grpc {
     });
 
     // The URL for the gRPC service
-    const GRPC_URL: &str = "http://[::1]:8080";
+    const GRPC_URL: &str = "http://[::1]:50051";
 
     static GRPC_CLIENT: Lazy<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> =
         Lazy::new(|| {
@@ -39,7 +42,7 @@ mod grpc {
 
             RUNTIME_CLIENT.with(|cell| {
                 cell.get_or_init(|| {
-                    task::block_in_place(|| {
+                    block_in_place(|| {
                         Handle::current()
                             .block_on(proto::trace2e_grpc_client::Trace2eGrpcClient::connect(
                                 GRPC_URL,
@@ -86,7 +89,7 @@ mod grpc {
         });
 
         if let Ok(handle) = Handle::try_current() {
-            task::block_in_place(move || {
+            block_in_place(move || {
                 let mut client = get_client();
                 let _ = handle.block_on(client.p2m_remote_enroll(request));
             });
@@ -136,7 +139,7 @@ mod grpc {
         });
 
         let result = if let Ok(handle) = Handle::try_current() {
-            match task::block_in_place(move || {
+            match block_in_place(move || {
                 let mut client = get_client();
                 handle.block_on(client.p2m_io_report(request))
             }) {
