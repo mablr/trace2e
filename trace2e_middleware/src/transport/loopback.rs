@@ -23,7 +23,7 @@ pub async fn spawn_loopback_middlewares(
     let m2m_loopback = M2mLoopback::default();
     let mut middlewares = VecDeque::new();
     for ip in ips {
-        let (m2m, p2m, o2m) = init_middleware(None, m2m_loopback.clone());
+        let (m2m, p2m, o2m) = init_middleware(ip.clone(), None, m2m_loopback.clone());
         m2m_loopback.register_middleware(ip.clone(), m2m).await;
         middlewares.push_back((p2m, o2m));
     }

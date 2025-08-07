@@ -74,11 +74,22 @@ impl Resource {
         matches!(self, Resource::Fd(Fd::File(_)))
     }
 
-    pub fn is_stream(&self) -> bool {
-        matches!(self, Resource::Fd(Fd::Stream(_)))
+    pub fn is_stream(&self) -> Option<Self> {
+        if let Resource::Fd(Fd::Stream(stream)) = self {
+            Some(Self::new_stream(
+                stream.peer_socket.clone(),
+                stream.local_socket.clone(),
+            ))
+        } else {
+            None
+        }
     }
 
     pub fn is_process(&self) -> bool {
         matches!(self, Resource::Process(_))
     }
+}
+
+pub trait NodeId {
+    fn node_id(&self) -> String;
 }

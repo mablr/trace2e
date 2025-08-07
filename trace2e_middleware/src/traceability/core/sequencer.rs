@@ -103,7 +103,10 @@ impl Service<SequencerRequest> for SequencerService {
                     destination,
                 } => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[sequencer] ReserveFlow: source: {:?}, destination: {:?}", source, destination);
+                    info!(
+                        "[sequencer] ReserveFlow: source: {:?}, destination: {:?}",
+                        source, destination
+                    );
                     this.make_flow(source, destination).await
                 }
                 SequencerRequest::ReleaseFlow { destination } => {

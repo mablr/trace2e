@@ -30,7 +30,7 @@ pub struct Policy {
     pub integrity: u32,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct ComplianceService {
     policies: Arc<Mutex<HashMap<Resource, Policy>>>,
 }
@@ -43,7 +43,7 @@ impl ComplianceService {
         let mut policies_set = HashSet::new();
         for resource in resources {
             // Get the policy from the local policies, streams have no policies
-            if !resource.is_stream() {
+            if resource.is_stream().is_none() {
                 policies_set.insert(policies.get(&resource).cloned().unwrap_or_default());
             }
         }
@@ -61,17 +61,12 @@ impl ComplianceService {
     /// Returns true if the flow is compliant, false otherwise
     async fn compliance_check(
         &self,
-        local_source_policies: HashSet<Policy>,
-        remote_source_policies: HashMap<String, HashSet<Policy>>,
+        source_policies: HashMap<String, HashSet<Policy>>,
         destination_policy: Policy,
     ) -> bool {
         // Merge local and remote source policies, ignoring the node
         // TODO: implement node based policies
-        let mut source_policies = local_source_policies;
-        for (_, node_source_policies) in remote_source_policies {
-            source_policies.extend(node_source_policies);
-        }
-        for source_policy in source_policies {
+        for source_policy in source_policies.values().flatten() {
             // Integrity check: Source integrity must be greater than or equal to destination integrity
             if source_policy.integrity < destination_policy.integrity {
                 return false;
@@ -103,18 +98,16 @@ impl Service<ComplianceRequest> for ComplianceService {
         Box::pin(async move {
             match request {
                 ComplianceRequest::CheckCompliance {
-                    local_source_policies,
-                    remote_source_policies,
+                    source_policies,
                     destination_policy,
                 } => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[compliance] CheckCompliance: local_source_policies: {:?}, remote_source_policies: {:?}, destination_policy: {:?}", local_source_policies, remote_source_policies, destination_policy);
+                    info!(
+                        "[compliance] CheckCompliance: source_policies: {:?}, destination_policy: {:?}",
+                        source_policies, destination_policy
+                    );
                     if this
-                        .compliance_check(
-                            local_source_policies,
-                            remote_source_policies,
-                            destination_policy,
-                        )
+                        .compliance_check(source_policies, destination_policy)
                         .await
                     {
                         Ok(ComplianceResponse::Grant)
@@ -130,7 +123,10 @@ impl Service<ComplianceRequest> for ComplianceService {
                 }
                 ComplianceRequest::SetPolicy { resource, policy } => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[compliance] SetPolicy: resource: {:?}, policy: {:?}", resource, policy);
+                    info!(
+                        "[compliance] SetPolicy: resource: {:?}, policy: {:?}",
+                        resource, policy
+                    );
                     this.set_policy(resource, policy).await;
                     Ok(ComplianceResponse::PolicyUpdated)
                 }
@@ -195,7 +191,10 @@ mod tests {
 
         assert!(
             compliance
-                .compliance_check(HashSet::from([source_policy]), HashMap::new(), dest_policy)
+                .compliance_check(
+                    HashMap::from([(String::new(), HashSet::from([source_policy]))]),
+                    dest_policy
+                )
                 .await
         );
     }
@@ -218,7 +217,10 @@ mod tests {
 
         assert!(
             !compliance
-                .compliance_check(HashSet::from([source_policy]), HashMap::new(), dest_policy)
+                .compliance_check(
+                    HashMap::from([(String::new(), HashSet::from([source_policy]))]),
+                    dest_policy
+                )
                 .await
         );
     }
@@ -241,7 +243,10 @@ mod tests {
 
         assert!(
             compliance
-                .compliance_check(HashSet::from([source_policy]), HashMap::new(), dest_policy)
+                .compliance_check(
+                    HashMap::from([(String::new(), HashSet::from([source_policy]))]),
+                    dest_policy
+                )
                 .await
         );
     }
@@ -264,7 +269,10 @@ mod tests {
 
         assert!(
             !compliance
-                .compliance_check(HashSet::from([source_policy]), HashMap::new(), dest_policy)
+                .compliance_check(
+                    HashMap::from([(String::new(), HashSet::from([source_policy]))]),
+                    dest_policy
+                )
                 .await
         );
     }
@@ -279,8 +287,13 @@ mod tests {
         assert!(
             compliance
                 .compliance_check(
-                    HashSet::from([Policy::default(), Policy::default()]),
-                    HashMap::from([("10.0.0.1".to_string(), HashSet::from([Policy::default()]))]),
+                    HashMap::from([
+                        (
+                            String::new(),
+                            HashSet::from([Policy::default(), Policy::default()])
+                        ),
+                        ("10.0.0.1".to_string(), HashSet::from([Policy::default()]))
+                    ]),
                     Policy::default()
                 )
                 .await
@@ -302,8 +315,10 @@ mod tests {
         assert!(
             !compliance
                 .compliance_check(
-                    HashSet::from([Policy::default()]),
-                    HashMap::from([("10.0.0.1".to_string(), HashSet::from([Policy::default()]))]),
+                    HashMap::from([
+                        (String::new(), HashSet::from([Policy::default()])),
+                        ("10.0.0.1".to_string(), HashSet::from([Policy::default()]))
+                    ]),
                     dest_policy
                 )
                 .await
@@ -327,8 +342,7 @@ mod tests {
         };
 
         let request = ComplianceRequest::CheckCompliance {
-            local_source_policies: HashSet::from([source_policy]),
-            remote_source_policies: HashMap::new(),
+            source_policies: HashMap::from([(String::new(), HashSet::from([source_policy]))]),
             destination_policy: dest_policy,
         };
 
@@ -355,8 +369,7 @@ mod tests {
         };
 
         let request = ComplianceRequest::CheckCompliance {
-            local_source_policies: HashSet::from([source_policy]),
-            remote_source_policies: HashMap::new(),
+            source_policies: HashMap::from([(String::new(), HashSet::from([source_policy]))]),
             destination_policy: dest_policy,
         };
 
@@ -389,11 +402,10 @@ mod tests {
 
         // High -> Medium: Should pass (integrity 10 >= 5, secret -> public is blocked but this is reverse)
         let request1 = ComplianceRequest::CheckCompliance {
-            local_source_policies: HashSet::from([Policy::default()]),
-            remote_source_policies: HashMap::from([(
-                "10.0.0.1".to_string(),
-                HashSet::from([high_policy.clone()]),
-            )]),
+            source_policies: HashMap::from([
+                (String::new(), HashSet::from([Policy::default()])),
+                ("10.0.0.1".to_string(), HashSet::from([high_policy.clone()])),
+            ]),
             destination_policy: medium_policy.clone(),
         };
         assert_eq!(
@@ -403,8 +415,7 @@ mod tests {
 
         // Medium -> Low: Should pass (integrity 5 >= 1, public -> public)
         let request2 = ComplianceRequest::CheckCompliance {
-            local_source_policies: HashSet::from([medium_policy]),
-            remote_source_policies: HashMap::new(),
+            source_policies: HashMap::from([(String::new(), HashSet::from([medium_policy]))]),
             destination_policy: low_policy.clone(),
         };
         assert_eq!(
@@ -414,8 +425,7 @@ mod tests {
 
         // Low -> High: Should fail (integrity 1 < 10)
         let request3 = ComplianceRequest::CheckCompliance {
-            local_source_policies: HashSet::from([low_policy]),
-            remote_source_policies: HashMap::new(),
+            source_policies: HashMap::from([(String::new(), HashSet::from([low_policy]))]),
             destination_policy: high_policy,
         };
         assert_eq!(

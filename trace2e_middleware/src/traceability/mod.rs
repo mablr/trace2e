@@ -28,6 +28,7 @@ pub type O2mApiDefaultStack =
 ///
 /// This function initializes the middleware stack with the given max_retries and m2m_client.
 pub fn init_middleware<M>(
+    node_id: String,
     max_retries: Option<u32>,
     m2m_client: M,
 ) -> (
@@ -50,7 +51,7 @@ where
             core::sequencer::WaitingQueueService::new(inner, max_retries)
         }))
         .service(core::sequencer::SequencerService::default());
-    let provenance = core::provenance::ProvenanceService::default();
+    let provenance = core::provenance::ProvenanceService::new(node_id);
     let compliance = core::compliance::ComplianceService::default();
 
     let m2m_service: M2mApiDefaultStack =

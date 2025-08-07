@@ -19,11 +19,10 @@ pub mod tests;
 pub mod traceability;
 pub mod transport;
 
-
 #[cfg(feature = "trace2e_tracing")]
 pub mod trace2e_tracing {
     use std::sync::Once;
-    use tracing_subscriber::{fmt, EnvFilter};
+    use tracing_subscriber::{EnvFilter, fmt};
 
     static INIT: Once = Once::new();
 
@@ -43,5 +42,4 @@ pub mod trace2e_tracing {
                 .init();
         });
     }
-
 }

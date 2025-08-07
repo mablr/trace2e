@@ -4,6 +4,7 @@ use crate::traceability::{
         ProvenanceResponse, SequencerRequest, SequencerResponse,
     },
     error::TraceabilityError,
+    naming::NodeId,
 };
 use std::{collections::HashSet, future::Future, pin::Pin, task::Poll};
 use tower::Service;
@@ -37,6 +38,7 @@ where
     P: Service<ProvenanceRequest, Response = ProvenanceResponse, Error = TraceabilityError>
         + Clone
         + Send
+        + NodeId
         + 'static,
     P::Future: Send,
     C: Service<ComplianceRequest, Response = ComplianceResponse, Error = TraceabilityError>
@@ -64,7 +66,12 @@ where
                     destination,
                 } => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[m2m] GetConsistentCompliance: source: {:?}, destination: {:?}", source, destination);
+                    info!(
+                        "[m2m-{}] GetConsistentCompliance: source: {:?}, destination: {:?}",
+                        provenance.node_id(),
+                        source,
+                        destination
+                    );
                     match sequencer
                         .call(SequencerRequest::ReserveFlow {
                             source,
@@ -88,7 +95,11 @@ where
                 }
                 M2mRequest::GetLooseCompliance { resources, .. } => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[m2m] GetLooseCompliance: resources: {:?}", resources);
+                    info!(
+                        "[m2m-{}] GetLooseCompliance: resources: {:?}",
+                        provenance.node_id(),
+                        resources
+                    );
                     match compliance
                         .call(ComplianceRequest::GetPolicies(resources))
                         .await?
@@ -104,7 +115,12 @@ where
                     destination,
                 } => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[m2m] UpdateProvenance: source_prov: {:?}, destination: {:?}", source_prov, destination);
+                    info!(
+                        "[m2m-{}] UpdateProvenance: source_prov: {:?}, destination: {:?}",
+                        provenance.node_id(),
+                        source_prov,
+                        destination
+                    );
                     match provenance
                         .call(ProvenanceRequest::UpdateProvenanceRaw {
                             source_prov,

@@ -15,9 +15,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "trace2e_tracing")]
     trace2e_middleware::trace2e_tracing::init();
 
-    let (m2m_service, p2m_service, _) = init_middleware(None, M2mGrpc::default());
+    let (m2m_service, p2m_service, _) =
+        init_middleware("[::1]".to_string(), None, M2mGrpc::default());
 
-    let address = format!("[::]:{DEFAULT_GRPC_PORT}").parse().unwrap();
+    let address = format!("[::1]:{DEFAULT_GRPC_PORT}").parse().unwrap();
     let reflection_service = Builder::configure()
         .register_encoded_file_descriptor_set(MIDDLEWARE_DESCRIPTOR_SET)
         .build_v1()?;

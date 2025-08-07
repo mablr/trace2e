@@ -64,9 +64,7 @@ pub enum O2mRequest {
     /// Set policy for a specific resource
     SetPolicy { resource: Resource, policy: Policy },
     /// Get the complete provenance (lineage) of a resource
-    GetLocalReferences(Resource),
-    /// Get the remote references of a resource
-    GetRemoteReferences(Resource),
+    GetReferences(Resource),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -75,10 +73,8 @@ pub enum O2mResponse {
     Policies(HashSet<Policy>),
     /// Policy successfully set
     Ack,
-    /// Local provenance set for the requested resource
-    LocalReferences(HashSet<Resource>),
-    /// Remote provenance set for the requested resource
-    RemoteReferences(HashMap<String, HashSet<Resource>>),
+    /// Provenance set for the requested resource
+    References(HashMap<String, HashSet<Resource>>),
 }
 
 /// Sequencer-specific API for resource management and flow control
@@ -107,10 +103,8 @@ pub enum SequencerResponse {
 /// Provenance-specific API for lineage tracking and data provenance
 #[derive(Debug, Clone)]
 pub enum ProvenanceRequest {
-    /// Get the complete provenance (lineage) of a resource
-    GetLocalReferences(Resource),
-    /// Get the remote references of a resource
-    GetRemoteReferences(Resource),
+    /// Get the references of a resource
+    GetReferences(Resource),
     /// Update provenance when data flows from source to destination
     UpdateProvenance {
         source: Resource,
@@ -125,10 +119,11 @@ pub enum ProvenanceRequest {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ProvenanceResponse {
-    /// Local provenance set for the requested resource
-    LocalReferences(HashSet<Resource>),
-    /// Remote provenance set for the requested resource
-    RemoteReferences(HashMap<String, HashSet<Resource>>),
+    /// Provenance set for the requested resource
+    Provenance {
+        authority: String,
+        references: HashMap<String, HashSet<Resource>>,
+    },
     /// Provenance successfully updated
     ProvenanceUpdated,
     /// Provenance not updated as the source is already in the destination provenance
@@ -140,8 +135,7 @@ pub enum ProvenanceResponse {
 pub enum ComplianceRequest {
     /// Check if a flow from source to destination is compliant with policies
     CheckCompliance {
-        local_source_policies: HashSet<Policy>,
-        remote_source_policies: HashMap<String, HashSet<Policy>>,
+        source_policies: HashMap<String, HashSet<Policy>>,
         destination_policy: Policy,
     },
     /// Get policies for a specific set of resources

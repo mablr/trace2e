@@ -70,24 +70,13 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
-                O2mRequest::GetLocalReferences(resource) => {
+                O2mRequest::GetReferences(resource) => {
                     match provenance
-                        .call(ProvenanceRequest::GetLocalReferences(resource))
+                        .call(ProvenanceRequest::GetReferences(resource))
                         .await?
                     {
-                        ProvenanceResponse::LocalReferences(references) => {
-                            Ok(O2mResponse::LocalReferences(references))
-                        }
-                        _ => Err(TraceabilityError::InternalTrace2eError),
-                    }
-                }
-                O2mRequest::GetRemoteReferences(resource) => {
-                    match provenance
-                        .call(ProvenanceRequest::GetRemoteReferences(resource))
-                        .await?
-                    {
-                        ProvenanceResponse::RemoteReferences(references) => {
-                            Ok(O2mResponse::RemoteReferences(references))
+                        ProvenanceResponse::Provenance { references, .. } => {
+                            Ok(O2mResponse::References(references))
                         }
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }

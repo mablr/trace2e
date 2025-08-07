@@ -173,24 +173,13 @@ macro_rules! write {
     };
 }
 
-macro_rules! assert_local_provenance {
+macro_rules! assert_provenance {
     ($o2m:expr, $resource:expr, $provenance:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::GetLocalReferences($resource))
+            $o2m.call(O2mRequest::GetReferences($resource))
                 .await
                 .unwrap(),
-            O2mResponse::LocalReferences($provenance)
-        )
-    };
-}
-
-macro_rules! assert_remote_provenance {
-    ($o2m:expr, $resource:expr, $provenance:expr) => {
-        assert_eq!(
-            $o2m.call(O2mRequest::GetRemoteReferences($resource))
-                .await
-                .unwrap(),
-            O2mResponse::RemoteReferences($provenance)
+            O2mResponse::References($provenance)
         )
     };
 }

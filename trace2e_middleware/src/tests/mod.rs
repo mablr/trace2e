@@ -4,7 +4,7 @@ mod fixtures;
 use fixtures::{FileMapping, StreamMapping};
 
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     time::Duration,
 };
 
@@ -22,7 +22,7 @@ use crate::{
 async fn integration_init_middleware() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
-    let (_, mut p2m_service, _) = init_middleware(None, M2mNop::default());
+    let (_, mut p2m_service, _) = init_middleware("10.0.0.1".to_string(), None, M2mNop::default());
 
     let file = FileMapping::new(1, 3, "/tmp/test.txt");
     let stream = StreamMapping::new(1, 4, "127.0.0.1:8080", "127.0.0.1:8081");
@@ -71,7 +71,8 @@ async fn integration_spawn_loopback_middlewares() {
 async fn integration_o2m_local_provenance() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
-    let (_, mut p2m_service, mut o2m_service) = init_middleware(None, M2mNop::default());
+    let (_, mut p2m_service, mut o2m_service) =
+        init_middleware(String::new(), None, M2mNop::default());
 
     let fd1 = FileMapping::new(1, 3, "/tmp/test1.txt");
     let fd2 = FileMapping::new(1, 4, "/tmp/test2.txt");
@@ -82,20 +83,71 @@ async fn integration_o2m_local_provenance() {
     read!(p2m_service, fd1);
     write!(p2m_service, fd2);
 
-    assert_local_provenance!(o2m_service, fd1.file(), HashSet::from([fd1.file()]));
-    assert_local_provenance!(
+    assert_provenance!(
+        o2m_service,
+        fd1.file(),
+        HashMap::from([(String::new(), HashSet::from([fd1.file()]))])
+    );
+    assert_provenance!(
         o2m_service,
         fd1.process(),
-        HashSet::from([fd1.process(), fd1.file()])
+        HashMap::from([(String::new(), HashSet::from([fd1.process(), fd1.file()]))])
     );
-    assert_local_provenance!(
+    assert_provenance!(
         o2m_service,
         fd2.process(),
-        HashSet::from([fd1.process(), fd1.file()])
+        HashMap::from([(String::new(), HashSet::from([fd1.process(), fd1.file()]))])
     );
-    assert_local_provenance!(
+    assert_provenance!(
         o2m_service,
         fd2.file(),
-        HashSet::from([fd2.file(), fd1.process(), fd1.file()])
+        HashMap::from([(
+            String::new(),
+            HashSet::from([fd2.file(), fd1.process(), fd1.file()])
+        )])
+    );
+}
+
+#[tokio::test]
+async fn integration_o2m_remote_provenance() {
+    #[cfg(feature = "trace2e_tracing")]
+    crate::trace2e_tracing::init();
+    let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
+    let mut middlewares = spawn_loopback_middlewares(ips.clone())
+        .await
+        .into_iter()
+        .map(|(p2m, o2m)| {
+            (
+                ServiceBuilder::new()
+                    .layer(TimeoutLayer::new(Duration::from_millis(1)))
+                    .service(p2m),
+                o2m,
+            )
+        })
+        .collect::<VecDeque<_>>();
+
+    let (mut p2m_1, _) = middlewares.pop_front().unwrap();
+    let (mut p2m_2, mut o2m_2) = middlewares.pop_front().unwrap();
+
+    let stream1 = StreamMapping::new(1, 3, "10.0.0.1:1337", "10.0.0.2:1338");
+    let stream2 = StreamMapping::new(2, 3, "10.0.0.2:1338", "10.0.0.1:1337");
+
+    remote_enroll!(p2m_1, stream1);
+    remote_enroll!(p2m_2, stream2);
+
+    write!(p2m_1, stream1);
+    assert_provenance!(
+        o2m_2,
+        stream2.stream(),
+        HashMap::from([("10.0.0.1".to_string(), HashSet::from([stream1.process()])),])
+    );
+    read!(p2m_2, stream2);
+    assert_provenance!(
+        o2m_2,
+        stream2.process(),
+        HashMap::from([
+            ("10.0.0.1".to_string(), HashSet::from([stream1.process()])),
+            ("10.0.0.2".to_string(), HashSet::from([stream2.process()]))
+        ])
     );
 }
