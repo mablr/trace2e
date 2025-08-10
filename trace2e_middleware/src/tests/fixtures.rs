@@ -185,9 +185,9 @@ macro_rules! assert_provenance {
 }
 
 macro_rules! assert_policies {
-    ($o2m:expr, $mapping:expr, $policies:expr) => {
+    ($o2m:expr, $policy_set:expr, $policies:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::GetPolicies(HashSet::from([$mapping.resource])))
+            $o2m.call(O2mRequest::GetPolicies($policy_set))
                 .await
                 .unwrap(),
             O2mResponse::Policies($policies)
