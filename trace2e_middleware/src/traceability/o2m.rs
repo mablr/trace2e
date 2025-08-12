@@ -1,5 +1,7 @@
 use std::{future::Future, pin::Pin, task::Poll};
 use tower::Service;
+#[cfg(feature = "trace2e_tracing")]
+use tracing::info;
 
 use crate::traceability::{
     api::{
@@ -7,6 +9,7 @@ use crate::traceability::{
         ProvenanceResponse,
     },
     error::TraceabilityError,
+    naming::NodeId,
 };
 
 #[derive(Debug, Clone)]
@@ -29,6 +32,7 @@ where
     P: Service<ProvenanceRequest, Response = ProvenanceResponse, Error = TraceabilityError>
         + Clone
         + Send
+        + NodeId
         + 'static,
     P::Future: Send,
     C: Service<ComplianceRequest, Response = ComplianceResponse, Error = TraceabilityError>
@@ -51,6 +55,12 @@ where
         Box::pin(async move {
             match request {
                 O2mRequest::GetPolicies(resources) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[o2m-{}] GetPolicies: resources: {:?}",
+                        provenance.node_id(),
+                        resources
+                    );
                     match compliance
                         .call(ComplianceRequest::GetPolicies(resources))
                         .await?
@@ -62,6 +72,13 @@ where
                     }
                 }
                 O2mRequest::SetPolicy { resource, policy } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[o2m-{}] SetPolicy: resource: {:?}, policy: {:?}",
+                        provenance.node_id(),
+                        resource,
+                        policy
+                    );
                     match compliance
                         .call(ComplianceRequest::SetPolicy { resource, policy })
                         .await?
@@ -71,6 +88,12 @@ where
                     }
                 }
                 O2mRequest::GetReferences(resource) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[o2m-{}] GetReferences: resource: {:?}",
+                        provenance.node_id(),
+                        resource
+                    );
                     match provenance
                         .call(ProvenanceRequest::GetReferences(resource))
                         .await?
