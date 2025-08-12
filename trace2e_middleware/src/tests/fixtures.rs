@@ -118,10 +118,9 @@ macro_rules! write_request {
                 output: true,
             })
             .await
-            .unwrap()
         {
-            P2mResponse::Grant(flow_id) => flow_id,
-            _ => panic!("Expected P2mResponse::Grant"),
+            Ok(P2mResponse::Grant(flow_id)) => flow_id,
+            _ => u128::MAX, // This means there was a policy violation or an error
         }
     };
 }
@@ -135,16 +134,17 @@ macro_rules! read_request {
                 output: false,
             })
             .await
-            .unwrap()
         {
-            P2mResponse::Grant(flow_id) => flow_id,
-            _ => panic!("Expected P2mResponse::Grant"),
+            Ok(P2mResponse::Grant(flow_id)) => flow_id,
+            _ => u128::MAX, // This means there was a policy violation or an error
         }
     };
 }
 
 macro_rules! io_report {
     ($p2m:expr, $mapping:expr, $flow_id:expr, $result:expr) => {
+        // If flow_id is u128::MAX, it means there was a policy violation or an error, do not report flow_id
+        assert_ne!($flow_id, u128::MAX);
         assert_eq!(
             $p2m.call(P2mRequest::IoReport {
                 pid: $mapping.pid(),
@@ -185,21 +185,21 @@ macro_rules! assert_provenance {
 }
 
 macro_rules! assert_policies {
-    ($o2m:expr, $policy_set:expr, $policies:expr) => {
+    ($o2m:expr, $resource_set:expr, $policy_set:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::GetPolicies($policy_set))
+            $o2m.call(O2mRequest::GetPolicies($resource_set))
                 .await
                 .unwrap(),
-            O2mResponse::Policies($policies)
+            O2mResponse::Policies($policy_set)
         )
     };
 }
 
 macro_rules! set_policy {
-    ($o2m:expr, $mapping:expr, $policy:expr) => {
+    ($o2m:expr, $resource:expr, $policy:expr) => {
         assert_eq!(
             $o2m.call(O2mRequest::SetPolicy {
-                resource: $mapping.resource,
+                resource: $resource,
                 policy: $policy
             })
             .await

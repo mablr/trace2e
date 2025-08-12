@@ -13,6 +13,7 @@ use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 use crate::{
     traceability::{
         api::{O2mRequest, O2mResponse, P2mRequest, P2mResponse},
+        core::compliance::{ConfidentialityPolicy, Policy},
         init_middleware,
     },
     transport::{loopback::spawn_loopback_middlewares, nop::M2mNop},
@@ -280,4 +281,104 @@ async fn integration_o2m_remote_provenance_complex() {
             HashSet::from([fd1_1_1.file(), fd1_1_2.file(), fd1_1_1.process()])
         ),])
     );
+}
+
+#[tokio::test]
+async fn integration_o2m_remote_confidentiality_enforcement() {
+    // flowchart LR
+    //     s1337on1["socket1337 on Node1"] --- s1338on2["socket1338 on Node2"]
+    //     s1339on2["socket1339 on Node2"] --- s1340on3["socket1340 on Node3"]
+    //     F1_1_1["File1 opened by Process1@Node1"] -- 1 --> P1on1["Process1 on Node1"]
+    //     P1on1 -- 2 --> s1337on1
+    //     s1338on2 -- 3 --> P2on2["Process3 on Node2"]
+    //     P2on2 -- 4 --> s1339on2
+    //     s1340on3 -- 5 --> P3on3["Process3 on Node3"]
+    //     policy0(["Set Private"]) -. 6 .- F1_1_1
+    //     P3on3 -- 7 --x F3_3_2["File2 opened by Process3@Node3"]
+    //     policy1(["Set Public"]) -. 8 .- F1_1_1
+    //     P3on3 -- 9 --> F3_3_2
+
+    //     s1337on1@{ shape: h-cyl}
+    //     s1338on2@{ shape: h-cyl}
+    //     s1339on2@{ shape: h-cyl}
+    //     s1340on3@{ shape: h-cyl}
+
+    #[cfg(feature = "trace2e_tracing")]
+    crate::trace2e_tracing::init();
+    let ips = vec![
+        "10.0.0.1".to_string(),
+        "10.0.0.2".to_string(),
+        "10.0.0.3".to_string(),
+    ];
+    let mut middlewares = spawn_loopback_middlewares(ips.clone())
+        .await
+        .into_iter()
+        .map(|(p2m, o2m)| {
+            (
+                ServiceBuilder::new()
+                    .layer(TimeoutLayer::new(Duration::from_millis(10)))
+                    .service(p2m),
+                o2m,
+            )
+        })
+        .collect::<VecDeque<_>>();
+
+    let (mut p2m_1, mut o2m_1) = middlewares.pop_front().unwrap();
+    let (mut p2m_2, _) = middlewares.pop_front().unwrap();
+    let (mut p2m_3, _) = middlewares.pop_front().unwrap();
+
+    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt");
+    let fd3_3_2 = FileMapping::new(3, 4, "/tmp/test2.txt");
+
+    local_enroll!(p2m_1, fd1_1_1);
+    local_enroll!(p2m_3, fd3_3_2);
+
+    let stream1_2 = StreamMapping::new(1, 3, "10.0.0.1:1337", "10.0.0.2:1338");
+    let stream2_1 = StreamMapping::new(2, 3, "10.0.0.2:1338", "10.0.0.1:1337");
+    let stream2_3 = StreamMapping::new(2, 4, "10.0.0.2:1339", "10.0.0.3:1340");
+    let stream3_2 = StreamMapping::new(3, 3, "10.0.0.3:1340", "10.0.0.2:1339");
+
+    remote_enroll!(p2m_1, stream1_2);
+    remote_enroll!(p2m_2, stream2_1);
+    remote_enroll!(p2m_2, stream2_3);
+    remote_enroll!(p2m_3, stream3_2);
+
+    read!(p2m_1, fd1_1_1);
+    write!(p2m_1, stream1_2);
+    read!(p2m_2, stream2_1);
+    write!(p2m_2, stream2_3);
+    read!(p2m_3, stream3_2);
+
+    // Set the policy for the file1 to make it private
+    assert_policies!(
+        o2m_1,
+        HashSet::from([fd1_1_1.file()]),
+        HashSet::from([Policy::default()])
+    );
+    set_policy!(
+        o2m_1,
+        fd1_1_1.file(),
+        Policy {
+            confidentiality: ConfidentialityPolicy::Secret,
+            integrity: Default::default()
+        }
+    );
+    assert_policies!(
+        o2m_1,
+        HashSet::from([fd1_1_1.file()]),
+        HashSet::from([Policy {
+            confidentiality: ConfidentialityPolicy::Secret,
+            integrity: Default::default()
+        }])
+    );
+
+    // This must be refused because the file1 is now private
+    assert_eq!(write_request!(p2m_3, fd3_3_2), u128::MAX);
+
+    // Set the policy for the file1 to make it public again
+    set_policy!(o2m_1, fd1_1_1.file(), Policy::default());
+
+    // This must be granted because the file1 is now public
+    // assert_eq!(write_request!(p2m_3, fd3_3_2), 0);
+    write!(p2m_3, fd3_3_2);
 }
