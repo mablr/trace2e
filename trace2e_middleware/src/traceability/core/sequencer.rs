@@ -11,7 +11,7 @@ use tokio::{
 };
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::traceability::{
     api::{SequencerRequest, SequencerResponse},
@@ -186,6 +186,8 @@ where
             for _ in 0..max_tries {
                 match inner.call(req.clone()).await {
                     Ok(SequencerResponse::FlowReserved) => {
+                        #[cfg(feature = "trace2e_tracing")]
+                        debug!("[sequencer] FlowReserved");
                         return Ok(SequencerResponse::FlowReserved);
                     }
                     Ok(SequencerResponse::FlowReleased {
@@ -196,6 +198,11 @@ where
                             this.notify_waiting_queue(&source),
                             this.notify_waiting_queue(&destination)
                         );
+                        #[cfg(feature = "trace2e_tracing")]
+                        debug!(
+                            "[sequencer] FlowReleased: source: {:?}, destination: {:?}",
+                            source, destination
+                        );
                         return Ok(SequencerResponse::FlowReleased {
                             source,
                             destination,
@@ -203,10 +210,14 @@ where
                     }
                     Err(TraceabilityError::UnavailableSource(source)) => {
                         let rx = this.join_waiting_queue(&source).await;
+                        #[cfg(feature = "trace2e_tracing")]
+                        debug!("[sequencer] waiting source: {:?}", source);
                         let _ = rx.await;
                     }
                     Err(TraceabilityError::UnavailableDestination(destination)) => {
                         let rx = this.join_waiting_queue(&destination).await;
+                        #[cfg(feature = "trace2e_tracing")]
+                        debug!("[sequencer] waiting destination: {:?}", destination);
                         let _ = rx.await;
                     }
                     Err(TraceabilityError::UnavailableSourceAndDestination(
@@ -215,6 +226,11 @@ where
                     )) => {
                         let rx1 = this.join_waiting_queue(&source).await;
                         let rx2 = this.join_waiting_queue(&destination).await;
+                        #[cfg(feature = "trace2e_tracing")]
+                        debug!(
+                            "[sequencer] waiting source: {:?}, destination: {:?}",
+                            source, destination
+                        );
                         let (_, _) = join!(rx1, rx2);
                     }
                     Err(e) => return Err(e),
