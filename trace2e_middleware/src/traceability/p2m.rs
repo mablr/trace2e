@@ -127,13 +127,11 @@ where
                 }
                 P2mRequest::IoRequest { pid, fd, output } => {
                     if let Some((process, fd)) = resource_map.lock().await.get(&(pid, fd)) {
-                        let mut flow_map = flow_map.lock().await;
                         let flow_id = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
                         {
                             Ok(n) => n.as_nanos(),
                             Err(_) => return Err(TraceabilityError::SystemTimeError),
                         };
-                        flow_map.insert(flow_id, (process.clone(), fd.clone(), output));
 
                         let (source, destination) = if output {
                             (process.clone(), fd.clone())
@@ -174,7 +172,7 @@ where
                                     }
                                 } else if let ComplianceResponse::Policies(policies) = compliance
                                     .call(ComplianceRequest::GetPolicies(HashSet::from([
-                                        destination,
+                                        destination.clone(),
                                     ])))
                                     .await?
                                 {
@@ -259,16 +257,34 @@ where
                                     }
                                     _ => return Err(TraceabilityError::InternalTrace2eError),
                                 };
-                                if let ComplianceResponse::Grant = compliance
+                                match compliance
                                     .call(ComplianceRequest::CheckCompliance {
                                         source_policies,
                                         destination_policy,
                                     })
-                                    .await?
+                                    .await
                                 {
-                                    Ok(P2mResponse::Grant(flow_id))
-                                } else {
-                                    Err(TraceabilityError::DirectPolicyViolation)
+                                    Ok(ComplianceResponse::Grant) => {
+                                        flow_map
+                                            .lock()
+                                            .await
+                                            .insert(flow_id, (process.clone(), fd.clone(), output));
+                                        Ok(P2mResponse::Grant(flow_id))
+                                    }
+                                    Err(TraceabilityError::DirectPolicyViolation) => {
+                                        // Release the flow if the policy is violated
+                                        #[cfg(feature = "trace2e_tracing")]
+                                        info!(
+                                            "[p2m-{}] Release flow: {:?} as it is not compliant",
+                                            provenance.node_id(),
+                                            flow_id
+                                        );
+                                        sequencer
+                                            .call(SequencerRequest::ReleaseFlow { destination })
+                                            .await?;
+                                        Err(TraceabilityError::DirectPolicyViolation)
+                                    }
+                                    _ => Err(TraceabilityError::InternalTrace2eError),
                                 }
                             }
                             _ => Err(TraceabilityError::InternalTrace2eError),
