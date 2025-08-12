@@ -17,7 +17,7 @@ use std::{
 use tokio::sync::Mutex;
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
-use tracing::info;
+use tracing::{debug, info};
 
 type ResourceMap = HashMap<(i32, i32), (Resource, Resource)>;
 type FlowMap = HashMap<u128, (Resource, Resource, bool)>;
