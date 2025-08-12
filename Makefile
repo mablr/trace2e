@@ -2,7 +2,7 @@
 
 # Format code
 fmt:
-	cargo fmt
+	cargo +nightly fmt
 
 # Run clippy on the middleware package
 clippy:
