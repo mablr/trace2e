@@ -15,7 +15,7 @@ use std::{
     time::SystemTime,
 };
 use tokio::sync::Mutex;
-use tower::Service;
+use tower::{Service, ServiceExt};
 #[cfg(feature = "trace2e_tracing")]
 use tracing::{debug, info};
 
@@ -160,6 +160,8 @@ where
                                     destination.is_stream()
                                 {
                                     if let M2mResponse::Compliance(policies) = m2m
+                                        .ready()
+                                        .await?
                                         .call(M2mRequest::GetConsistentCompliance {
                                             source: source.clone(),
                                             destination: remote_stream,
@@ -225,12 +227,16 @@ where
                                             let mut m2m_clone = m2m.clone();
                                             let node_id_clone = node_id.clone();
                                             let task = tokio::spawn(async move {
-                                                let result = m2m_clone
-                                                    .call(M2mRequest::GetLooseCompliance {
-                                                        authority_ip: node_id_clone.clone(),
-                                                        resources,
-                                                    })
-                                                    .await;
+                                                let result =
+                                                    match m2m_clone.ready().await {
+                                                        Ok(ready_service) => ready_service
+                                                            .call(M2mRequest::GetLooseCompliance {
+                                                                authority_ip: node_id_clone.clone(),
+                                                                resources,
+                                                            })
+                                                            .await,
+                                                        Err(e) => Err(e),
+                                                    };
                                                 (node_id_clone, result)
                                             });
                                             tasks.push(task);
@@ -311,11 +317,13 @@ where
                                 .await?
                             {
                                 ProvenanceResponse::Provenance { references, .. } => {
-                                    m2m.call(M2mRequest::UpdateProvenance {
-                                        source_prov: references,
-                                        destination: remote_stream,
-                                    })
-                                    .await?;
+                                    m2m.ready()
+                                        .await?
+                                        .call(M2mRequest::UpdateProvenance {
+                                            source_prov: references,
+                                            destination: remote_stream,
+                                        })
+                                        .await?;
                                 }
                                 _ => return Err(TraceabilityError::InternalTrace2eError),
                             }
