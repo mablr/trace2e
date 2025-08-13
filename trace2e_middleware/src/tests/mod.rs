@@ -128,9 +128,9 @@ async fn integration_o2m_local_provenance() {
 #[tokio::test]
 async fn integration_o2m_remote_provenance_basic() {
     // flowchart LR
+    //     s1337on1["socket1337 on Node1"] --- s1338on2["socket1338 on Node2"]
     //     s1337on1@{ shape: h-cyl}
     //     s1338on2@{ shape: h-cyl}
-    //     s1337on1["socket1337 on Node1"] --- s1338on2["socket1338 on Node2"]
 
     //     P1on1["Process1 on Node1"] -- 1 --> s1337on1
     //     s1338on2 -- 2 --> P1on2["Process1 on Node2"]
