@@ -28,6 +28,7 @@ pub enum ConfidentialityPolicy {
 pub struct Policy {
     pub confidentiality: ConfidentialityPolicy,
     pub integrity: u32,
+    pub deleted: bool,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -54,6 +55,11 @@ impl ComplianceService {
     /// Returns the old policy if the resource is already set
     async fn set_policy(&self, resource: Resource, policy: Policy) -> Option<Policy> {
         let mut policies = self.policies.lock().await;
+        if let Some(old_policy) = policies.get(&resource)
+            && old_policy.deleted
+        {
+            return None;
+        }
         policies.insert(resource, policy)
     }
 
@@ -67,6 +73,11 @@ impl ComplianceService {
         // Merge local and remote source policies, ignoring the node
         // TODO: implement node based policies
         for source_policy in source_policies.values().flatten() {
+            // If the source or destination policy is deleted, the flow is not compliant
+            if source_policy.deleted || destination_policy.deleted {
+                return false;
+            }
+
             // Integrity check: Source integrity must be greater than or equal to destination integrity
             if source_policy.integrity < destination_policy.integrity {
                 return false;
@@ -151,6 +162,7 @@ mod tests {
         let policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
             integrity: 5,
+            deleted: false,
         };
 
         // First time setting policy should return None
@@ -163,7 +175,8 @@ mod tests {
 
         let new_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
-            integrity: 5,
+            integrity: 3,
+            deleted: false,
         };
 
         // Second time setting policy should return the old policy
@@ -182,11 +195,13 @@ mod tests {
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 5,
+            deleted: false,
         };
 
         let dest_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 3,
+            deleted: false,
         };
 
         assert!(
@@ -208,11 +223,13 @@ mod tests {
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 3,
+            deleted: false,
         };
 
         let dest_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 5,
+            deleted: false,
         };
 
         assert!(
@@ -234,11 +251,13 @@ mod tests {
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
             integrity: 5,
+            deleted: false,
         };
 
         let dest_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
             integrity: 3,
+            deleted: false,
         };
 
         assert!(
@@ -260,11 +279,13 @@ mod tests {
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
             integrity: 5,
+            deleted: false,
         };
 
         let dest_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 3,
+            deleted: false,
         };
 
         assert!(
@@ -309,6 +330,7 @@ mod tests {
         let dest_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 2,
+            deleted: false,
         };
 
         // Source uses default (integrity 0), destination has integrity 2
@@ -334,11 +356,13 @@ mod tests {
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 5,
+            deleted: false,
         };
 
         let dest_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 3,
+            deleted: false,
         };
 
         let request = ComplianceRequest::CheckCompliance {
@@ -361,11 +385,13 @@ mod tests {
         let source_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
             integrity: 5,
+            deleted: false,
         };
 
         let dest_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 3,
+            deleted: false,
         };
 
         let request = ComplianceRequest::CheckCompliance {
@@ -388,16 +414,19 @@ mod tests {
         let high_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
             integrity: 10,
+            deleted: false,
         };
 
         let medium_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 5,
+            deleted: false,
         };
 
         let low_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 1,
+            deleted: false,
         };
 
         // High -> Medium: Should pass (integrity 10 >= 5, secret -> public is blocked but this is reverse)
@@ -460,6 +489,7 @@ mod tests {
         let policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
             integrity: 7,
+            deleted: false,
         };
 
         compliance.set_policy(process.clone(), policy.clone()).await;
@@ -481,11 +511,13 @@ mod tests {
         let process_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
             integrity: 5,
+            deleted: false,
         };
 
         let file_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 3,
+            deleted: false,
         };
 
         compliance
@@ -514,6 +546,7 @@ mod tests {
         let process_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
             integrity: 8,
+            deleted: false,
         };
 
         // Set policy only for process, not for file
@@ -547,11 +580,13 @@ mod tests {
         let initial_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 2,
+            deleted: false,
         };
 
         let updated_policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
             integrity: 9,
+            deleted: false,
         };
 
         // Set initial policy
@@ -576,6 +611,79 @@ mod tests {
         assert_eq!(
             compliance.get_policies(HashSet::from([process])).await,
             HashSet::from([updated_policy])
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_policy_deleted_properties() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
+        let compliance = ComplianceService::default();
+        let process = Resource::new_process(0);
+
+        let policy = Policy {
+            confidentiality: ConfidentialityPolicy::Secret,
+            integrity: 5,
+            deleted: true,
+        };
+
+        compliance.set_policy(process.clone(), policy.clone()).await;
+
+        assert_eq!(
+            compliance
+                .get_policies(HashSet::from([process.clone()]))
+                .await,
+            HashSet::from([policy.clone()])
+        );
+
+        // Setting a deleted policy must not have any effect, so it returns None
+        assert!(
+            compliance
+                .set_policy(process.clone(), Policy::default())
+                .await
+                .is_none()
+        );
+
+        // Getting the policies must return the deleted policy
+        assert_eq!(
+            compliance.get_policies(HashSet::from([process])).await,
+            HashSet::from([policy])
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_policy_deleted_check() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
+        let compliance = ComplianceService::default();
+
+        let policy = Policy {
+            confidentiality: ConfidentialityPolicy::Secret,
+            integrity: 5,
+            deleted: true,
+        };
+
+        assert_eq!(
+            compliance
+                .compliance_check(
+                    HashMap::from([(
+                        String::new(),
+                        HashSet::from([policy.clone(), Policy::default()])
+                    )]),
+                    Policy::default()
+                )
+                .await,
+            false
+        );
+
+        assert_eq!(
+            compliance
+                .compliance_check(
+                    HashMap::from([(String::new(), HashSet::from([Policy::default()]))]),
+                    policy
+                )
+                .await,
+            false
         );
     }
 }
