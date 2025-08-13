@@ -313,7 +313,7 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
         .map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
-                    .layer(TimeoutLayer::new(Duration::from_millis(10)))
+                    .layer(TimeoutLayer::new(Duration::from_millis(1)))
                     .service(p2m),
                 o2m,
             )
