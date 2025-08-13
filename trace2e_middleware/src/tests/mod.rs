@@ -4,7 +4,7 @@ mod fixtures;
 use fixtures::{FileMapping, StreamMapping};
 
 use std::{
-    collections::{HashMap, HashSet, VecDeque},
+    collections::{HashMap, HashSet},
     time::Duration,
 };
 
@@ -65,11 +65,10 @@ async fn integration_spawn_loopback_middlewares() {
                     .service(p2m),
                 o2m,
             )
-        })
-        .collect::<VecDeque<_>>();
+        });
 
-    let (mut p2m_1, _) = middlewares.pop_front().unwrap();
-    let (mut p2m_2, _) = middlewares.pop_front().unwrap();
+    let (mut p2m_1, _) = middlewares.next().unwrap();
+    let (mut p2m_2, _) = middlewares.next().unwrap();
 
     let stream1 = StreamMapping::new(1, 3, "10.0.0.1:1337", "10.0.0.2:1338");
     let stream2 = StreamMapping::new(1, 3, "10.0.0.2:1338", "10.0.0.1:1337");
@@ -148,11 +147,10 @@ async fn integration_o2m_remote_provenance_basic() {
                     .service(p2m),
                 o2m,
             )
-        })
-        .collect::<VecDeque<_>>();
+        });
 
-    let (mut p2m_1, _) = middlewares.pop_front().unwrap();
-    let (mut p2m_2, mut o2m_2) = middlewares.pop_front().unwrap();
+    let (mut p2m_1, _) = middlewares.next().unwrap();
+    let (mut p2m_2, mut o2m_2) = middlewares.next().unwrap();
 
     let stream1 = StreamMapping::new(1, 3, "10.0.0.1:1337", "10.0.0.2:1338");
     let stream2 = StreamMapping::new(2, 3, "10.0.0.2:1338", "10.0.0.1:1337");
@@ -218,12 +216,11 @@ async fn integration_o2m_remote_provenance_complex() {
                     .service(p2m),
                 o2m,
             )
-        })
-        .collect::<VecDeque<_>>();
+        });
 
-    let (mut p2m_1, mut o2m_1) = middlewares.pop_front().unwrap();
-    let (mut p2m_2, mut o2m_2) = middlewares.pop_front().unwrap();
-    let (mut p2m_3, mut o2m_3) = middlewares.pop_front().unwrap();
+    let (mut p2m_1, mut o2m_1) = middlewares.next().unwrap();
+    let (mut p2m_2, mut o2m_2) = middlewares.next().unwrap();
+    let (mut p2m_3, mut o2m_3) = middlewares.next().unwrap();
 
     let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt");
     let fd1_1_2 = FileMapping::new(1, 5, "/tmp/test2.txt");
@@ -320,12 +317,11 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
                     .service(p2m),
                 o2m,
             )
-        })
-        .collect::<VecDeque<_>>();
+        });
 
-    let (mut p2m_1, mut o2m_1) = middlewares.pop_front().unwrap();
-    let (mut p2m_2, _) = middlewares.pop_front().unwrap();
-    let (mut p2m_3, _) = middlewares.pop_front().unwrap();
+    let (mut p2m_1, mut o2m_1) = middlewares.next().unwrap();
+    let (mut p2m_2, _) = middlewares.next().unwrap();
+    let (mut p2m_3, _) = middlewares.next().unwrap();
 
     let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt");
     let fd3_3_2 = FileMapping::new(3, 4, "/tmp/test2.txt");
