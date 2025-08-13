@@ -378,3 +378,88 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
     // assert_eq!(write_request!(p2m_3, fd3_3_2), 0);
     write!(p2m_3, fd3_3_2);
 }
+
+#[tokio::test]
+async fn integration_o2m_remote_integrity_enforcement() {
+    // flowchart LR
+    //     s1337on1["socket1337 on Node1"] --- s1338on2["socket1338 on Node2"]
+    //     s1339on2["socket1339 on Node2"] --- s1340on3["socket1340 on Node3"]
+    //     F1_1_1["File1 opened by Process1@Node1"] -- 2 --> P1on1["Process1 on Node1"]
+    //     P1on1 -- 3 --> s1337on1
+    //     s1338on2 -- 4 --> P2on2["Process3 on Node2"]
+    //     P2on2 -- 5 --> s1339on2
+    //     s1340on3 -- 6 --> P3on3["Process3 on Node3"]
+    //     policy0(["Set High Integrity"]) -. 1 .- F3_3_2
+    //     P3on3 -- 7 --x F3_3_2["File2 opened by Process3@Node3"]
+    //     policy1(["Set Low Integrity"]) -. 8 .- F3_3_2
+    //     P3on3 -- 9 --> F3_3_2
+
+    //     s1337on1@{ shape: h-cyl}
+    //     s1338on2@{ shape: h-cyl}
+    //     s1339on2@{ shape: h-cyl}
+    //     s1340on3@{ shape: h-cyl}
+
+    #[cfg(feature = "trace2e_tracing")]
+    crate::trace2e_tracing::init();
+    let ips = vec![
+        "10.0.0.1".to_string(),
+        "10.0.0.2".to_string(),
+        "10.0.0.3".to_string(),
+    ];
+    let mut middlewares = spawn_loopback_middlewares(ips.clone())
+        .await
+        .into_iter()
+        .map(|(p2m, o2m)| {
+            (
+                ServiceBuilder::new()
+                    .layer(TimeoutLayer::new(Duration::from_millis(1)))
+                    .service(p2m),
+                o2m,
+            )
+        });
+
+    let (mut p2m_1, _) = middlewares.next().unwrap();
+    let (mut p2m_2, _) = middlewares.next().unwrap();
+    let (mut p2m_3, mut o2m_3) = middlewares.next().unwrap();
+
+    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt");
+    let fd3_3_2 = FileMapping::new(3, 4, "/tmp/test2.txt");
+
+    // Set the destination's integrity requirement to 5
+    set_policy!(
+        o2m_3,
+        fd3_3_2.file(),
+        Policy {
+            confidentiality: Default::default(),
+            integrity: 5
+        }
+    );
+
+    local_enroll!(p2m_1, fd1_1_1);
+    local_enroll!(p2m_3, fd3_3_2);
+
+    let stream1_2 = StreamMapping::new(1, 3, "10.0.0.1:1337", "10.0.0.2:1338");
+    let stream2_1 = StreamMapping::new(2, 3, "10.0.0.2:1338", "10.0.0.1:1337");
+    let stream2_3 = StreamMapping::new(2, 4, "10.0.0.2:1339", "10.0.0.3:1340");
+    let stream3_2 = StreamMapping::new(3, 3, "10.0.0.3:1340", "10.0.0.2:1339");
+
+    remote_enroll!(p2m_1, stream1_2);
+    remote_enroll!(p2m_2, stream2_1);
+    remote_enroll!(p2m_2, stream2_3);
+    remote_enroll!(p2m_3, stream3_2);
+
+    read!(p2m_1, fd1_1_1);
+    write!(p2m_1, stream1_2);
+    read!(p2m_2, stream2_1);
+    write!(p2m_2, stream2_3);
+    read!(p2m_3, stream3_2);
+
+    // This must be refused because the source integrity (1) is less than destination integrity (5)
+    assert_eq!(write_request!(p2m_3, fd3_3_2), u128::MAX);
+
+    // Lower the destination's integrity requirement to allow the write
+    set_policy!(o2m_3, fd3_3_2.file(), Policy::default());
+
+    // This must be granted because the destination now accepts any integrity level
+    write!(p2m_3, fd3_3_2);
+}
