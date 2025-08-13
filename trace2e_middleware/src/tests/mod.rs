@@ -485,10 +485,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
 
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
-    let ips = vec![
-        "10.0.0.1".to_string(),
-        "10.0.0.2".to_string(),
-    ];
+    let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
     let mut middlewares = spawn_loopback_middlewares(ips.clone())
         .await
         .into_iter()
@@ -563,10 +560,12 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
 
     // Test that we cannot modify a deleted resource's policy
     // The set_policy call should have no effect (returns None for deleted resources)
-    let _ = o2m_1.call(crate::traceability::api::O2mRequest::SetPolicy {
-        resource: fd1_1_1.file(),
-        policy: Policy::default()
-    }).await;
+    let _ = o2m_1
+        .call(crate::traceability::api::O2mRequest::SetPolicy {
+            resource: fd1_1_1.file(),
+            policy: Policy::default(),
+        })
+        .await;
 
     // The policy should remain deleted (unchanged)
     assert_policies!(
