@@ -255,7 +255,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let sequencer = SequencerService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
         assert_eq!(
             sequencer.make_flow(process.clone(), file.clone()).await,
@@ -286,7 +286,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let sequencer = SequencerService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
         assert_eq!(
             sequencer.make_flow(process.clone(), file.clone()).await,
@@ -314,7 +314,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let sequencer = SequencerService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file1 = Resource::new_file("/tmp/test1".to_string());
         let file2 = Resource::new_file("/tmp/test2".to_string());
         let file3 = Resource::new_file("/tmp/test3".to_string());
@@ -381,8 +381,8 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let sequencer = SequencerService::default();
-        let process1 = Resource::new_process(1);
-        let process2 = Resource::new_process(2);
+        let process1 = Resource::new_process_mock(1);
+        let process2 = Resource::new_process_mock(2);
         let file1 = Resource::new_file("/tmp/test1".to_string());
         let file2 = Resource::new_file("/tmp/test2".to_string());
 
@@ -425,7 +425,7 @@ mod tests {
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
@@ -459,7 +459,7 @@ mod tests {
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
@@ -491,7 +491,7 @@ mod tests {
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
@@ -523,7 +523,7 @@ mod tests {
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file1 = Resource::new_file("/tmp/test1".to_string());
         let file2 = Resource::new_file("/tmp/test2".to_string());
 
@@ -582,8 +582,8 @@ mod tests {
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
-        let process1 = Resource::new_process(1);
-        let process2 = Resource::new_process(2);
+        let process1 = Resource::new_process_mock(1);
+        let process2 = Resource::new_process_mock(2);
         let file1 = Resource::new_file("/tmp/test1".to_string());
         let file2 = Resource::new_file("/tmp/test2".to_string());
 
@@ -652,7 +652,7 @@ mod tests {
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file1 = Resource::new_file("/tmp/test1".to_string());
         let file2 = Resource::new_file("/tmp/test2".to_string());
         let file3 = Resource::new_file("/tmp/test3".to_string());
@@ -738,7 +738,7 @@ mod tests {
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
             .service(SequencerService::default());
 
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
@@ -772,7 +772,7 @@ mod tests {
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, None)))
             .service(SequencerService::default());
 
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
@@ -806,7 +806,7 @@ mod tests {
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, Some(1))))
             .service(SequencerService::default());
 
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file1 = Resource::new_file("/tmp/test1".to_string());
         let file2 = Resource::new_file("/tmp/test2".to_string());
 
@@ -871,10 +871,10 @@ mod tests {
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, Some(1))))
             .service(SequencerService::default());
 
-        let process1 = Resource::new_process(0);
-        let process2 = Resource::new_process(1);
-        let process3 = Resource::new_process(2);
-        let process4 = Resource::new_process(3);
+        let process1 = Resource::new_process_mock(0);
+        let process2 = Resource::new_process_mock(1);
+        let process3 = Resource::new_process_mock(2);
+        let process4 = Resource::new_process_mock(3);
         let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
@@ -987,7 +987,7 @@ mod tests {
             .layer(layer_fn(|inner| WaitingQueueService::new(inner, Some(1))))
             .service(SequencerService::default());
 
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file1 = Resource::new_file("/tmp/test1".to_string());
         let file2 = Resource::new_file("/tmp/test2".to_string());
 

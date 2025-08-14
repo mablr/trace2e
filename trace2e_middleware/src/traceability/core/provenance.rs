@@ -172,7 +172,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
         provenance.update(&file, &process).await;
@@ -188,7 +188,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
         provenance.update(&process, &file).await;
@@ -206,8 +206,8 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
-        let process0 = Resource::new_process(0);
-        let process1 = Resource::new_process(1);
+        let process0 = Resource::new_process_mock(0);
+        let process1 = Resource::new_process_mock(1);
 
         let stream =
             Resource::new_stream("127.0.0.1:8080".to_string(), "127.0.0.1:8081".to_string());
@@ -226,8 +226,8 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
-        let process0 = Resource::new_process(0);
-        let process1 = Resource::new_process(1);
+        let process0 = Resource::new_process_mock(0);
+        let process1 = Resource::new_process_mock(1);
         let file0 = Resource::new_file("/tmp/test0".to_string());
 
         provenance
@@ -273,7 +273,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(

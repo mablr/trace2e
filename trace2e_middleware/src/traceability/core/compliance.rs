@@ -157,7 +157,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
 
         let policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
@@ -468,7 +468,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
@@ -484,7 +484,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
 
         let policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
@@ -505,7 +505,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
         let process_policy = Policy {
@@ -540,7 +540,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
         let process_policy = Policy {
@@ -575,7 +575,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
 
         let initial_policy = Policy {
             confidentiality: ConfidentialityPolicy::Public,
@@ -619,7 +619,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
-        let process = Resource::new_process(0);
+        let process = Resource::new_process_mock(0);
 
         let policy = Policy {
             confidentiality: ConfidentialityPolicy::Secret,
