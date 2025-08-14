@@ -70,6 +70,14 @@ impl Resource {
         }
     }
 
+    pub fn new_process_mock(pid: i32) -> Self {
+        Self::Process(Process {
+            pid,
+            starttime: 0,
+            exe_path: String::new(),
+        })
+    }
+
     pub fn is_file(&self) -> bool {
         matches!(self, Resource::Fd(Fd::File(_)))
     }
