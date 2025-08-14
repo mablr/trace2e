@@ -20,10 +20,14 @@ tracing-subscriber = { workspace = true, features = ["env-filter"], optional = t
 tonic-build.workspace = true
 
 [dev-dependencies]
-criterion.workspace = true
+criterion = { workspace = true, features = ["async_tokio"] }
 
 [features]
 trace2e_tracing = ["tracing", "tracing-subscriber"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
+
+[[bench]]
+name = "main"
+harness = false
