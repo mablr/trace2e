@@ -6,6 +6,7 @@ use crate::traceability::{
     error::TraceabilityError,
     naming::{NodeId, Resource},
 };
+use dashmap::DashMap;
 use std::{
     collections::{HashMap, HashSet},
     future::Future,
@@ -14,18 +15,17 @@ use std::{
     task::Poll,
     time::SystemTime,
 };
-use tokio::sync::Mutex;
 use tower::{Service, ServiceExt};
 #[cfg(feature = "trace2e_tracing")]
 use tracing::{debug, info};
 
-type ResourceMap = HashMap<(i32, i32), (Resource, Resource)>;
-type FlowMap = HashMap<u128, (Resource, Resource, bool)>;
+type ResourceMap = DashMap<(i32, i32), (Resource, Resource)>;
+type FlowMap = DashMap<u128, (Resource, Resource)>;
 
 #[derive(Debug, Clone)]
 pub struct P2mApiService<S, P, C, M> {
-    resource_map: Arc<Mutex<ResourceMap>>,
-    flow_map: Arc<Mutex<FlowMap>>,
+    resource_map: Arc<ResourceMap>,
+    flow_map: Arc<FlowMap>,
     sequencer: S,
     provenance: P,
     compliance: C,
@@ -35,8 +35,8 @@ pub struct P2mApiService<S, P, C, M> {
 impl<S, P, C, M> P2mApiService<S, P, C, M> {
     pub fn new(sequencer: S, provenance: P, compliance: C, m2m: M) -> Self {
         Self {
-            resource_map: Arc::new(Mutex::new(HashMap::new())),
-            flow_map: Arc::new(Mutex::new(HashMap::new())),
+            resource_map: Arc::new(ResourceMap::new()),
+            flow_map: Arc::new(FlowMap::new()),
             sequencer,
             provenance,
             compliance,
@@ -95,7 +95,7 @@ where
                         fd,
                         path
                     );
-                    resource_map.lock().await.insert(
+                    resource_map.insert(
                         (pid, fd),
                         (Resource::new_process(pid), Resource::new_file(path)),
                     );
@@ -116,7 +116,7 @@ where
                         local_socket,
                         peer_socket
                     );
-                    resource_map.lock().await.insert(
+                    resource_map.insert(
                         (pid, fd),
                         (
                             Resource::new_process(pid),
@@ -126,17 +126,16 @@ where
                     Ok(P2mResponse::Ack)
                 }
                 P2mRequest::IoRequest { pid, fd, output } => {
-                    if let Some((process, fd)) = resource_map.lock().await.get(&(pid, fd)) {
+                    if let Some(resource) = resource_map.get(&(pid, fd)) {
                         let flow_id = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
                         {
                             Ok(n) => n.as_nanos(),
                             Err(_) => return Err(TraceabilityError::SystemTimeError),
                         };
-
                         let (source, destination) = if output {
-                            (process.clone(), fd.clone())
+                            (resource.0.clone(), resource.1.clone())
                         } else {
-                            (fd.clone(), process.clone())
+                            (resource.1.clone(), resource.0.clone())
                         };
                         #[cfg(feature = "trace2e_tracing")]
                         info!(
@@ -184,7 +183,7 @@ where
                                 };
 
                                 let source_policies = match provenance
-                                    .call(ProvenanceRequest::GetReferences(source))
+                                    .call(ProvenanceRequest::GetReferences(source.clone()))
                                     .await?
                                 {
                                     ProvenanceResponse::Provenance {
@@ -271,10 +270,7 @@ where
                                     .await
                                 {
                                     Ok(ComplianceResponse::Grant) => {
-                                        flow_map
-                                            .lock()
-                                            .await
-                                            .insert(flow_id, (process.clone(), fd.clone(), output));
+                                        flow_map.insert(flow_id, (source, destination));
                                         Ok(P2mResponse::Grant(flow_id))
                                     }
                                     Err(TraceabilityError::DirectPolicyViolation) => {
@@ -300,10 +296,7 @@ where
                     }
                 }
                 P2mRequest::IoReport { grant_id, .. } => {
-                    let mut flow_map = flow_map.lock().await;
-                    if let Some((process, fd, output)) = flow_map.remove(&grant_id) {
-                        let (source, destination) =
-                            if output { (process, fd) } else { (fd, process) };
+                    if let Some((_, (source, destination))) = flow_map.remove(&grant_id) {
                         #[cfg(feature = "trace2e_tracing")]
                         info!(
                             "[p2m-{}] IoReport: source: {:?}, destination: {:?}",

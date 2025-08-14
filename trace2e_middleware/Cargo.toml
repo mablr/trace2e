@@ -7,12 +7,13 @@ repository.workspace = true
 
 [dependencies]
 prost.workspace = true
+dashmap.workspace = true
 sysinfo = { workspace = true }
+thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tonic.workspace = true
 tonic-reflection.workspace = true
 tower = { workspace = true, features = ["filter", "timeout", "util"] }
-thiserror.workspace = true
 tracing = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"], optional = true }
 

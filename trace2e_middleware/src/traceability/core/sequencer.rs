@@ -1,14 +1,7 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    pin::Pin,
-    sync::Arc,
-    task::Poll,
-};
+use dashmap::DashMap;
+use std::{collections::VecDeque, pin::Pin, sync::Arc, task::Poll};
 
-use tokio::{
-    join,
-    sync::{Mutex, oneshot},
-};
+use tokio::{join, sync::oneshot};
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
 use tracing::{debug, info};
@@ -21,7 +14,7 @@ use crate::traceability::{
 
 #[derive(Clone, Default)]
 pub struct SequencerService {
-    flows: Arc<Mutex<HashMap<Resource, Resource>>>,
+    flows: Arc<DashMap<Resource, Resource>>,
 }
 
 impl SequencerService {
@@ -32,16 +25,15 @@ impl SequencerService {
         source: Resource,
         destination: Resource,
     ) -> Result<SequencerResponse, TraceabilityError> {
-        let mut flows = self.flows.lock().await;
         // source is not already reserved by a writer
-        let source_available = !flows.contains_key(&source);
+        let source_available = !self.flows.contains_key(&source);
         // destination is not already reserved by a reader or writer
-        let destination_available =
-            !flows.contains_key(&destination) && !flows.values().any(|v| v == &destination);
+        let destination_available = !self.flows.contains_key(&destination)
+            && !self.flows.iter().any(|entry| entry.value() == &destination);
 
         // if both are available, create a flow
         if source_available && destination_available {
-            flows.insert(destination, source);
+            self.flows.insert(destination, source);
             Ok(SequencerResponse::FlowReserved)
         } else if source_available {
             Err(TraceabilityError::UnavailableDestination(destination))
@@ -58,9 +50,8 @@ impl SequencerService {
     /// Drop a flow
     /// Returns the SequencerResponse to the caller
     async fn drop_flow(&self, destination: &Resource) -> SequencerResponse {
-        let mut flows = self.flows.lock().await;
-        if let Some(source) = flows.remove(destination) {
-            if flows.values().any(|v| *v == source) {
+        if let Some((_, source)) = self.flows.remove(destination) {
+            if self.flows.iter().any(|entry| entry.value() == &source) {
                 // Partial release of the flow
                 // source is still reserved as reader, notify the waiting queue of the destination
                 SequencerResponse::FlowReleased {
@@ -122,7 +113,7 @@ impl Service<SequencerRequest> for SequencerService {
 #[derive(Clone)]
 pub struct WaitingQueueService<T> {
     inner: T,
-    waiting_queue: Arc<Mutex<HashMap<Resource, VecDeque<oneshot::Sender<()>>>>>,
+    waiting_queue: Arc<DashMap<Resource, VecDeque<oneshot::Sender<()>>>>,
     max_retries: u32,
 }
 
@@ -130,7 +121,7 @@ impl<T> WaitingQueueService<T> {
     pub fn new(inner: T, max_retries: Option<u32>) -> Self {
         Self {
             inner,
-            waiting_queue: Arc::new(Mutex::new(HashMap::new())),
+            waiting_queue: Arc::new(DashMap::new()),
             // If None, so the waiting queue is not used
             max_retries: max_retries.unwrap_or_default(),
         }
@@ -138,22 +129,19 @@ impl<T> WaitingQueueService<T> {
 
     async fn join_waiting_queue(&self, resource: &Resource) -> oneshot::Receiver<()> {
         let (tx, rx) = oneshot::channel();
-        if let Some(queue) = self.waiting_queue.lock().await.get_mut(resource) {
+        if let Some(mut queue) = self.waiting_queue.get_mut(resource) {
             queue.push_back(tx);
         } else {
             let mut queue = VecDeque::new();
             queue.push_back(tx);
-            self.waiting_queue
-                .lock()
-                .await
-                .insert(resource.clone(), queue);
+            self.waiting_queue.insert(resource.clone(), queue);
         }
         rx
     }
 
     async fn notify_waiting_queue(&self, resource: &Option<Resource>) {
         if let Some(resource) = resource
-            && let Some(queue) = self.waiting_queue.lock().await.get_mut(resource)
+            && let Some(mut queue) = self.waiting_queue.get_mut(resource)
             && let Some(tx) = queue.pop_front()
         {
             tx.send(()).unwrap();

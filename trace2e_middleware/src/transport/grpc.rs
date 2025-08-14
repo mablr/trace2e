@@ -1,12 +1,6 @@
 //! gRPC service for the Trace2e middleware.
-use std::{
-    collections::{HashMap, HashSet},
-    future::Future,
-    pin::Pin,
-    sync::Arc,
-    task::Poll,
-};
-use tokio::sync::Mutex;
+use dashmap::DashMap;
+use std::{collections::HashSet, future::Future, ops::Deref as _, pin::Pin, sync::Arc, task::Poll};
 use tonic::{Request, Response, Status, transport::Channel};
 use tower::Service;
 
@@ -35,8 +29,7 @@ impl From<TraceabilityError> for Status {
 
 #[derive(Default, Clone)]
 pub struct M2mGrpc {
-    connected_remotes:
-        Arc<Mutex<HashMap<String, proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>>>>,
+    connected_remotes: Arc<DashMap<String, proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>>>,
 }
 
 impl M2mGrpc {
@@ -50,10 +43,7 @@ impl M2mGrpc {
         .await
         {
             Ok(client) => {
-                self.connected_remotes
-                    .lock()
-                    .await
-                    .insert(remote_ip, client.clone());
+                self.connected_remotes.insert(remote_ip, client.clone());
                 Ok(client)
             }
             Err(_) => Err(TraceabilityError::TransportFailedToContactRemote(remote_ip)),
@@ -64,8 +54,9 @@ impl M2mGrpc {
         &self,
         remote_ip: String,
     ) -> Option<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> {
-        let connected_remotes = self.connected_remotes.lock().await;
-        connected_remotes.get(&remote_ip).cloned()
+        self.connected_remotes
+            .get(&remote_ip)
+            .map(|c| c.deref().clone())
     }
 
     async fn get_client_or_connect(

@@ -1,12 +1,13 @@
+use dashmap::DashMap;
 use std::{
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     future::Future,
+    ops::Deref as _,
     pin::Pin,
     sync::Arc,
     task::Poll,
     time::{Duration, Instant},
 };
-use tokio::sync::Mutex;
 use tower::Service;
 
 use crate::{
@@ -42,7 +43,7 @@ pub async fn spawn_loopback_middlewares_with_entropy(
 
 #[derive(Clone)]
 pub struct M2mLoopback {
-    middlewares: Arc<Mutex<HashMap<String, M2mApiDefaultStack>>>,
+    middlewares: Arc<DashMap<String, M2mApiDefaultStack>>,
     base_delay_ms: u64,
     jitter_max_ms: u64,
     last_call_time: Arc<std::sync::Mutex<Option<Instant>>>,
@@ -57,7 +58,7 @@ impl Default for M2mLoopback {
 impl M2mLoopback {
     pub fn new(base_delay_ms: u64, jitter_max_ms: u64) -> Self {
         Self {
-            middlewares: Arc::new(Mutex::new(HashMap::new())),
+            middlewares: Arc::new(DashMap::new()),
             base_delay_ms,
             jitter_max_ms,
             last_call_time: Arc::new(std::sync::Mutex::new(None)),
@@ -65,7 +66,7 @@ impl M2mLoopback {
     }
 
     pub async fn register_middleware(&self, ip: String, middleware: M2mApiDefaultStack) {
-        self.middlewares.lock().await.insert(ip, middleware);
+        self.middlewares.insert(ip, middleware);
     }
 
     pub async fn get_middleware(
@@ -73,10 +74,8 @@ impl M2mLoopback {
         ip: String,
     ) -> Result<M2mApiDefaultStack, TraceabilityError> {
         self.middlewares
-            .lock()
-            .await
             .get(&ip)
-            .cloned()
+            .map(|c| c.deref().clone())
             .ok_or(TraceabilityError::TransportFailedToContactRemote(ip))
     }
 
