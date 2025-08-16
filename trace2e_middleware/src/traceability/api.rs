@@ -7,11 +7,7 @@ use super::core::compliance::Policy;
 #[derive(Debug, Clone)]
 pub enum P2mRequest {
     /// Declare a file opened by a process
-    LocalEnroll {
-        pid: i32,
-        fd: i32,
-        path: String,
-    },
+    LocalEnroll { pid: i32, fd: i32, path: String },
     /// Declare a stream opened by a process
     RemoteEnroll {
         pid: i32,
@@ -20,11 +16,7 @@ pub enum P2mRequest {
         peer_socket: String,
     },
     /// Request a flow between a process and a file or stream
-    IoRequest {
-        pid: i32,
-        fd: i32,
-        output: bool,
-    },
+    IoRequest { pid: i32, fd: i32, output: bool },
     /// Report the result of a flow between a process and a file or stream
     IoReport {
         pid: i32,
