@@ -135,7 +135,8 @@ macro_rules! read_request {
 
 macro_rules! io_report {
     ($p2m:expr, $mapping:expr, $flow_id:expr, $result:expr) => {
-        // If flow_id is u128::MAX, it means there was a policy violation or an error, do not report flow_id
+        // If flow_id is u128::MAX, it means there was a policy violation or an error, do not report
+        // flow_id
         assert_ne!($flow_id, u128::MAX);
         assert_eq!(
             $p2m.call(P2mRequest::IoReport {

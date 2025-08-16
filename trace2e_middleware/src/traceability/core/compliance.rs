@@ -78,7 +78,8 @@ impl ComplianceService {
                 return false;
             }
 
-            // Integrity check: Source integrity must be greater than or equal to destination integrity
+            // Integrity check: Source integrity must be greater than or equal to destination
+            // integrity
             if source_policy.integrity < destination_policy.integrity {
                 return false;
             }
@@ -354,7 +355,8 @@ mod tests {
         let low_policy =
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 1, deleted: false };
 
-        // High -> Medium: Should pass (integrity 10 >= 5, secret -> public is blocked but this is reverse)
+        // High -> Medium: Should pass (integrity 10 >= 5, secret -> public is blocked but this is
+        // reverse)
         let request1 = ComplianceRequest::CheckCompliance {
             source_policies: HashMap::from([
                 (String::new(), HashSet::from([Policy::default()])),
