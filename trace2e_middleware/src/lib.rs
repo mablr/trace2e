@@ -8,8 +8,8 @@
 //! A unique instance of this software should run on each node where
 //! traceability is enforced.
 //!
-//! Process/middleware and middleware/middleware communication relies [`tonic`], a Rust implementation of gRPC, a high performance, open source, general RPC framework on the
-//! gRPC framework
+//! Process/middleware and middleware/middleware communication relies on [`tonic`],
+//! a Rust implementation of gRPC, a high performance, open source RPC framework.
 //!
 //! [`tonic`]: https://docs.rs/tonic
 

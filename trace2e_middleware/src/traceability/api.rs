@@ -6,22 +6,26 @@ use super::core::compliance::Policy;
 
 #[derive(Debug, Clone)]
 pub enum P2mRequest {
+    /// Declare a file opened by a process
     LocalEnroll {
         pid: i32,
         fd: i32,
         path: String,
     },
+    /// Declare a stream opened by a process
     RemoteEnroll {
         pid: i32,
         fd: i32,
         local_socket: String,
         peer_socket: String,
     },
+    /// Request a flow between a process and a file or stream
     IoRequest {
         pid: i32,
         fd: i32,
         output: bool,
     },
+    /// Report the result of a flow between a process and a file or stream
     IoReport {
         pid: i32,
         fd: i32,
@@ -38,14 +42,17 @@ pub enum P2mResponse {
 
 #[derive(Debug, Clone)]
 pub enum M2mRequest {
+    /// Get the consistent compliance of a remote resource
     GetConsistentCompliance {
         source: Resource,
         destination: Resource,
     },
+    /// Get the loose compliance of a remote resource
     GetLooseCompliance {
         authority_ip: String,
         resources: HashSet<Resource>,
     },
+    /// Update the provenance of a remote resource
     UpdateProvenance {
         source_prov: HashMap<String, HashSet<Resource>>,
         destination: Resource,
@@ -85,7 +92,7 @@ pub enum SequencerRequest {
         source: Resource,
         destination: Resource,
     },
-    /// Release a flow from source to destination  
+    /// Release a flow from source to destination
     ReleaseFlow { destination: Resource },
 }
 
