@@ -31,11 +31,7 @@ pub fn init_middleware<M>(
     node_id: String,
     max_retries: Option<u32>,
     m2m_client: M,
-) -> (
-    M2mApiDefaultStack,
-    P2mApiDefaultStack<M>,
-    O2mApiDefaultStack,
-)
+) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack)
 where
     M: tower::Service<
             api::M2mRequest,
@@ -57,12 +53,8 @@ where
     let m2m_service: M2mApiDefaultStack =
         m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
 
-    let p2m_service: P2mApiDefaultStack<M> = p2m::P2mApiService::new(
-        sequencer,
-        provenance.clone(),
-        compliance.clone(),
-        m2m_client,
-    );
+    let p2m_service: P2mApiDefaultStack<M> =
+        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client);
 
     let o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
 

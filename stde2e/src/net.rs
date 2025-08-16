@@ -1,7 +1,7 @@
-use std::net::SocketAddr;
-use std::net::TcpListener as StdTcpListener;
-use std::net::TcpStream as StdTcpStream;
-use std::os::fd::AsRawFd;
+use std::{
+    net::{SocketAddr, TcpListener as StdTcpListener, TcpStream as StdTcpStream},
+    os::fd::AsRawFd,
+};
 
 use trace2e_client::remote_enroll;
 

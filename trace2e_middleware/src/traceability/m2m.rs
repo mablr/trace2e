@@ -1,3 +1,9 @@
+use std::{collections::HashSet, future::Future, pin::Pin, task::Poll};
+
+use tower::Service;
+#[cfg(feature = "trace2e_tracing")]
+use tracing::info;
+
 use crate::traceability::{
     api::{
         ComplianceRequest, ComplianceResponse, M2mRequest, M2mResponse, ProvenanceRequest,
@@ -6,10 +12,6 @@ use crate::traceability::{
     error::TraceabilityError,
     naming::NodeId,
 };
-use std::{collections::HashSet, future::Future, pin::Pin, task::Poll};
-use tower::Service;
-#[cfg(feature = "trace2e_tracing")]
-use tracing::info;
 
 #[derive(Debug, Clone)]
 pub struct M2mApiService<S, P, C> {
@@ -20,11 +22,7 @@ pub struct M2mApiService<S, P, C> {
 
 impl<S, P, C> M2mApiService<S, P, C> {
     pub fn new(sequencer: S, provenance: P, compliance: C) -> Self {
-        Self {
-            sequencer,
-            provenance,
-            compliance,
-        }
+        Self { sequencer, provenance, compliance }
     }
 }
 
@@ -61,10 +59,7 @@ where
         let mut compliance = self.compliance.clone();
         Box::pin(async move {
             match request {
-                M2mRequest::GetConsistentCompliance {
-                    source,
-                    destination,
-                } => {
+                M2mRequest::GetConsistentCompliance { source, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[m2m-{}] GetConsistentCompliance: source: {:?}, destination: {:?}",
@@ -100,20 +95,14 @@ where
                         provenance.node_id(),
                         resources
                     );
-                    match compliance
-                        .call(ComplianceRequest::GetPolicies(resources))
-                        .await?
-                    {
+                    match compliance.call(ComplianceRequest::GetPolicies(resources)).await? {
                         ComplianceResponse::Policies(policies) => {
                             Ok(M2mResponse::Compliance(policies))
                         }
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
-                M2mRequest::UpdateProvenance {
-                    source_prov,
-                    destination,
-                } => {
+                M2mRequest::UpdateProvenance { source_prov, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[m2m-{}] UpdateProvenance: source_prov: {:?}, destination: {:?}",

@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+
 use sysinfo::{Pid, System};
 use tower::{BoxError, filter::Predicate};
 
@@ -15,10 +16,7 @@ impl ResourceValidator {
     }
 
     fn is_valid_stream(&self, local_socket: &str, peer_socket: &str) -> bool {
-        match (
-            local_socket.parse::<SocketAddr>(),
-            peer_socket.parse::<SocketAddr>(),
-        ) {
+        match (local_socket.parse::<SocketAddr>(), peer_socket.parse::<SocketAddr>()) {
             (Ok(local_socket), Ok(peer_socket)) => {
                 (local_socket.is_ipv4() && peer_socket.is_ipv4())
                     || (local_socket.is_ipv6() && peer_socket.is_ipv6())
@@ -33,20 +31,12 @@ impl Predicate<P2mRequest> for ResourceValidator {
 
     fn check(&mut self, request: Self::Request) -> Result<Self::Request, BoxError> {
         match request.clone() {
-            P2mRequest::RemoteEnroll {
-                pid,
-                local_socket,
-                peer_socket,
-                ..
-            } => {
+            P2mRequest::RemoteEnroll { pid, local_socket, peer_socket, .. } => {
                 if self.is_valid_process(pid) {
                     if self.is_valid_stream(&local_socket, &peer_socket) {
                         Ok(request)
                     } else {
-                        Err(Box::new(TraceabilityError::InvalidStream(
-                            local_socket,
-                            peer_socket,
-                        )))
+                        Err(Box::new(TraceabilityError::InvalidStream(local_socket, peer_socket)))
                     }
                 } else {
                     Err(Box::new(TraceabilityError::InvalidProcess(pid)))
@@ -68,6 +58,7 @@ impl Predicate<P2mRequest> for ResourceValidator {
 mod tests {
     use tower::{Service, ServiceBuilder, filter::FilterLayer};
 
+    use super::*;
     use crate::{
         traceability::{
             api::P2mResponse,
@@ -79,8 +70,6 @@ mod tests {
         },
         transport::nop::M2mNop,
     };
-
-    use super::*;
 
     #[tokio::test]
     async fn unit_traceability_provenance_service_p2m_validator() {
@@ -95,11 +84,7 @@ mod tests {
 
         assert_eq!(
             p2m_service
-                .call(P2mRequest::LocalEnroll {
-                    pid: 1,
-                    fd: 1,
-                    path: "test".to_string()
-                })
+                .call(P2mRequest::LocalEnroll { pid: 1, fd: 1, path: "test".to_string() })
                 .await
                 .unwrap(),
             P2mResponse::Ack
@@ -118,25 +103,14 @@ mod tests {
             P2mResponse::Ack
         );
 
-        let P2mResponse::Grant(flow_id) = p2m_service
-            .call(P2mRequest::IoRequest {
-                pid: 1,
-                fd: 1,
-                output: true,
-            })
-            .await
-            .unwrap()
+        let P2mResponse::Grant(flow_id) =
+            p2m_service.call(P2mRequest::IoRequest { pid: 1, fd: 1, output: true }).await.unwrap()
         else {
             panic!("Expected P2mResponse::Grant");
         };
         assert_eq!(
             p2m_service
-                .call(P2mRequest::IoReport {
-                    pid: 1,
-                    fd: 1,
-                    grant_id: flow_id,
-                    result: true
-                })
+                .call(P2mRequest::IoReport { pid: 1, fd: 1, grant_id: flow_id, result: true })
                 .await
                 .unwrap(),
             P2mResponse::Ack
@@ -144,11 +118,7 @@ mod tests {
 
         assert_eq!(
             p2m_service
-                .check(P2mRequest::LocalEnroll {
-                    pid: 0,
-                    fd: 1,
-                    path: "test".to_string()
-                })
+                .check(P2mRequest::LocalEnroll { pid: 0, fd: 1, path: "test".to_string() })
                 .unwrap_err()
                 .to_string(),
             "Traceability error, process not found (pid: 0)"
@@ -156,11 +126,7 @@ mod tests {
 
         assert_eq!(
             p2m_service
-                .call(P2mRequest::LocalEnroll {
-                    pid: 0,
-                    fd: 1,
-                    path: "test".to_string()
-                }) // pid 0 is invalid
+                .call(P2mRequest::LocalEnroll { pid: 0, fd: 1, path: "test".to_string() }) // pid 0 is invalid
                 .await
                 .unwrap_err()
                 .to_string(),

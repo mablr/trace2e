@@ -112,11 +112,7 @@ macro_rules! remote_enroll {
 macro_rules! write_request {
     ($p2m:expr, $mapping:expr) => {
         match $p2m
-            .call(P2mRequest::IoRequest {
-                pid: $mapping.pid(),
-                fd: $mapping.fd(),
-                output: true,
-            })
+            .call(P2mRequest::IoRequest { pid: $mapping.pid(), fd: $mapping.fd(), output: true })
             .await
         {
             Ok(P2mResponse::Grant(flow_id)) => flow_id,
@@ -128,11 +124,7 @@ macro_rules! write_request {
 macro_rules! read_request {
     ($p2m:expr, $mapping:expr) => {
         match $p2m
-            .call(P2mRequest::IoRequest {
-                pid: $mapping.pid(),
-                fd: $mapping.fd(),
-                output: false,
-            })
+            .call(P2mRequest::IoRequest { pid: $mapping.pid(), fd: $mapping.fd(), output: false })
             .await
         {
             Ok(P2mResponse::Grant(flow_id)) => flow_id,
@@ -176,9 +168,7 @@ macro_rules! write {
 macro_rules! assert_provenance {
     ($o2m:expr, $resource:expr, $provenance:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::GetReferences($resource))
-                .await
-                .unwrap(),
+            $o2m.call(O2mRequest::GetReferences($resource)).await.unwrap(),
             O2mResponse::References($provenance)
         )
     };
@@ -187,9 +177,7 @@ macro_rules! assert_provenance {
 macro_rules! assert_policies {
     ($o2m:expr, $resource_set:expr, $policy_set:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::GetPolicies($resource_set))
-                .await
-                .unwrap(),
+            $o2m.call(O2mRequest::GetPolicies($resource_set)).await.unwrap(),
             O2mResponse::Policies($policy_set)
         )
     };
@@ -198,12 +186,9 @@ macro_rules! assert_policies {
 macro_rules! set_policy {
     ($o2m:expr, $resource:expr, $policy:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::SetPolicy {
-                resource: $resource,
-                policy: $policy
-            })
-            .await
-            .unwrap(),
+            $o2m.call(O2mRequest::SetPolicy { resource: $resource, policy: $policy })
+                .await
+                .unwrap(),
             O2mResponse::Ack
         )
     };

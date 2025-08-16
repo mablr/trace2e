@@ -40,10 +40,7 @@ impl Resource {
     }
 
     pub fn new_stream(local_socket: String, peer_socket: String) -> Self {
-        Self::Fd(Fd::Stream(Stream {
-            local_socket,
-            peer_socket,
-        }))
+        Self::Fd(Fd::Stream(Stream { local_socket, peer_socket }))
     }
 
     pub fn new_process(pid: i32) -> Self {
@@ -56,26 +53,14 @@ impl Resource {
             } else {
                 String::new()
             };
-            Self::Process(Process {
-                pid,
-                starttime,
-                exe_path,
-            })
+            Self::Process(Process { pid, starttime, exe_path })
         } else {
-            Self::Process(Process {
-                pid,
-                starttime: 0,
-                exe_path: String::new(),
-            })
+            Self::Process(Process { pid, starttime: 0, exe_path: String::new() })
         }
     }
 
     pub fn new_process_mock(pid: i32) -> Self {
-        Self::Process(Process {
-            pid,
-            starttime: 0,
-            exe_path: String::new(),
-        })
+        Self::Process(Process { pid, starttime: 0, exe_path: String::new() })
     }
 
     pub fn is_file(&self) -> bool {
@@ -84,10 +69,7 @@ impl Resource {
 
     pub fn is_stream(&self) -> Option<Self> {
         if let Resource::Fd(Fd::Stream(stream)) = self {
-            Some(Self::new_stream(
-                stream.peer_socket.clone(),
-                stream.local_socket.clone(),
-            ))
+            Some(Self::new_stream(stream.peer_socket.clone(), stream.local_socket.clone()))
         } else {
             None
         }

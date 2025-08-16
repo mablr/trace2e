@@ -1,6 +1,5 @@
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
-
 use trace2e_middleware::{
     traceability::init_middleware,
     transport::grpc::{
@@ -24,10 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_v1()?;
 
     Server::builder()
-        .add_service(Trace2eGrpcServer::new(Trace2eRouter::new(
-            p2m_service,
-            m2m_service,
-        )))
+        .add_service(Trace2eGrpcServer::new(Trace2eRouter::new(p2m_service, m2m_service)))
         .add_service(reflection_service)
         .serve(address)
         .await?;

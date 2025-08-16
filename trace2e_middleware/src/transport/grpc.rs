@@ -1,6 +1,7 @@
 //! gRPC service for the Trace2e middleware.
-use dashmap::DashMap;
 use std::{collections::HashSet, future::Future, ops::Deref as _, pin::Pin, sync::Arc, task::Poll};
+
+use dashmap::DashMap;
 use tonic::{Request, Response, Status, transport::Channel};
 use tower::Service;
 
@@ -54,9 +55,7 @@ impl M2mGrpc {
         &self,
         remote_ip: String,
     ) -> Option<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> {
-        self.connected_remotes
-            .get(&remote_ip)
-            .map(|c| c.deref().clone())
+        self.connected_remotes.get(&remote_ip).map(|c| c.deref().clone())
     }
 
     async fn get_client_or_connect(
@@ -85,10 +84,7 @@ impl Service<M2mRequest> for M2mGrpc {
             let remote_ip = eval_remote_ip(request.clone())?;
             let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
             match request {
-                M2mRequest::GetConsistentCompliance {
-                    source,
-                    destination,
-                } => {
+                M2mRequest::GetConsistentCompliance { source, destination } => {
                     // Create the protobuf request
                     let proto_req = proto::ConsistentCompliance {
                         source: Some(source.into()),
@@ -102,11 +98,7 @@ impl Service<M2mRequest> for M2mGrpc {
                         .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
                         .into_inner();
                     Ok(M2mResponse::Compliance(
-                        response
-                            .policies
-                            .into_iter()
-                            .map(|policy| policy.into())
-                            .collect(),
+                        response.policies.into_iter().map(|policy| policy.into()).collect(),
                     ))
                 }
                 M2mRequest::GetLooseCompliance { resources, .. } => {
@@ -122,17 +114,10 @@ impl Service<M2mRequest> for M2mGrpc {
                         .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
                         .into_inner();
                     Ok(M2mResponse::Compliance(
-                        response
-                            .policies
-                            .into_iter()
-                            .map(|policy| policy.into())
-                            .collect(),
+                        response.policies.into_iter().map(|policy| policy.into()).collect(),
                     ))
                 }
-                M2mRequest::UpdateProvenance {
-                    source_prov,
-                    destination,
-                } => {
+                M2mRequest::UpdateProvenance { source_prov, destination } => {
                     // Create the protobuf request
                     let proto_req = proto::UpdateProvenance {
                         source_prov: source_prov.into_iter().map(|s| s.into()).collect(),
@@ -140,12 +125,9 @@ impl Service<M2mRequest> for M2mGrpc {
                     };
 
                     // Make the gRPC call
-                    client
-                        .m2m_update_provenance(Request::new(proto_req))
-                        .await
-                        .map_err(|_| {
-                            TraceabilityError::TransportFailedToContactRemote(remote_ip)
-                        })?;
+                    client.m2m_update_provenance(Request::new(proto_req)).await.map_err(|_| {
+                        TraceabilityError::TransportFailedToContactRemote(remote_ip)
+                    })?;
 
                     Ok(M2mResponse::Ack)
                 }
@@ -320,10 +302,7 @@ impl From<proto::LooseCompliance> for M2mRequest {
 
 impl From<proto::References> for (String, HashSet<Resource>) {
     fn from(references: proto::References) -> Self {
-        (
-            references.node,
-            references.resources.into_iter().map(|r| r.into()).collect(),
-        )
+        (references.node, references.resources.into_iter().map(|r| r.into()).collect())
     }
 }
 
@@ -338,18 +317,13 @@ impl From<proto::UpdateProvenance> for M2mRequest {
 
 impl From<HashSet<Policy>> for proto::Compliance {
     fn from(policies: HashSet<Policy>) -> Self {
-        proto::Compliance {
-            policies: policies.into_iter().map(|policy| policy.into()).collect(),
-        }
+        proto::Compliance { policies: policies.into_iter().map(|policy| policy.into()).collect() }
     }
 }
 
 impl From<(String, HashSet<Resource>)> for proto::References {
     fn from((node, resources): (String, HashSet<Resource>)) -> Self {
-        proto::References {
-            node,
-            resources: resources.into_iter().map(|r| r.into()).collect(),
-        }
+        proto::References { node, resources: resources.into_iter().map(|r| r.into()).collect() }
     }
 }
 
@@ -366,9 +340,9 @@ impl From<proto::Resource> for Resource {
 impl From<Resource> for proto::Resource {
     fn from(resource: Resource) -> Self {
         match resource {
-            Resource::Fd(fd) => proto::Resource {
-                resource: Some(proto::resource::Resource::Fd(fd.into())),
-            },
+            Resource::Fd(fd) => {
+                proto::Resource { resource: Some(proto::resource::Resource::Fd(fd.into())) }
+            }
             Resource::Process(process) => proto::Resource {
                 resource: Some(proto::resource::Resource::Process(process.into())),
             },
@@ -382,9 +356,7 @@ impl From<proto::Fd> for Fd {
         match proto_fd.fd {
             Some(proto::fd::Fd::File(file)) => Fd::File(file.into()),
             Some(proto::fd::Fd::Stream(stream)) => Fd::Stream(stream.into()),
-            None => Fd::File(File {
-                path: String::new(),
-            }), // Default to empty file
+            None => Fd::File(File { path: String::new() }), // Default to empty file
         }
     }
 }
@@ -392,21 +364,15 @@ impl From<proto::Fd> for Fd {
 impl From<Fd> for proto::Fd {
     fn from(fd: Fd) -> Self {
         match fd {
-            Fd::File(file) => proto::Fd {
-                fd: Some(proto::fd::Fd::File(file.into())),
-            },
-            Fd::Stream(stream) => proto::Fd {
-                fd: Some(proto::fd::Fd::Stream(stream.into())),
-            },
+            Fd::File(file) => proto::Fd { fd: Some(proto::fd::Fd::File(file.into())) },
+            Fd::Stream(stream) => proto::Fd { fd: Some(proto::fd::Fd::Stream(stream.into())) },
         }
     }
 }
 
 impl From<proto::File> for File {
     fn from(proto_file: proto::File) -> Self {
-        File {
-            path: proto_file.path,
-        }
+        File { path: proto_file.path }
     }
 }
 
@@ -418,19 +384,13 @@ impl From<File> for proto::File {
 
 impl From<proto::Stream> for Stream {
     fn from(proto_stream: proto::Stream) -> Self {
-        Stream {
-            local_socket: proto_stream.local_socket,
-            peer_socket: proto_stream.peer_socket,
-        }
+        Stream { local_socket: proto_stream.local_socket, peer_socket: proto_stream.peer_socket }
     }
 }
 
 impl From<Stream> for proto::Stream {
     fn from(stream: Stream) -> Self {
-        proto::Stream {
-            local_socket: stream.local_socket,
-            peer_socket: stream.peer_socket,
-        }
+        proto::Stream { local_socket: stream.local_socket, peer_socket: stream.peer_socket }
     }
 }
 

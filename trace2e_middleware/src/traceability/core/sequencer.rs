@@ -1,6 +1,6 @@
-use dashmap::DashMap;
 use std::{collections::VecDeque, pin::Pin, sync::Arc, task::Poll};
 
+use dashmap::DashMap;
 use tokio::{join, sync::oneshot};
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
@@ -40,10 +40,7 @@ impl SequencerService {
         } else if destination_available {
             Err(TraceabilityError::UnavailableSource(source))
         } else {
-            Err(TraceabilityError::UnavailableSourceAndDestination(
-                source,
-                destination,
-            ))
+            Err(TraceabilityError::UnavailableSourceAndDestination(source, destination))
         }
     }
 
@@ -68,10 +65,7 @@ impl SequencerService {
             }
         } else {
             // Destination is not reserved, nothing to do
-            SequencerResponse::FlowReleased {
-                source: None,
-                destination: None,
-            }
+            SequencerResponse::FlowReleased { source: None, destination: None }
         }
     }
 }
@@ -89,10 +83,7 @@ impl Service<SequencerRequest> for SequencerService {
         let this = self.clone();
         Box::pin(async move {
             match request {
-                SequencerRequest::ReserveFlow {
-                    source,
-                    destination,
-                } => {
+                SequencerRequest::ReserveFlow { source, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[sequencer] ReserveFlow: source: {:?}, destination: {:?}",
@@ -178,10 +169,7 @@ where
                         debug!("[sequencer] FlowReserved");
                         return Ok(SequencerResponse::FlowReserved);
                     }
-                    Ok(SequencerResponse::FlowReleased {
-                        source,
-                        destination,
-                    }) => {
+                    Ok(SequencerResponse::FlowReleased { source, destination }) => {
                         join!(
                             this.notify_waiting_queue(&source),
                             this.notify_waiting_queue(&destination)
@@ -191,10 +179,7 @@ where
                             "[sequencer] FlowReleased: source: {:?}, destination: {:?}",
                             source, destination
                         );
-                        return Ok(SequencerResponse::FlowReleased {
-                            source,
-                            destination,
-                        });
+                        return Ok(SequencerResponse::FlowReleased { source, destination });
                     }
                     Err(TraceabilityError::UnavailableSource(source)) => {
                         let rx = this.join_waiting_queue(&source).await;
@@ -235,9 +220,8 @@ mod tests {
 
     use tower::{ServiceBuilder, layer::layer_fn, timeout::TimeoutLayer};
 
-    use crate::traceability::naming::Resource;
-
     use super::*;
+    use crate::traceability::naming::Resource;
     #[tokio::test]
     async fn unit_sequencer_impl_flow() {
         #[cfg(feature = "trace2e_tracing")]
@@ -262,10 +246,7 @@ mod tests {
         );
         assert_eq!(
             sequencer.drop_flow(&file).await,
-            SequencerResponse::FlowReleased {
-                source: Some(process),
-                destination: Some(file)
-            }
+            SequencerResponse::FlowReleased { source: Some(process), destination: Some(file) }
         );
     }
 
@@ -290,10 +271,7 @@ mod tests {
         // Already dropped, source is still available so it return true again
         assert_eq!(
             sequencer.drop_flow(&file).await,
-            SequencerResponse::FlowReleased {
-                source: None,
-                destination: None
-            }
+            SequencerResponse::FlowReleased { source: None, destination: None }
         );
     }
 
@@ -329,17 +307,11 @@ mod tests {
         // Drop 2 reservations
         assert_eq!(
             sequencer.drop_flow(&file2).await,
-            SequencerResponse::FlowReleased {
-                source: None,
-                destination: Some(file2)
-            }
+            SequencerResponse::FlowReleased { source: None, destination: Some(file2) }
         );
         assert_eq!(
             sequencer.drop_flow(&file1).await,
-            SequencerResponse::FlowReleased {
-                source: None,
-                destination: Some(file1)
-            }
+            SequencerResponse::FlowReleased { source: None, destination: Some(file1) }
         );
 
         // Must fail because process is still reserved once as reader
@@ -358,10 +330,7 @@ mod tests {
         );
 
         // Must succeed because process is not reserved as reader
-        assert_eq!(
-            sequencer.make_flow(file4, process).await,
-            Ok(SequencerResponse::FlowReserved)
-        );
+        assert_eq!(sequencer.make_flow(file4, process).await, Ok(SequencerResponse::FlowReserved));
     }
 
     #[tokio::test]
@@ -401,9 +370,7 @@ mod tests {
         // Fails because circular flow (get read on write lock & get write on read lock)
         assert_eq!(
             sequencer.make_flow(process1.clone(), file1.clone()).await,
-            Err(TraceabilityError::UnavailableSourceAndDestination(
-                process1, file1
-            ))
+            Err(TraceabilityError::UnavailableSourceAndDestination(process1, file1))
         );
     }
 
@@ -429,15 +396,10 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: file.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: file.clone() })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased {
-                source: Some(process),
-                destination: Some(file)
-            }
+            SequencerResponse::FlowReleased { source: Some(process), destination: Some(file) }
         );
     }
 
@@ -463,10 +425,7 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReserveFlow {
-                    source: process,
-                    destination: file.clone(),
-                })
+                .call(SequencerRequest::ReserveFlow { source: process, destination: file.clone() })
                 .await
                 .unwrap_err(),
             TraceabilityError::UnavailableDestination(file)
@@ -528,9 +487,7 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: process.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: process.clone() })
                 .await
                 .unwrap(),
             SequencerResponse::FlowReleased {
@@ -552,15 +509,10 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: process.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: process.clone() })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased {
-                source: Some(file2),
-                destination: Some(process)
-            }
+            SequencerResponse::FlowReleased { source: Some(file2), destination: Some(process) }
         );
     }
 
@@ -680,40 +632,25 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: file2.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: file2.clone() })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased {
-                source: None,
-                destination: Some(file2)
-            }
+            SequencerResponse::FlowReleased { source: None, destination: Some(file2) }
         );
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: file3.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: file3.clone() })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased {
-                source: None,
-                destination: Some(file3)
-            }
+            SequencerResponse::FlowReleased { source: None, destination: Some(file3) }
         );
 
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: file1.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: file1.clone() })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased {
-                source: Some(process),
-                destination: Some(file1)
-            }
+            SequencerResponse::FlowReleased { source: Some(process), destination: Some(file1) }
         );
     }
 
@@ -742,10 +679,7 @@ mod tests {
 
         assert!(
             sequencer
-                .call(SequencerRequest::ReserveFlow {
-                    source: process,
-                    destination: file,
-                })
+                .call(SequencerRequest::ReserveFlow { source: process, destination: file })
                 .await
                 .is_err(),
         );
@@ -776,10 +710,7 @@ mod tests {
 
         assert!(
             sequencer
-                .call(SequencerRequest::ReserveFlow {
-                    source: file,
-                    destination: process,
-                })
+                .call(SequencerRequest::ReserveFlow { source: file, destination: process })
                 .await
                 .is_err(),
         );
@@ -824,9 +755,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(5)).await;
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: process.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: process.clone() })
                 .await
                 .unwrap(),
             SequencerResponse::FlowReleased {
@@ -839,15 +768,10 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: process.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: process.clone() })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased {
-                source: Some(file2),
-                destination: Some(process)
-            }
+            SequencerResponse::FlowReleased { source: Some(file2), destination: Some(process) }
         );
     }
     #[tokio::test]
@@ -913,9 +837,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(1)).await;
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: process1.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: process1.clone() })
                 .await
                 .unwrap(),
             SequencerResponse::FlowReleased {
@@ -925,9 +847,7 @@ mod tests {
         );
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: process2.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: process2.clone() })
                 .await
                 .unwrap(),
             SequencerResponse::FlowReleased {
@@ -937,9 +857,7 @@ mod tests {
         );
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: process3.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: process3.clone() })
                 .await
                 .unwrap(),
             SequencerResponse::FlowReleased {
@@ -954,15 +872,10 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: file.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: file.clone() })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased {
-                source: Some(process4),
-                destination: Some(file)
-            }
+            SequencerResponse::FlowReleased { source: Some(process4), destination: Some(file) }
         );
     }
 
@@ -1005,9 +918,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(1)).await;
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: process.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: process.clone() })
                 .await
                 .unwrap(),
             SequencerResponse::FlowReleased {
@@ -1020,15 +931,10 @@ mod tests {
 
         assert_eq!(
             sequencer
-                .call(SequencerRequest::ReleaseFlow {
-                    destination: file2.clone(),
-                })
+                .call(SequencerRequest::ReleaseFlow { destination: file2.clone() })
                 .await
                 .unwrap(),
-            SequencerResponse::FlowReleased {
-                source: Some(process),
-                destination: Some(file2)
-            }
+            SequencerResponse::FlowReleased { source: Some(process), destination: Some(file2) }
         );
     }
 }

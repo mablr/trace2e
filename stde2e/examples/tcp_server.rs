@@ -1,5 +1,6 @@
-use clap::Parser;
 use std::{io::Read, net::TcpListener};
+
+use clap::Parser;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Args {

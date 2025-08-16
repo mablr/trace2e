@@ -4,7 +4,6 @@ mod proto {
 }
 
 mod grpc {
-    use super::*;
     use once_cell::sync::Lazy;
     use tokio::{
         runtime::Handle,
@@ -12,12 +11,10 @@ mod grpc {
     };
     use tonic::transport::Channel;
 
-    static TOKIO_RUNTIME: Lazy<tokio::runtime::Runtime> = Lazy::new(|| {
-        tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-    });
+    use super::*;
+
+    static TOKIO_RUNTIME: Lazy<tokio::runtime::Runtime> =
+        Lazy::new(|| tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap());
 
     // The URL for the gRPC service
     const GRPC_URL: &str = "http://[::1]:50051";
@@ -25,10 +22,7 @@ mod grpc {
     static GRPC_CLIENT: Lazy<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> =
         Lazy::new(|| {
             let rt = &*TOKIO_RUNTIME;
-            rt.block_on(proto::trace2e_grpc_client::Trace2eGrpcClient::connect(
-                GRPC_URL,
-            ))
-            .unwrap()
+            rt.block_on(proto::trace2e_grpc_client::Trace2eGrpcClient::connect(GRPC_URL)).unwrap()
         });
 
     // Gets an appropriate gRPC client for the current runtime context
@@ -62,11 +56,7 @@ mod grpc {
         let request = tonic::Request::new(proto::LocalCt {
             process_id: id() as i32,
             file_descriptor: fd,
-            path: canonicalize(path.as_ref())
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .to_string(),
+            path: canonicalize(path.as_ref()).unwrap().to_str().unwrap().to_string(),
         });
 
         if let Ok(handle) = Handle::try_current() {
@@ -112,17 +102,13 @@ mod grpc {
                 handle.block_on(client.p2m_io_request(request))
             }) {
                 Ok(response) => Ok(response.into_inner().id),
-                Err(_) => Err(Box::new(std::io::Error::from(
-                    std::io::ErrorKind::PermissionDenied,
-                ))),
+                Err(_) => Err(Box::new(std::io::Error::from(std::io::ErrorKind::PermissionDenied))),
             }
         } else {
             let mut client = get_client();
             match TOKIO_RUNTIME.block_on(client.p2m_io_request(request)) {
                 Ok(response) => Ok(response.into_inner().id),
-                Err(_) => Err(Box::new(std::io::Error::from(
-                    std::io::ErrorKind::PermissionDenied,
-                ))),
+                Err(_) => Err(Box::new(std::io::Error::from(std::io::ErrorKind::PermissionDenied))),
             }
         };
         result
@@ -158,6 +144,5 @@ mod grpc {
     }
 }
 
-pub use proto::Flow;
-
 pub use grpc::{io_report, io_request, local_enroll, remote_enroll};
+pub use proto::Flow;

@@ -1,6 +1,7 @@
-use std::fs::File as StdFile;
-use std::fs::OpenOptions as StdOpenOptions;
-use std::os::fd::AsRawFd;
+use std::{
+    fs::{File as StdFile, OpenOptions as StdOpenOptions},
+    os::fd::AsRawFd,
+};
 
 use trace2e_client::local_enroll;
 

@@ -1,4 +1,5 @@
 use std::{future::Future, pin::Pin, task::Poll};
+
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
 use tracing::info;
@@ -20,10 +21,7 @@ pub struct O2mApiService<P, C> {
 
 impl<P, C> O2mApiService<P, C> {
     pub fn new(provenance: P, compliance: C) -> Self {
-        Self {
-            provenance,
-            compliance,
-        }
+        Self { provenance, compliance }
     }
 }
 
@@ -56,15 +54,8 @@ where
             match request {
                 O2mRequest::GetPolicies(resources) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!(
-                        "[o2m-{}] GetPolicies: resources: {:?}",
-                        provenance.node_id(),
-                        resources
-                    );
-                    match compliance
-                        .call(ComplianceRequest::GetPolicies(resources))
-                        .await?
-                    {
+                    info!("[o2m-{}] GetPolicies: resources: {:?}", provenance.node_id(), resources);
+                    match compliance.call(ComplianceRequest::GetPolicies(resources)).await? {
                         ComplianceResponse::Policies(policies) => {
                             Ok(O2mResponse::Policies(policies))
                         }
@@ -79,9 +70,7 @@ where
                         resource,
                         policy
                     );
-                    match compliance
-                        .call(ComplianceRequest::SetPolicy { resource, policy })
-                        .await?
+                    match compliance.call(ComplianceRequest::SetPolicy { resource, policy }).await?
                     {
                         ComplianceResponse::PolicyUpdated => Ok(O2mResponse::Ack),
                         _ => Err(TraceabilityError::InternalTrace2eError),
@@ -89,15 +78,8 @@ where
                 }
                 O2mRequest::GetReferences(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!(
-                        "[o2m-{}] GetReferences: resource: {:?}",
-                        provenance.node_id(),
-                        resource
-                    );
-                    match provenance
-                        .call(ProvenanceRequest::GetReferences(resource))
-                        .await?
-                    {
+                    info!("[o2m-{}] GetReferences: resource: {:?}", provenance.node_id(), resource);
+                    match provenance.call(ProvenanceRequest::GetReferences(resource)).await? {
                         ProvenanceResponse::Provenance { references, .. } => {
                             Ok(O2mResponse::References(references))
                         }

@@ -1,13 +1,12 @@
 #[macro_use]
 mod fixtures;
 
-use fixtures::{FileMapping, StreamMapping};
-
 use std::{
     collections::{HashMap, HashSet},
     time::Duration,
 };
 
+use fixtures::{FileMapping, StreamMapping};
 use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 
 use crate::{
@@ -58,10 +57,8 @@ async fn integration_spawn_loopback_middlewares() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
-    let mut middlewares = spawn_loopback_middlewares(ips.clone())
-        .await
-        .into_iter()
-        .map(|(p2m, o2m)| {
+    let mut middlewares =
+        spawn_loopback_middlewares(ips.clone()).await.into_iter().map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -121,10 +118,7 @@ async fn integration_o2m_local_provenance() {
     assert_provenance!(
         o2m_service,
         fd2.file(),
-        HashMap::from([(
-            String::new(),
-            HashSet::from([fd2.file(), fd1.process(), fd1.file()])
-        )])
+        HashMap::from([(String::new(), HashSet::from([fd2.file(), fd1.process(), fd1.file()]))])
     );
 }
 
@@ -140,10 +134,8 @@ async fn integration_o2m_remote_provenance_basic() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
-    let mut middlewares = spawn_loopback_middlewares(ips.clone())
-        .await
-        .into_iter()
-        .map(|(p2m, o2m)| {
+    let mut middlewares =
+        spawn_loopback_middlewares(ips.clone()).await.into_iter().map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -204,15 +196,9 @@ async fn integration_o2m_remote_provenance_complex() {
 
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
-    let ips = vec![
-        "10.0.0.1".to_string(),
-        "10.0.0.2".to_string(),
-        "10.0.0.3".to_string(),
-    ];
-    let mut middlewares = spawn_loopback_middlewares(ips.clone())
-        .await
-        .into_iter()
-        .map(|(p2m, o2m)| {
+    let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
+    let mut middlewares =
+        spawn_loopback_middlewares(ips.clone()).await.into_iter().map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -252,10 +238,7 @@ async fn integration_o2m_remote_provenance_complex() {
         o2m_3,
         stream3_2.process(), // P3on3
         HashMap::from([
-            (
-                "10.0.0.1".to_string(),
-                HashSet::from([fd1_1_1.file(), fd1_1_1.process()])
-            ),
+            ("10.0.0.1".to_string(), HashSet::from([fd1_1_1.file(), fd1_1_1.process()])),
             ("10.0.0.2".to_string(), HashSet::from([stream2_3.process()])),
             ("10.0.0.3".to_string(), HashSet::from([stream3_2.process()]))
         ])
@@ -265,10 +248,7 @@ async fn integration_o2m_remote_provenance_complex() {
         o2m_2,
         stream2_3.process(), // P2on2 eq stream2_1.process()
         HashMap::from([
-            (
-                "10.0.0.1".to_string(),
-                HashSet::from([fd1_1_1.file(), fd1_1_1.process()])
-            ),
+            ("10.0.0.1".to_string(), HashSet::from([fd1_1_1.file(), fd1_1_1.process()])),
             ("10.0.0.2".to_string(), HashSet::from([stream2_1.process()])),
         ])
     );
@@ -309,14 +289,9 @@ async fn integration_o2m_remote_provenance_complex_with_entropy() {
 
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
-    let ips = vec![
-        "10.0.0.1".to_string(),
-        "10.0.0.2".to_string(),
-        "10.0.0.3".to_string(),
-    ];
-    let mut middlewares = spawn_loopback_middlewares_with_entropy(ips.clone(), 10, 100)
-        .await
-        .into_iter();
+    let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
+    let mut middlewares =
+        spawn_loopback_middlewares_with_entropy(ips.clone(), 10, 100).await.into_iter();
 
     let (mut p2m_1, mut o2m_1) = middlewares.next().unwrap();
     let (mut p2m_2, mut o2m_2) = middlewares.next().unwrap();
@@ -349,10 +324,7 @@ async fn integration_o2m_remote_provenance_complex_with_entropy() {
         o2m_3,
         stream3_2.process(), // P3on3
         HashMap::from([
-            (
-                "10.0.0.1".to_string(),
-                HashSet::from([fd1_1_1.file(), fd1_1_1.process()])
-            ),
+            ("10.0.0.1".to_string(), HashSet::from([fd1_1_1.file(), fd1_1_1.process()])),
             ("10.0.0.2".to_string(), HashSet::from([stream2_3.process()])),
             ("10.0.0.3".to_string(), HashSet::from([stream3_2.process()]))
         ])
@@ -362,10 +334,7 @@ async fn integration_o2m_remote_provenance_complex_with_entropy() {
         o2m_2,
         stream2_3.process(), // P2on2 eq stream2_1.process()
         HashMap::from([
-            (
-                "10.0.0.1".to_string(),
-                HashSet::from([fd1_1_1.file(), fd1_1_1.process()])
-            ),
+            ("10.0.0.1".to_string(), HashSet::from([fd1_1_1.file(), fd1_1_1.process()])),
             ("10.0.0.2".to_string(), HashSet::from([stream2_1.process()])),
         ])
     );
@@ -402,15 +371,9 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
 
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
-    let ips = vec![
-        "10.0.0.1".to_string(),
-        "10.0.0.2".to_string(),
-        "10.0.0.3".to_string(),
-    ];
-    let mut middlewares = spawn_loopback_middlewares(ips.clone())
-        .await
-        .into_iter()
-        .map(|(p2m, o2m)| {
+    let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
+    let mut middlewares =
+        spawn_loopback_middlewares(ips.clone()).await.into_iter().map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -446,11 +409,7 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
     read!(p2m_3, stream3_2);
 
     // Set the policy for the file1 to make it private
-    assert_policies!(
-        o2m_1,
-        HashSet::from([fd1_1_1.file()]),
-        HashSet::from([Policy::default()])
-    );
+    assert_policies!(o2m_1, HashSet::from([fd1_1_1.file()]), HashSet::from([Policy::default()]));
     set_policy!(
         o2m_1,
         fd1_1_1.file(),
@@ -503,15 +462,9 @@ async fn integration_o2m_remote_integrity_enforcement() {
 
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
-    let ips = vec![
-        "10.0.0.1".to_string(),
-        "10.0.0.2".to_string(),
-        "10.0.0.3".to_string(),
-    ];
-    let mut middlewares = spawn_loopback_middlewares(ips.clone())
-        .await
-        .into_iter()
-        .map(|(p2m, o2m)| {
+    let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
+    let mut middlewares =
+        spawn_loopback_middlewares(ips.clone()).await.into_iter().map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -531,11 +484,7 @@ async fn integration_o2m_remote_integrity_enforcement() {
     set_policy!(
         o2m_3,
         fd3_3_2.file(),
-        Policy {
-            confidentiality: Default::default(),
-            integrity: 5,
-            deleted: false,
-        }
+        Policy { confidentiality: Default::default(), integrity: 5, deleted: false }
     );
 
     local_enroll!(p2m_1, fd1_1_1);
@@ -586,10 +535,8 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
-    let mut middlewares = spawn_loopback_middlewares(ips.clone())
-        .await
-        .into_iter()
-        .map(|(p2m, o2m)| {
+    let mut middlewares =
+        spawn_loopback_middlewares(ips.clone()).await.into_iter().map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(10)))
@@ -624,11 +571,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
     write!(p2m_2, fd2_2_1);
 
     // Verify the source file has default policy
-    assert_policies!(
-        o2m_1,
-        HashSet::from([fd1_1_1.file()]),
-        HashSet::from([Policy::default()])
-    );
+    assert_policies!(o2m_1, HashSet::from([fd1_1_1.file()]), HashSet::from([Policy::default()]));
 
     // Mark the source file as deleted
     set_policy!(

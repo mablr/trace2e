@@ -1,4 +1,3 @@
-use dashmap::DashMap;
 use std::{
     collections::VecDeque,
     future::Future,
@@ -8,6 +7,8 @@ use std::{
     task::Poll,
     time::{Duration, Instant},
 };
+
+use dashmap::DashMap;
 use tower::Service;
 
 use crate::{
@@ -135,10 +136,7 @@ impl Service<M2mRequest> for M2mLoopback {
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         let this = self.clone();
         Box::pin(async move {
-            this.get_middleware(eval_remote_ip(request.clone())?)
-                .await?
-                .call(request)
-                .await
+            this.get_middleware(eval_remote_ip(request.clone())?).await?.call(request).await
         })
     }
 }

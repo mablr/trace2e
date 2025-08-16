@@ -1,12 +1,3 @@
-use crate::traceability::{
-    api::{
-        ComplianceRequest, ComplianceResponse, M2mRequest, M2mResponse, P2mRequest, P2mResponse,
-        ProvenanceRequest, ProvenanceResponse, SequencerRequest, SequencerResponse,
-    },
-    error::TraceabilityError,
-    naming::{NodeId, Resource},
-};
-use dashmap::DashMap;
 use std::{
     collections::{HashMap, HashSet},
     future::Future,
@@ -15,9 +6,20 @@ use std::{
     task::Poll,
     time::SystemTime,
 };
+
+use dashmap::DashMap;
 use tower::{Service, ServiceExt};
 #[cfg(feature = "trace2e_tracing")]
 use tracing::{debug, info};
+
+use crate::traceability::{
+    api::{
+        ComplianceRequest, ComplianceResponse, M2mRequest, M2mResponse, P2mRequest, P2mResponse,
+        ProvenanceRequest, ProvenanceResponse, SequencerRequest, SequencerResponse,
+    },
+    error::TraceabilityError,
+    naming::{NodeId, Resource},
+};
 
 type ResourceMap = DashMap<(i32, i32), (Resource, Resource)>;
 type FlowMap = DashMap<u128, (Resource, Resource)>;
@@ -95,18 +97,11 @@ where
                         fd,
                         path
                     );
-                    resource_map.insert(
-                        (pid, fd),
-                        (Resource::new_process(pid), Resource::new_file(path)),
-                    );
+                    resource_map
+                        .insert((pid, fd), (Resource::new_process(pid), Resource::new_file(path)));
                     Ok(P2mResponse::Ack)
                 }
-                P2mRequest::RemoteEnroll {
-                    pid,
-                    fd,
-                    local_socket,
-                    peer_socket,
-                } => {
+                P2mRequest::RemoteEnroll { pid, fd, local_socket, peer_socket } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[p2m-{}] RemoteEnroll: pid: {}, fd: {}, local_socket: {}, peer_socket: {}",
@@ -305,10 +300,7 @@ where
                             destination
                         );
                         if let Some(remote_stream) = destination.is_stream() {
-                            match provenance
-                                .call(ProvenanceRequest::GetReferences(source))
-                                .await?
-                            {
+                            match provenance.call(ProvenanceRequest::GetReferences(source)).await? {
                                 ProvenanceResponse::Provenance { references, .. } => {
                                     m2m.ready()
                                         .await?
@@ -328,9 +320,7 @@ where
                                 })
                                 .await?;
                         }
-                        sequencer
-                            .call(SequencerRequest::ReleaseFlow { destination })
-                            .await?;
+                        sequencer.call(SequencerRequest::ReleaseFlow { destination }).await?;
                         Ok(P2mResponse::Ack)
                     } else {
                         Err(TraceabilityError::NotFoundFlow(grant_id))
@@ -345,6 +335,7 @@ where
 mod tests {
     use tower::{Service, ServiceBuilder, filter::FilterLayer};
 
+    use super::*;
     use crate::{
         traceability::{
             core::{
@@ -355,8 +346,6 @@ mod tests {
         },
         transport::nop::M2mNop,
     };
-
-    use super::*;
 
     #[tokio::test]
     async fn unit_trace2e_service_request_response() {
@@ -371,11 +360,7 @@ mod tests {
 
         assert_eq!(
             p2m_service
-                .call(P2mRequest::LocalEnroll {
-                    pid: 1,
-                    fd: 3,
-                    path: "/tmp/test.txt".to_string()
-                })
+                .call(P2mRequest::LocalEnroll { pid: 1, fd: 3, path: "/tmp/test.txt".to_string() })
                 .await
                 .unwrap(),
             P2mResponse::Ack
@@ -393,49 +378,27 @@ mod tests {
             P2mResponse::Ack
         );
 
-        let P2mResponse::Grant(flow_id) = p2m_service
-            .call(P2mRequest::IoRequest {
-                pid: 1,
-                fd: 3,
-                output: true,
-            })
-            .await
-            .unwrap()
+        let P2mResponse::Grant(flow_id) =
+            p2m_service.call(P2mRequest::IoRequest { pid: 1, fd: 3, output: true }).await.unwrap()
         else {
             panic!("Expected P2mResponse::Grant");
         };
         assert_eq!(
             p2m_service
-                .call(P2mRequest::IoReport {
-                    pid: 1,
-                    fd: 3,
-                    grant_id: flow_id,
-                    result: true
-                })
+                .call(P2mRequest::IoReport { pid: 1, fd: 3, grant_id: flow_id, result: true })
                 .await
                 .unwrap(),
             P2mResponse::Ack
         );
 
-        let P2mResponse::Grant(flow_id) = p2m_service
-            .call(P2mRequest::IoRequest {
-                pid: 1,
-                fd: 3,
-                output: false,
-            })
-            .await
-            .unwrap()
+        let P2mResponse::Grant(flow_id) =
+            p2m_service.call(P2mRequest::IoRequest { pid: 1, fd: 3, output: false }).await.unwrap()
         else {
             panic!("Expected P2mResponse::Grant");
         };
         assert_eq!(
             p2m_service
-                .call(P2mRequest::IoReport {
-                    pid: 1,
-                    fd: 3,
-                    grant_id: flow_id,
-                    result: true
-                })
+                .call(P2mRequest::IoReport { pid: 1, fd: 3, grant_id: flow_id, result: true })
                 .await
                 .unwrap(),
             P2mResponse::Ack
@@ -459,11 +422,7 @@ mod tests {
         // This request is supposed to be filtered out by the validator
         assert_eq!(
             p2m_service
-                .call(P2mRequest::LocalEnroll {
-                    pid: 0,
-                    fd: 3,
-                    path: "/tmp/test.txt".to_string()
-                })
+                .call(P2mRequest::LocalEnroll { pid: 0, fd: 3, path: "/tmp/test.txt".to_string() })
                 .await
                 .unwrap_err()
                 .to_string(),
@@ -500,11 +459,7 @@ mod tests {
         // Neither process nor fd are enrolled
         assert_eq!(
             p2m_service
-                .call(P2mRequest::IoRequest {
-                    pid: std::process::id() as i32,
-                    fd: 3,
-                    output: true,
-                })
+                .call(P2mRequest::IoRequest { pid: std::process::id() as i32, fd: 3, output: true })
                 .await
                 .unwrap_err()
                 .to_string(),
@@ -526,11 +481,7 @@ mod tests {
         // Only process is enrolled
         assert_eq!(
             p2m_service
-                .call(P2mRequest::IoRequest {
-                    pid: std::process::id() as i32,
-                    fd: 3,
-                    output: true,
-                })
+                .call(P2mRequest::IoRequest { pid: std::process::id() as i32, fd: 3, output: true })
                 .await
                 .unwrap_err()
                 .to_string(),
@@ -557,12 +508,7 @@ mod tests {
         // Invalid grant id
         assert_eq!(
             p2m_service
-                .call(P2mRequest::IoReport {
-                    pid: 1,
-                    fd: 3,
-                    grant_id: 0,
-                    result: true,
-                })
+                .call(P2mRequest::IoReport { pid: 1, fd: 3, grant_id: 0, result: true })
                 .await
                 .unwrap_err()
                 .to_string(),

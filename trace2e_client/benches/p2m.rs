@@ -1,5 +1,4 @@
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
-
 use trace2e_client::{Flow, io_report, io_request, local_enroll};
 
 fn bench_p2m_service(c: &mut Criterion) {

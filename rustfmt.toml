@@ -1,0 +1,6 @@
+use_small_heuristics = "Max"
+trailing_semicolon = false
+use_field_init_shorthand = true
+reorder_imports = true
+imports_granularity = "Crate"
+group_imports = "StdExternalCrate"
