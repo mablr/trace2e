@@ -13,14 +13,23 @@ use crate::traceability::{
     naming::NodeId,
 };
 
+/// M2M (Middleware-to-Middleware) API Service
+/// 
+/// This service handles communication between distributed middleware instances,
+/// enabling consistent compliance checking, flow coordination, and provenance updates
+/// across multiple nodes in the traceability network.
 #[derive(Debug, Clone)]
 pub struct M2mApiService<S, P, C> {
+    /// Service for managing flows sequencing
     sequencer: S,
+    /// Service for tracking resources provenance
     provenance: P,
+    /// Service for policy management and compliance checking
     compliance: C,
 }
 
 impl<S, P, C> M2mApiService<S, P, C> {
+    /// Creates a new M2M API service with the provided sequencer, provenance, and compliance services
     pub fn new(sequencer: S, provenance: P, compliance: C) -> Self {
         Self { sequencer, provenance, compliance }
     }

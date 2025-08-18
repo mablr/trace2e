@@ -24,17 +24,29 @@ use crate::traceability::{
 type ResourceMap = DashMap<(i32, i32), (Resource, Resource)>;
 type FlowMap = DashMap<u128, (Resource, Resource)>;
 
+/// P2M (Process-to-Middleware) API Service
+/// 
+/// This service handles traceability requests from processes, managing resource enrollment,
+/// I/O flow authorization, and provenance tracking. It coordinates between sequencer,
+/// provenance, compliance, and Middleware-to-Middleware communication services.
 #[derive(Debug, Clone)]
 pub struct P2mApiService<S, P, C, M> {
+    /// Maps (process_id, file_descriptor) to (source_resource, destination_resource) pairs
     resource_map: Arc<ResourceMap>,
+    /// Maps flow_id to (source_resource, destination_resource) pairs for active flows
     flow_map: Arc<FlowMap>,
+    /// Service for managing flows sequencing
     sequencer: S,
+    /// Service for tracking resources provenance
     provenance: P,
+    /// Service for policy management and compliance checking
     compliance: C,
+    /// Client service for Middleware-to-Middleware communication
     m2m: M,
 }
 
 impl<S, P, C, M> P2mApiService<S, P, C, M> {
+    /// Creates a new P2M API service with the provided component services
     pub fn new(sequencer: S, provenance: P, compliance: C, m2m: M) -> Self {
         Self {
             resource_map: Arc::new(ResourceMap::new()),

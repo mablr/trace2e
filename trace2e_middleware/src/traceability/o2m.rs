@@ -13,13 +13,21 @@ use crate::traceability::{
     naming::NodeId,
 };
 
+/// O2M (Operator-to-Middleware) API Service
+/// 
+/// This service handles traceability requests from external operators and organizations,
+/// providing policy management capabilities and resource reference queries.
+/// It coordinates between provenance and compliance services to serve external requests.
 #[derive(Debug, Clone)]
 pub struct O2mApiService<P, C> {
+    /// Service for tracking resources provenance
     provenance: P,
+    /// Service for policy management and compliance checking
     compliance: C,
 }
 
 impl<P, C> O2mApiService<P, C> {
+    /// Creates a new O2M API service with the provided provenance and compliance services
     pub fn new(provenance: P, compliance: C) -> Self {
         Self { provenance, compliance }
     }
