@@ -12,6 +12,10 @@ use crate::traceability::{
     naming::Resource,
 };
 
+/// Sequencer service for managing resources reservation
+/// 
+/// This service does not offer flow collision handling, it is the responsibility of the caller.
+/// `WaitingQueueService` can be set up as a layer to handle collisions.
 #[derive(Clone, Default)]
 pub struct SequencerService {
     flows: Arc<DashMap<Resource, Resource>>,
@@ -101,6 +105,9 @@ impl Service<SequencerRequest> for SequencerService {
     }
 }
 
+/// Waiting queue service for managing resources reservation
+/// 
+/// This service is used to handle flow collisions.
 #[derive(Clone)]
 pub struct WaitingQueueService<T> {
     inner: T,

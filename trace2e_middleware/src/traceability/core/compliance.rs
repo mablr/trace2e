@@ -17,6 +17,7 @@ use crate::traceability::{
     naming::Resource,
 };
 
+/// Confidentiality policy defines the level of confidentiality of a resource
 #[derive(Default, PartialEq, Debug, Clone, Eq, Hash)]
 pub enum ConfidentialityPolicy {
     Secret,
@@ -24,6 +25,9 @@ pub enum ConfidentialityPolicy {
     Public,
 }
 
+/// Policy for a resource
+/// 
+/// This policy is used to check the compliance of input/output flows of the associated resource.
 #[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Policy {
     pub confidentiality: ConfidentialityPolicy,
@@ -31,6 +35,10 @@ pub struct Policy {
     pub deleted: bool,
 }
 
+/// Compliance service for managing policies
+/// 
+/// This service is responsible for managing the policies for the resources.
+/// It is also used to check the compliance of a flow.
 #[derive(Default, Clone, Debug)]
 pub struct ComplianceService {
     policies: Arc<Mutex<HashMap<Resource, Policy>>>,

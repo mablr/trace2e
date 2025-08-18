@@ -18,6 +18,7 @@ use crate::traceability::{
 
 type ProvenanceMap = HashMap<Resource, HashMap<String, HashSet<Resource>>>;
 
+/// Provenance service for tracking resources provenance
 #[derive(Debug, Default, Clone)]
 pub struct ProvenanceService {
     node_id: String,
