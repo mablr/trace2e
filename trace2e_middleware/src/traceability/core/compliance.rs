@@ -26,7 +26,7 @@ pub enum ConfidentialityPolicy {
 }
 
 /// Policy for a resource
-/// 
+///
 /// This policy is used to check the compliance of input/output flows of the associated resource.
 #[derive(Default, Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Policy {
@@ -36,7 +36,7 @@ pub struct Policy {
 }
 
 /// Compliance service for managing policies
-/// 
+///
 /// This service is responsible for managing the policies for the resources.
 /// It is also used to check the compliance of a flow.
 #[derive(Default, Clone, Debug)]

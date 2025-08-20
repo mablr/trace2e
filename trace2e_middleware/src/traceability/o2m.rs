@@ -14,7 +14,7 @@ use crate::traceability::{
 };
 
 /// O2M (Operator-to-Middleware) API Service
-/// 
+///
 /// This service handles traceability requests from external operators and organizations,
 /// providing policy management capabilities and resource reference queries.
 /// It coordinates between provenance and compliance services to serve external requests.
