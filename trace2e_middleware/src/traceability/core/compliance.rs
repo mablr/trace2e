@@ -6,7 +6,7 @@ use std::{
     task::Poll,
 };
 
-use tokio::sync::Mutex;
+use dashmap::DashMap;
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
 use tracing::info;
@@ -41,19 +41,19 @@ pub struct Policy {
 /// It is also used to check the compliance of a flow.
 #[derive(Default, Clone, Debug)]
 pub struct ComplianceService {
-    policies: Arc<Mutex<HashMap<Resource, Policy>>>,
+    policies: Arc<DashMap<Resource, Policy>>,
 }
 
 impl ComplianceService {
     /// Get the policies for a specific resource
     /// Returns the default policy if the resource is not found
     async fn get_policies(&self, resources: HashSet<Resource>) -> HashSet<Policy> {
-        let policies = self.policies.lock().await;
         let mut policies_set = HashSet::new();
         for resource in resources {
             // Get the policy from the local policies, streams have no policies
             if resource.is_stream().is_none() {
-                policies_set.insert(policies.get(&resource).cloned().unwrap_or_default());
+                let policy = self.policies.get(&resource).map(|p| p.clone()).unwrap_or_default();
+                policies_set.insert(policy);
             }
         }
         policies_set
@@ -62,13 +62,11 @@ impl ComplianceService {
     /// Set the policy for a specific resource
     /// Returns the old policy if the resource is already set
     async fn set_policy(&self, resource: Resource, policy: Policy) -> Option<Policy> {
-        let mut policies = self.policies.lock().await;
-        if let Some(old_policy) = policies.get(&resource)
-            && old_policy.deleted
-        {
+        // Enforce deleted policy
+        if self.policies.get(&resource).is_some_and(|p| p.deleted) {
             return None;
         }
-        policies.insert(resource, policy)
+        self.policies.insert(resource, policy)
     }
 
     /// Check if a flow from source to destination is compliant with policies
