@@ -23,10 +23,10 @@ impl Service<M2mRequest> for M2mNop {
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         Box::pin(async move {
             Ok(match request {
-                M2mRequest::GetConsistentCompliance { .. } => {
+                M2mRequest::GetDestinationCompliance { .. } => {
                     M2mResponse::Compliance(HashSet::from([Policy::default()]))
                 }
-                M2mRequest::GetLooseCompliance { .. } => M2mResponse::Compliance(HashSet::new()),
+                M2mRequest::GetSourceCompliance { .. } => M2mResponse::Compliance(HashSet::new()),
                 M2mRequest::UpdateProvenance { .. } => M2mResponse::Ack,
             })
         })

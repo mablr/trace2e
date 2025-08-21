@@ -23,10 +23,10 @@ pub enum P2mResponse {
 
 #[derive(Debug, Clone)]
 pub enum M2mRequest {
-    /// Get the consistent compliance of a remote resource
-    GetConsistentCompliance { source: Resource, destination: Resource },
-    /// Get the loose compliance of a remote resource
-    GetLooseCompliance { authority_ip: String, resources: HashSet<Resource> },
+    /// Get the destination compliance of a remote resource
+    GetDestinationCompliance { source: Resource, destination: Resource },
+    /// Get the source compliance of a remote resource
+    GetSourceCompliance { authority_ip: String, resources: HashSet<Resource> },
     /// Update the provenance of a remote resource
     UpdateProvenance { source_prov: HashMap<String, HashSet<Resource>>, destination: Resource },
 }

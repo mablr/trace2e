@@ -69,10 +69,10 @@ where
         let mut compliance = self.compliance.clone();
         Box::pin(async move {
             match request {
-                M2mRequest::GetConsistentCompliance { source, destination } => {
+                M2mRequest::GetDestinationCompliance { source, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[m2m-{}] GetConsistentCompliance: source: {:?}, destination: {:?}",
+                        "[m2m-{}] GetDestinationCompliance: source: {:?}, destination: {:?}",
                         provenance.node_id(),
                         source,
                         destination
@@ -98,10 +98,10 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
-                M2mRequest::GetLooseCompliance { resources, .. } => {
+                M2mRequest::GetSourceCompliance { resources, .. } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[m2m-{}] GetLooseCompliance: resources: {:?}",
+                        "[m2m-{}] GetSourceCompliance: resources: {:?}",
                         provenance.node_id(),
                         resources
                     );

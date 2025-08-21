@@ -168,7 +168,7 @@ where
                                     if let M2mResponse::Compliance(policies) = m2m
                                         .ready()
                                         .await?
-                                        .call(M2mRequest::GetConsistentCompliance {
+                                        .call(M2mRequest::GetDestinationCompliance {
                                             source: source.clone(),
                                             destination: remote_stream,
                                         })
@@ -236,7 +236,7 @@ where
                                                 let result =
                                                     match m2m_clone.ready().await {
                                                         Ok(ready_service) => ready_service
-                                                            .call(M2mRequest::GetLooseCompliance {
+                                                            .call(M2mRequest::GetSourceCompliance {
                                                                 authority_ip: node_id_clone.clone(),
                                                                 resources,
                                                             })

@@ -84,16 +84,16 @@ impl Service<M2mRequest> for M2mGrpc {
             let remote_ip = eval_remote_ip(request.clone())?;
             let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
             match request {
-                M2mRequest::GetConsistentCompliance { source, destination } => {
+                M2mRequest::GetDestinationCompliance { source, destination } => {
                     // Create the protobuf request
-                    let proto_req = proto::ConsistentCompliance {
+                    let proto_req = proto::DestinationCompliance {
                         source: Some(source.into()),
                         destination: Some(destination.into()),
                     };
 
                     // Make the gRPC call
                     let response = client
-                        .m2m_consistent_compliance(Request::new(proto_req))
+                        .m2m_destination_compliance(Request::new(proto_req))
                         .await
                         .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
                         .into_inner();
@@ -101,15 +101,15 @@ impl Service<M2mRequest> for M2mGrpc {
                         response.policies.into_iter().map(|policy| policy.into()).collect(),
                     ))
                 }
-                M2mRequest::GetLooseCompliance { resources, .. } => {
+                M2mRequest::GetSourceCompliance { resources, .. } => {
                     // Create the protobuf request
-                    let proto_req = proto::LooseCompliance {
+                    let proto_req = proto::SourceCompliance {
                         resources: resources.into_iter().map(|r| r.into()).collect(),
                     };
 
                     // Make the gRPC call
                     let response = client
-                        .m2m_loose_compliance(Request::new(proto_req))
+                        .m2m_source_compliance(Request::new(proto_req))
                         .await
                         .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
                         .into_inner();
@@ -243,9 +243,9 @@ where
     }
 
     // M2M operations
-    async fn m2m_consistent_compliance(
+    async fn m2m_destination_compliance(
         &self,
-        request: Request<proto::ConsistentCompliance>,
+        request: Request<proto::DestinationCompliance>,
     ) -> Result<Response<proto::Compliance>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
@@ -255,9 +255,9 @@ where
         }
     }
 
-    async fn m2m_loose_compliance(
+    async fn m2m_source_compliance(
         &self,
-        request: Request<proto::LooseCompliance>,
+        request: Request<proto::SourceCompliance>,
     ) -> Result<Response<proto::Compliance>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
@@ -282,18 +282,18 @@ where
 
 // Conversion trait implementations
 
-impl From<proto::ConsistentCompliance> for M2mRequest {
-    fn from(req: proto::ConsistentCompliance) -> Self {
-        M2mRequest::GetConsistentCompliance {
+impl From<proto::DestinationCompliance> for M2mRequest {
+    fn from(req: proto::DestinationCompliance) -> Self {
+        M2mRequest::GetDestinationCompliance {
             source: req.source.map(|s| s.into()).unwrap_or_default(),
             destination: req.destination.map(|d| d.into()).unwrap_or_default(),
         }
     }
 }
 
-impl From<proto::LooseCompliance> for M2mRequest {
-    fn from(req: proto::LooseCompliance) -> Self {
-        M2mRequest::GetLooseCompliance {
+impl From<proto::SourceCompliance> for M2mRequest {
+    fn from(req: proto::SourceCompliance) -> Self {
+        M2mRequest::GetSourceCompliance {
             authority_ip: String::new(), // Already routed so no authority IP needed
             resources: req.resources.into_iter().map(|r| r.into()).collect(),
         }

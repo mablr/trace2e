@@ -12,7 +12,7 @@ pub mod nop;
 
 pub fn eval_remote_ip(req: M2mRequest) -> Result<String, TraceabilityError> {
     match req {
-        M2mRequest::GetConsistentCompliance { destination, .. }
+        M2mRequest::GetDestinationCompliance { destination, .. }
         | M2mRequest::UpdateProvenance { destination, .. } => match destination {
             // Local socket is the remote socket of the remote stream
             Resource::Fd(Fd::Stream(stream)) => match stream.local_socket.parse::<SocketAddr>() {
@@ -21,6 +21,6 @@ pub fn eval_remote_ip(req: M2mRequest) -> Result<String, TraceabilityError> {
             },
             _ => Err(TraceabilityError::TransportFailedToEvaluateRemote),
         },
-        M2mRequest::GetLooseCompliance { authority_ip, .. } => Ok(authority_ip),
+        M2mRequest::GetSourceCompliance { authority_ip, .. } => Ok(authority_ip),
     }
 }
