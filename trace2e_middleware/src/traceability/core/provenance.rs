@@ -5,7 +5,7 @@ use std::{
     task::Poll,
 };
 
-use tokio::sync::Mutex;
+use dashmap::DashMap;
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
 use tracing::{debug, info};
@@ -16,18 +16,18 @@ use crate::traceability::{
     naming::{NodeId, Resource},
 };
 
-type ProvenanceMap = HashMap<Resource, HashMap<String, HashSet<Resource>>>;
+type ProvenanceMap = DashMap<Resource, HashMap<String, HashSet<Resource>>>;
 
 /// Provenance service for tracking resources provenance
 #[derive(Debug, Default, Clone)]
 pub struct ProvenanceService {
     node_id: String,
-    provenance: Arc<Mutex<ProvenanceMap>>,
+    provenance: Arc<ProvenanceMap>,
 }
 
 impl ProvenanceService {
     pub fn new(node_id: String) -> Self {
-        Self { node_id, provenance: Arc::new(Mutex::new(HashMap::new())) }
+        Self { node_id, provenance: Arc::new(DashMap::new()) }
     }
 
     fn init_provenance(&self, resource: &Resource) -> HashMap<String, HashSet<Resource>> {
@@ -43,13 +43,16 @@ impl ProvenanceService {
     /// This function returns a map of node IDs to the provenance of the resource for that node.
     /// If the resource is not found, it returns an empty map.
     async fn get_prov(&self, resource: &Resource) -> HashMap<String, HashSet<Resource>> {
-        let provenance = self.provenance.lock().await;
-        provenance.get(resource).unwrap_or(&self.init_provenance(resource)).clone()
+        if let Some(prov) = self.provenance.get(resource) {
+            prov.clone()
+        } else {
+            self.init_provenance(resource)
+        }
     }
 
     /// Set the provenance of a resource
     async fn set_prov(&mut self, resource: Resource, prov: HashMap<String, HashSet<Resource>>) {
-        self.provenance.lock().await.insert(resource, prov);
+        self.provenance.insert(resource, prov);
     }
 
     /// Update the provenance of the destination with the source
