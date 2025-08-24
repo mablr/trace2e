@@ -1,4 +1,4 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 
 fn bench_file_read_e2e(c: &mut Criterion) {
     let mut small_file = std::fs::File::create("read_small.txt").unwrap();
@@ -12,13 +12,13 @@ fn bench_file_read_e2e(c: &mut Criterion) {
 
     c.bench_function("file_read_e2e_small", |b| {
         b.iter(|| {
-            black_box(stde2e::io::Read::read_to_end(&mut e2e_small_file, &mut buf).unwrap());
+            stde2e::io::Read::read_to_end(&mut e2e_small_file, &mut buf).unwrap();
         })
     });
 
     c.bench_function("file_read_e2e_large", |b| {
         b.iter(|| {
-            black_box(stde2e::io::Read::read_to_end(&mut e2e_large_file, &mut buf).unwrap());
+            stde2e::io::Read::read_to_end(&mut e2e_large_file, &mut buf).unwrap();
         })
     });
 }
@@ -31,13 +31,13 @@ fn bench_file_write_e2e(c: &mut Criterion) {
 
     c.bench_function("file_write_e2e_small", |b| {
         b.iter(|| {
-            black_box(stde2e::io::Write::write_all(&mut e2e_small_file, &small_buf).unwrap());
+            stde2e::io::Write::write_all(&mut e2e_small_file, &small_buf).unwrap();
         })
     });
 
     c.bench_function("file_write_e2e_large", |b| {
         b.iter(|| {
-            black_box(stde2e::io::Write::write_all(&mut e2e_large_file, &large_buf).unwrap());
+            stde2e::io::Write::write_all(&mut e2e_large_file, &large_buf).unwrap();
         })
     });
 }
@@ -54,13 +54,13 @@ fn bench_file_read_std(c: &mut Criterion) {
 
     c.bench_function("file_read_std_small", |b| {
         b.iter(|| {
-            black_box(std::io::Read::read_to_end(&mut small_file, &mut buf).unwrap());
+            std::io::Read::read_to_end(&mut small_file, &mut buf).unwrap();
         })
     });
 
     c.bench_function("file_read_std_large", |b| {
         b.iter(|| {
-            black_box(std::io::Read::read_to_end(&mut large_file, &mut buf).unwrap());
+            std::io::Read::read_to_end(&mut large_file, &mut buf).unwrap();
         })
     });
 }
@@ -73,13 +73,13 @@ fn bench_file_write_std(c: &mut Criterion) {
 
     c.bench_function("file_write_std_small", |b| {
         b.iter(|| {
-            black_box(std::io::Write::write_all(&mut small_file, &small_buf).unwrap());
+            std::io::Write::write_all(&mut small_file, &small_buf).unwrap();
         })
     });
 
     c.bench_function("file_write_std_large", |b| {
         b.iter(|| {
-            black_box(std::io::Write::write_all(&mut large_file, &large_buf).unwrap());
+            std::io::Write::write_all(&mut large_file, &large_buf).unwrap();
         })
     });
 }
@@ -107,7 +107,7 @@ fn bench_tcp_stream_write_e2e(c: &mut Criterion) {
 
     c.bench_function("tcp_stream_write_e2e", |b| {
         b.iter(|| {
-            black_box(stde2e::io::Write::write_all(&mut client, &buf).unwrap());
+            stde2e::io::Write::write_all(&mut client, &buf).unwrap();
         })
     });
 
@@ -138,7 +138,7 @@ fn bench_tcp_stream_write_std(c: &mut Criterion) {
 
     c.bench_function("tcp_stream_write_std", |b| {
         b.iter(|| {
-            black_box(std::io::Write::write_all(&mut client, &buf).unwrap());
+            std::io::Write::write_all(&mut client, &buf).unwrap();
         })
     });
 

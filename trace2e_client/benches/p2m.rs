@@ -1,4 +1,4 @@
-use criterion::{Criterion, black_box, criterion_group, criterion_main};
+use criterion::{Criterion, criterion_group, criterion_main};
 use trace2e_client::{Flow, io_report, io_request, local_enroll};
 
 fn bench_p2m_service(c: &mut Criterion) {
@@ -6,10 +6,8 @@ fn bench_p2m_service(c: &mut Criterion) {
 
     c.bench_function("p2m-grpc", |b| {
         b.iter(|| {
-            black_box({
-                let grant_id = io_request(3, 1).unwrap();
-                io_report(3, grant_id, true).unwrap();
-            })
+            let grant_id = io_request(3, 1).unwrap();
+            io_report(3, grant_id, true).unwrap();
         });
     });
 }
@@ -22,15 +20,13 @@ fn bench_p2m_service_control(c: &mut Criterion) {
 
     c.bench_function("p2m-grpc-control", |b| {
         b.iter(|| {
-            black_box({
-                if let Ok(grant_id) = io_request(file.as_raw_fd(), Flow::Output.into()) {
-                    let result = std::io::Write::write(&mut file, &small_buf);
-                    io_report(file.as_raw_fd(), grant_id, result.is_ok())?;
-                    result
-                } else {
-                    Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
-                }
-            })
+            if let Ok(grant_id) = io_request(file.as_raw_fd(), Flow::Output.into()) {
+                let result = std::io::Write::write(&mut file, &small_buf);
+                io_report(file.as_raw_fd(), grant_id, result.is_ok())?;
+                result
+            } else {
+                Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied))
+            }
         });
     });
 }
