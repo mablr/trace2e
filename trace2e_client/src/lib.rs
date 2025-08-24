@@ -4,7 +4,7 @@ mod proto {
 }
 
 mod grpc {
-    use once_cell::sync::Lazy;
+    use once_cell::{sync::Lazy, unsync::OnceCell};
     use tokio::{
         runtime::Handle,
         task::{self, block_in_place},
@@ -30,8 +30,8 @@ mod grpc {
         if Handle::try_current().is_ok() {
             // We're already in a Tokio runtime, use thread-local client for this runtime
             thread_local! {
-                static RUNTIME_CLIENT: once_cell::unsync::OnceCell<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> =
-                    once_cell::unsync::OnceCell::new();
+                static RUNTIME_CLIENT: OnceCell<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> =
+                    const { OnceCell::new() };
             }
 
             RUNTIME_CLIENT.with(|cell| {
@@ -124,7 +124,7 @@ mod grpc {
             result,
         });
 
-        let result = if let Ok(handle) = Handle::try_current() {
+        if let Ok(handle) = Handle::try_current() {
             match block_in_place(move || {
                 let mut client = get_client();
                 handle.block_on(client.p2m_io_report(request))
@@ -138,9 +138,7 @@ mod grpc {
                 Ok(_) => Ok(()),
                 Err(_) => Err(std::io::Error::from(std::io::ErrorKind::Other)),
             }
-        };
-
-        result
+        }
     }
 }
 
