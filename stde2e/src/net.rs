@@ -37,13 +37,12 @@ impl TcpListener {
     }
     pub fn incoming(&self) -> impl Iterator<Item = std::io::Result<StdTcpStream>> + '_ {
         self.0.incoming().map(|stream_result| {
-            stream_result.map(|stream| {
+            stream_result.inspect(|stream| {
                 remote_enroll(
                     stream.as_raw_fd(),
                     stream.local_addr().unwrap().to_string(),
                     stream.peer_addr().unwrap().to_string(),
                 );
-                stream
             })
         })
     }
