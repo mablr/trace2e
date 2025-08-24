@@ -2,7 +2,7 @@ use criterion::{Criterion, criterion_group, criterion_main};
 
 fn bench_file_read_e2e(c: &mut Criterion) {
     let mut small_file = std::fs::File::create("read_small.txt").unwrap();
-    std::io::Write::write_all(&mut small_file, &vec![1u8; 64]).unwrap();
+    std::io::Write::write_all(&mut small_file, &[1u8; 64]).unwrap();
     let mut large_file = std::fs::File::create("read_large.txt").unwrap();
     std::io::Write::write_all(&mut large_file, &vec![1u8; 262144]).unwrap();
 
@@ -44,7 +44,7 @@ fn bench_file_write_e2e(c: &mut Criterion) {
 
 fn bench_file_read_std(c: &mut Criterion) {
     let mut small_file = std::fs::File::create("read_small.txt").unwrap();
-    std::io::Write::write_all(&mut small_file, &vec![1u8; 64]).unwrap();
+    std::io::Write::write_all(&mut small_file, &[1u8; 64]).unwrap();
     let mut large_file = std::fs::File::create("read_large.txt").unwrap();
     std::io::Write::write_all(&mut large_file, &vec![1u8; 262144]).unwrap();
 
