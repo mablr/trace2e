@@ -74,12 +74,12 @@ mod tests {
     #[tokio::test]
     async fn unit_traceability_provenance_service_p2m_validator() {
         let mut p2m_service = ServiceBuilder::new()
-            .layer(FilterLayer::new(ResourceValidator::default()))
+            .layer(FilterLayer::new(ResourceValidator))
             .service(P2mApiService::new(
                 SequencerService::default(),
                 ProvenanceService::default(),
                 ComplianceService::default(),
-                M2mNop::default(),
+                M2mNop,
             ));
 
         assert_eq!(

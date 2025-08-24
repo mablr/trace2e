@@ -367,7 +367,7 @@ mod tests {
             SequencerService::default(),
             ProvenanceService::default(),
             ComplianceService::default(),
-            M2mNop::default(),
+            M2mNop,
         );
 
         assert_eq!(
@@ -422,12 +422,12 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut p2m_service = ServiceBuilder::new()
-            .layer(FilterLayer::new(ResourceValidator::default()))
+            .layer(FilterLayer::new(ResourceValidator))
             .service(P2mApiService::new(
                 SequencerService::default(),
                 ProvenanceService::default(),
                 ComplianceService::default(),
-                M2mNop::default(),
+                M2mNop,
             ));
 
         // Test with invalid process
@@ -460,12 +460,12 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut p2m_service = ServiceBuilder::new()
-            .layer(FilterLayer::new(ResourceValidator::default()))
+            .layer(FilterLayer::new(ResourceValidator))
             .service(P2mApiService::new(
                 SequencerService::default(),
                 ProvenanceService::default(),
                 ComplianceService::default(),
-                M2mNop::default(),
+                M2mNop,
             ));
 
         // Neither process nor fd are enrolled
@@ -509,12 +509,12 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut p2m_service = ServiceBuilder::new()
-            .layer(FilterLayer::new(ResourceValidator::default()))
+            .layer(FilterLayer::new(ResourceValidator))
             .service(P2mApiService::new(
                 SequencerService::default(),
                 ProvenanceService::default(),
                 ComplianceService::default(),
-                M2mNop::default(),
+                M2mNop,
             ));
 
         // Invalid grant id

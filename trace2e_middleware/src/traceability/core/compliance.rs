@@ -544,8 +544,8 @@ mod tests {
         let policy =
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: true };
 
-        assert_eq!(
-            compliance
+        assert!(
+            !compliance
                 .compliance_check(
                     HashMap::from([(
                         String::new(),
@@ -553,18 +553,16 @@ mod tests {
                     )]),
                     Policy::default()
                 )
-                .await,
-            false
+                .await
         );
 
-        assert_eq!(
-            compliance
+        assert!(
+            !compliance
                 .compliance_check(
                     HashMap::from([(String::new(), HashSet::from([Policy::default()]))]),
                     policy
                 )
-                .await,
-            false
+                .await
         );
     }
 }

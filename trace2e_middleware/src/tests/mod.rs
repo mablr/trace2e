@@ -31,7 +31,7 @@ async fn integration_init_middleware() {
 
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
-    let (_, mut p2m_service, _) = init_middleware("10.0.0.1".to_string(), None, M2mNop::default());
+    let (_, mut p2m_service, _) = init_middleware("10.0.0.1".to_string(), None, M2mNop);
 
     let file = FileMapping::new(1, 3, "/tmp/test.txt");
     let stream = StreamMapping::new(1, 4, "127.0.0.1:8080", "127.0.0.1:8081");
@@ -89,7 +89,7 @@ async fn integration_o2m_local_provenance() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let (_, mut p2m_service, mut o2m_service) =
-        init_middleware(String::new(), None, M2mNop::default());
+        init_middleware(String::new(), None, M2mNop);
 
     let fd1 = FileMapping::new(1, 3, "/tmp/test1.txt");
     let fd2 = FileMapping::new(1, 4, "/tmp/test2.txt");
