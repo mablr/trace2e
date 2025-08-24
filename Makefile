@@ -4,9 +4,9 @@
 fmt:
 	cargo +nightly fmt
 
-# Run clippy on the middleware package
+# Run clippy
 clippy:
-	cargo clippy -p trace2e_middleware -- -D warnings
+	cargo clippy --all-targets --all-features -- -D warnings
 
 # Run all tests
 test: test-middleware test-lib
