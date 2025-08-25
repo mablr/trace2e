@@ -88,8 +88,7 @@ async fn integration_o2m_local_provenance() {
 
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
-    let (_, mut p2m_service, mut o2m_service) =
-        init_middleware(String::new(), None, M2mNop);
+    let (_, mut p2m_service, mut o2m_service) = init_middleware(String::new(), None, M2mNop);
 
     let fd1 = FileMapping::new(1, 3, "/tmp/test1.txt");
     let fd2 = FileMapping::new(1, 4, "/tmp/test2.txt");
