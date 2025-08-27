@@ -5,3 +5,5 @@ target/
 *.bin
 *.csv
 .venv
+flamegraph.svg
+perf.data*
