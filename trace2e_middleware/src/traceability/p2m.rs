@@ -66,7 +66,7 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
                     (process_id, file_id),
                     (
                         Resource::new_process(process_id),
-                        Resource::new_file(format!("/file_{file_id}")),
+                        Resource::new_file(format!("/file_{}", (process_id + file_id) % process_count as i32)),
                     ),
                 );
             }
