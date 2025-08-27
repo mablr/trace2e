@@ -42,6 +42,29 @@ where
         + 'static,
     M::Future: Send,
 {
+    init_middleware_with_enrolled_resources(node_id, max_retries, m2m_client, 0, 0)
+}
+
+/// Helper function to initialize the middleware stack with enrolled resources.
+///
+/// Use this helper directly only for testing/mocking purposes.
+pub fn init_middleware_with_enrolled_resources<M>(
+    node_id: String,
+    max_retries: Option<u32>,
+    m2m_client: M,
+    process_count: u32,
+    per_process_file_count: u32,
+) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack)
+where
+    M: tower::Service<
+            api::M2mRequest,
+            Response = api::M2mResponse,
+            Error = error::TraceabilityError,
+        > + Clone
+        + Send
+        + 'static,
+    M::Future: Send,
+{
     let sequencer = tower::ServiceBuilder::new()
         .layer(tower::layer::layer_fn(|inner| {
             core::sequencer::WaitingQueueService::new(inner, max_retries)
@@ -54,7 +77,8 @@ where
         m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
 
     let p2m_service: P2mApiDefaultStack<M> =
-        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client);
+        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
+            .with_enrolled_resources(process_count, per_process_file_count);
 
     let o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
 

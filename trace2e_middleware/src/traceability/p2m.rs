@@ -57,6 +57,22 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
             m2m,
         }
     }
+
+    /// Enrolls the given number of processes and files per process for testing/mocking purposes.
+    pub fn with_enrolled_resources(self, process_count: u32, per_process_file_count: u32) -> Self {
+        for process_id in 0..process_count as i32 {
+            for file_id in 0..per_process_file_count as i32 {
+                self.resource_map.insert(
+                    (process_id, file_id),
+                    (
+                        Resource::new_process(process_id),
+                        Resource::new_file(format!("/file_{file_id}")),
+                    ),
+                );
+            }
+        }
+        self
+    }
 }
 
 impl<S, P, C, M> Service<P2mRequest> for P2mApiService<S, P, C, M>
