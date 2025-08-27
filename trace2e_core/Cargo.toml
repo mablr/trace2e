@@ -1,0 +1,33 @@
+[package]
+name = "trace2e_core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+prost.workspace = true
+dashmap.workspace = true
+sysinfo = { workspace = true }
+thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tonic.workspace = true
+tower = { workspace = true, features = ["filter", "timeout", "util"] }
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"], optional = true }
+
+[build-dependencies]
+tonic-build.workspace = true
+
+[dev-dependencies]
+criterion = { workspace = true, features = ["async_tokio"] }
+
+[features]
+trace2e_tracing = ["tracing", "tracing-subscriber"]
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
+
+[[bench]]
+name = "main"
+harness = false

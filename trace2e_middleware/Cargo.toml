@@ -6,29 +6,13 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-prost.workspace = true
-dashmap.workspace = true
-sysinfo = { workspace = true }
-thiserror.workspace = true
+trace2e_core = { path = "../trace2e_core" }
+tonic = { workspace = true }
+tonic-reflection = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
-tonic.workspace = true
-tonic-reflection.workspace = true
-tower = { workspace = true, features = ["filter", "timeout", "util"] }
-tracing = { workspace = true, optional = true }
-tracing-subscriber = { workspace = true, features = ["env-filter"], optional = true }
-
-[build-dependencies]
-tonic-build.workspace = true
-
-[dev-dependencies]
-criterion = { workspace = true, features = ["async_tokio"] }
 
 [features]
-trace2e_tracing = ["tracing", "tracing-subscriber"]
+trace2e_tracing = ["trace2e_core/trace2e_tracing"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
-
-[[bench]]
-name = "main"
-harness = false

@@ -2,14 +2,18 @@ use std::collections::{HashMap, HashSet};
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use tower::Service;
-use trace2e_middleware::traceability::{
-    api::{ComplianceRequest, ProvenanceRequest, SequencerRequest},
-    core::{
-        compliance::{ComplianceService, ConfidentialityPolicy, Policy},
-        provenance::ProvenanceService,
-        sequencer::SequencerService,
+use trace2e_core::{
+    traceability::{
+        api::{ComplianceRequest, P2mRequest, P2mResponse, ProvenanceRequest, SequencerRequest},
+        core::{
+            compliance::{ComplianceService, ConfidentialityPolicy, Policy},
+            provenance::ProvenanceService,
+            sequencer::SequencerService,
+        },
+        init_middleware_with_enrolled_resources,
+        naming::Resource,
     },
-    naming::Resource,
+    transport::nop::M2mNop,
 };
 
 // Helper functions for creating test data
@@ -397,6 +401,61 @@ fn bench_provenance_get_prov_populated(c: &mut Criterion) {
     });
 }
 
+// Stress test for provenance with interference patterns
+fn bench_provenance_stress_interference(c: &mut Criterion) {
+    let processes_count = 50;
+    let files_per_process_count = 20;
+    c.bench_function("provenance_stress_interference", |b| {
+        b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
+            // Pre-initialize P2M service with many processes and files
+            let (_, p2m_service, _) = init_middleware_with_enrolled_resources(
+                "node_test".to_string(),
+                None,
+                M2mNop,
+                processes_count,
+                files_per_process_count,
+            );
+
+            // Spawn concurrent tasks that handle complete request-grant-report cycles
+            let mut tasks = Vec::new();
+
+            // Create interference patterns: multiple processes compete for same files
+            for process_id in 0..processes_count as i32 {
+                for file_id in 0..files_per_process_count as i32 {
+                    let mut service_clone = p2m_service.clone();
+                    let task = tokio::spawn(async move {
+                        // Complete I/O cycle: request -> grant -> report
+                        if let Ok(P2mResponse::Grant(flow_id)) = service_clone
+                            .call(P2mRequest::IoRequest {
+                                pid: process_id,
+                                fd: file_id,
+                                output: true,
+                            })
+                            .await
+                        {
+                            // Report completion
+                            let _ = service_clone
+                                .call(P2mRequest::IoReport {
+                                    pid: process_id,
+                                    fd: file_id,
+                                    grant_id: flow_id,
+                                    result: true,
+                                })
+                                .await;
+                        }
+                    });
+                    tasks.push(task);
+                }
+            }
+
+            // Wait for all concurrent I/O operations to complete
+            for task in tasks {
+                let _ = black_box(task.await);
+            }
+        });
+    });
+}
+
 criterion_group!(
     compliance_benches,
     bench_compliance_set_policy,
@@ -423,6 +482,7 @@ criterion_group!(
     bench_provenance_update_raw_multiple_nodes,
     bench_provenance_get_prov_empty,
     bench_provenance_get_prov_populated,
+    bench_provenance_stress_interference,
 );
 
 criterion_main!(compliance_benches, sequencer_benches, provenance_benches);

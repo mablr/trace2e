@@ -1487,7 +1487,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "trace2e_middleware"
+name = "trace2e_core"
 version = "0.0.1"
 dependencies = [
  "criterion",
@@ -1498,10 +1498,19 @@ dependencies = [
  "tokio",
  "tonic",
  "tonic-build",
- "tonic-reflection",
  "tower",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "trace2e_middleware"
+version = "0.0.1"
+dependencies = [
+ "tokio",
+ "tonic",
+ "tonic-reflection",
+ "trace2e_core",
 ]
 
 [[package]]

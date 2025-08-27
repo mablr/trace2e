@@ -8,6 +8,7 @@ repository = "https://github.com/mablr/trace2e"
 resolver = "2"
 members = [
     "trace2e_client",
+    "trace2e_core",
     "trace2e_middleware",
     "stde2e"
 ]

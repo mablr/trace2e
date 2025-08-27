@@ -1,6 +1,6 @@
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
-use trace2e_middleware::{
+use trace2e_core::{
     traceability::init_middleware,
     transport::grpc::{
         DEFAULT_GRPC_PORT, M2mGrpc, Trace2eRouter,
@@ -12,7 +12,7 @@ use trace2e_middleware::{
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(feature = "trace2e_tracing")]
-    trace2e_middleware::trace2e_tracing::init();
+    trace2e_core::trace2e_tracing::init();
 
     let (m2m_service, p2m_service, _) =
         init_middleware("[::1]".to_string(), None, M2mGrpc::default());
