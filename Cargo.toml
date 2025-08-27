@@ -7,10 +7,10 @@ repository = "https://github.com/mablr/trace2e"
 [workspace]
 resolver = "2"
 members = [
-    "trace2e_client",
-    "trace2e_core",
-    "trace2e_middleware",
-    "stde2e"
+    "crates/trace2e_client",
+    "crates/trace2e_core",
+    "crates/trace2e_middleware",
+    "crates/stde2e"
 ]
 
 [workspace.dependencies]
