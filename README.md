@@ -65,7 +65,7 @@ The middleware will listen on `[::]:8080` by default.
 
 To benchmark the middleware internal traceability server, run the following command:
 ```bash
-cargo bench -p trace2e_middleware
+cargo bench -p trace2e_core
 ```
 
 To benchmark the `trace2e_client` and the `stde2e` wrapper, run the following commands:
@@ -77,9 +77,10 @@ cargo bench -p stde2e
 ## Project Structure
 
 - **/proto**: Protocol buffer definitions for communication between components
-- **/trace2e_middleware**: Core middleware implementation
-- **/trace2e_client**: Middleware client communication library implementation
-- **/stde2e**: Standard library wrapper providing TracE2E integration using `trace2e_client`
+- **/crates/trace2e_core**: Core traceability library of the middleware.
+- **/crates/trace2e_middleware**: Middleware binary implementation
+- **/crates/trace2e_client**: Middleware client communication library implementation
+- **/crates/stde2e**: Standard library wrapper providing TracE2E integration using `trace2e_client`
 - **/patches**: TracE2E integration patches for various frameworks
 
 
