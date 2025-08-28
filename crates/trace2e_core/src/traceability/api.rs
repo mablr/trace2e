@@ -116,4 +116,6 @@ pub enum ComplianceResponse {
     Policies(HashSet<Policy>),
     /// Policy successfully set
     PolicyUpdated,
+    /// Policy not updated
+    PolicyNotUpdated,
 }

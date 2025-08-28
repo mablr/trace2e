@@ -59,7 +59,11 @@ impl ProvenanceService {
     ///
     /// Note that this function does not guarantee sequential consistency,
     /// this is the role of the sequencer.
-    async fn update(&mut self, source: &Resource, destination: &Resource) -> ProvenanceResponse {
+    async fn update(
+        &mut self,
+        source: &Resource,
+        destination: &Resource,
+    ) -> Result<ProvenanceResponse, TraceabilityError> {
         let source_prov = self.get_prov(source).await;
         self.update_raw(source_prov, destination).await
     }
@@ -72,7 +76,7 @@ impl ProvenanceService {
         &mut self,
         source_prov: HashMap<String, HashSet<Resource>>,
         destination: &Resource,
-    ) -> ProvenanceResponse {
+    ) -> Result<ProvenanceResponse, TraceabilityError> {
         let mut updated = false;
         let mut destination_prov = self.get_prov(destination).await;
         #[cfg(feature = "trace2e_tracing")]
@@ -92,9 +96,9 @@ impl ProvenanceService {
             #[cfg(feature = "trace2e_tracing")]
             debug!("[provenance-raw] Updated {:?} provenance: {:?}", destination, destination_prov);
             self.set_prov(destination.clone(), destination_prov).await;
-            ProvenanceResponse::ProvenanceUpdated
+            Ok(ProvenanceResponse::ProvenanceUpdated)
         } else {
-            ProvenanceResponse::ProvenanceNotUpdated
+            Ok(ProvenanceResponse::ProvenanceNotUpdated)
         }
     }
 }
@@ -132,7 +136,7 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                         "[provenance-{}] UpdateProvenance: source: {:?}, destination: {:?}",
                         this.node_id, source, destination
                     );
-                    Ok(this.update(&source, &destination).await)
+                    this.update(&source, &destination).await
                 }
                 ProvenanceRequest::UpdateProvenanceRaw { source_prov, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
@@ -140,7 +144,7 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                         "[provenance-{}] UpdateProvenanceRaw: source_prov: {:?}, destination: {:?}",
                         this.node_id, source_prov, destination
                     );
-                    Ok(this.update_raw(source_prov, &destination).await)
+                    this.update_raw(source_prov, &destination).await
                 }
             }
         })
@@ -159,7 +163,7 @@ mod tests {
         let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
-        provenance.update(&file, &process).await;
+        provenance.update(&file, &process).await.unwrap();
         // Check that the process is now derived from the file
         assert_eq!(
             provenance.get_prov(&process).await,
@@ -175,8 +179,8 @@ mod tests {
         let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
-        provenance.update(&process, &file).await;
-        provenance.update(&file, &process).await;
+        provenance.update(&process, &file).await.unwrap();
+        provenance.update(&file, &process).await.unwrap();
 
         // Check the proper handling of circular dependencies
         assert_eq!(provenance.get_prov(&file).await, provenance.get_prov(&process).await);
@@ -193,8 +197,8 @@ mod tests {
         let stream =
             Resource::new_stream("127.0.0.1:8080".to_string(), "127.0.0.1:8081".to_string());
 
-        provenance.update(&process0, &stream).await;
-        provenance.update(&stream, &process1).await;
+        provenance.update(&process0, &stream).await.unwrap();
+        provenance.update(&stream, &process1).await.unwrap();
 
         assert_eq!(
             provenance.get_prov(&process1).await,
@@ -219,7 +223,8 @@ mod tests {
                 ]),
                 &process0,
             )
-            .await;
+            .await
+            .unwrap();
         provenance
             .update_raw(
                 HashMap::from([
@@ -228,7 +233,8 @@ mod tests {
                 ]),
                 &process0,
             )
-            .await;
+            .await
+            .unwrap();
 
         assert_eq!(
             provenance.get_prov(&process0).await,

@@ -47,7 +47,10 @@ pub struct ComplianceService {
 impl ComplianceService {
     /// Get the policies for a specific resource
     /// Returns the default policy if the resource is not found
-    async fn get_policies(&self, resources: HashSet<Resource>) -> HashSet<Policy> {
+    async fn get_policies(
+        &self,
+        resources: HashSet<Resource>,
+    ) -> Result<ComplianceResponse, TraceabilityError> {
         let mut policies_set = HashSet::new();
         for resource in resources {
             // Get the policy from the local policies, streams have no policies
@@ -56,17 +59,22 @@ impl ComplianceService {
                 policies_set.insert(policy);
             }
         }
-        policies_set
+        Ok(ComplianceResponse::Policies(policies_set))
     }
 
     /// Set the policy for a specific resource
     /// Returns the old policy if the resource is already set
-    async fn set_policy(&self, resource: Resource, policy: Policy) -> Option<Policy> {
+    async fn set_policy(
+        &self,
+        resource: Resource,
+        policy: Policy,
+    ) -> Result<ComplianceResponse, TraceabilityError> {
         // Enforce deleted policy
         if self.policies.get(&resource).is_some_and(|p| p.deleted) {
-            return None;
+            return Ok(ComplianceResponse::PolicyNotUpdated);
         }
-        self.policies.insert(resource, policy)
+        self.policies.insert(resource, policy);
+        Ok(ComplianceResponse::PolicyUpdated)
     }
 
     /// Check if a flow from source to destination is compliant with policies
@@ -75,30 +83,30 @@ impl ComplianceService {
         &self,
         source_policies: HashMap<String, HashSet<Policy>>,
         destination_policy: Policy,
-    ) -> bool {
+    ) -> Result<ComplianceResponse, TraceabilityError> {
         // Merge local and remote source policies, ignoring the node
         // TODO: implement node based policies
         for source_policy in source_policies.values().flatten() {
             // If the source or destination policy is deleted, the flow is not compliant
             if source_policy.deleted || destination_policy.deleted {
-                return false;
+                return Err(TraceabilityError::DirectPolicyViolation);
             }
 
             // Integrity check: Source integrity must be greater than or equal to destination
             // integrity
             if source_policy.integrity < destination_policy.integrity {
-                return false;
+                return Err(TraceabilityError::DirectPolicyViolation);
             }
 
             // Confidentiality check: Secret data cannot flow to public destinations
             if source_policy.confidentiality == ConfidentialityPolicy::Secret
                 && destination_policy.confidentiality == ConfidentialityPolicy::Public
             {
-                return false;
+                return Err(TraceabilityError::DirectPolicyViolation);
             }
         }
 
-        true
+        Ok(ComplianceResponse::Grant)
     }
 }
 
@@ -121,23 +129,17 @@ impl Service<ComplianceRequest> for ComplianceService {
                         "[compliance] CheckCompliance: source_policies: {:?}, destination_policy: {:?}",
                         source_policies, destination_policy
                     );
-                    if this.compliance_check(source_policies, destination_policy).await {
-                        Ok(ComplianceResponse::Grant)
-                    } else {
-                        Err(TraceabilityError::DirectPolicyViolation)
-                    }
+                    this.compliance_check(source_policies, destination_policy).await
                 }
                 ComplianceRequest::GetPolicies(resources) => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance] GetPolicies: resources: {:?}", resources);
-                    let policies = this.get_policies(resources).await;
-                    Ok(ComplianceResponse::Policies(policies))
+                    this.get_policies(resources).await
                 }
                 ComplianceRequest::SetPolicy { resource, policy } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance] SetPolicy: resource: {:?}, policy: {:?}", resource, policy);
-                    this.set_policy(resource, policy).await;
-                    Ok(ComplianceResponse::PolicyUpdated)
+                    this.set_policy(resource, policy).await
                 }
             }
         })
@@ -160,13 +162,19 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: false };
 
         // First time setting policy should return None
-        assert!(compliance.set_policy(process.clone(), policy.clone()).await.is_none());
+        assert_eq!(
+            compliance.set_policy(process.clone(), policy.clone()).await.unwrap(),
+            ComplianceResponse::PolicyUpdated
+        );
 
         let new_policy =
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 3, deleted: false };
 
         // Second time setting policy should return the old policy
-        assert_eq!(compliance.set_policy(process, new_policy).await, Some(policy));
+        assert_eq!(
+            compliance.set_policy(process, new_policy).await.unwrap(),
+            ComplianceResponse::PolicyUpdated
+        );
     }
 
     #[tokio::test]
@@ -188,6 +196,7 @@ mod tests {
                     dest_policy
                 )
                 .await
+                .is_ok_and(|r| r == ComplianceResponse::Grant)
         );
     }
 
@@ -204,12 +213,13 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 5, deleted: false };
 
         assert!(
-            !compliance
+            compliance
                 .compliance_check(
                     HashMap::from([(String::new(), HashSet::from([source_policy]))]),
                     dest_policy
                 )
                 .await
+                .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
     }
 
@@ -232,6 +242,7 @@ mod tests {
                     dest_policy
                 )
                 .await
+                .is_ok_and(|r| r == ComplianceResponse::Grant)
         );
     }
 
@@ -248,12 +259,13 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
 
         assert!(
-            !compliance
+            compliance
                 .compliance_check(
                     HashMap::from([(String::new(), HashSet::from([source_policy]))]),
                     dest_policy
                 )
                 .await
+                .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
     }
 
@@ -274,6 +286,7 @@ mod tests {
                     Policy::default()
                 )
                 .await
+                .is_ok_and(|r| r == ComplianceResponse::Grant)
         );
     }
 
@@ -288,7 +301,7 @@ mod tests {
 
         // Source uses default (integrity 0), destination has integrity 2
         assert!(
-            !compliance
+            compliance
                 .compliance_check(
                     HashMap::from([
                         (String::new(), HashSet::from([Policy::default()])),
@@ -297,6 +310,7 @@ mod tests {
                     dest_policy
                 )
                 .await
+                .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
     }
 
@@ -402,8 +416,8 @@ mod tests {
         let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
-            compliance.get_policies(HashSet::from([process, file])).await,
-            HashSet::from([Policy::default()])
+            compliance.get_policies(HashSet::from([process, file])).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::from([Policy::default()]))
         );
     }
 
@@ -417,11 +431,11 @@ mod tests {
         let policy =
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 7, deleted: false };
 
-        compliance.set_policy(process.clone(), policy.clone()).await;
+        compliance.set_policy(process.clone(), policy.clone()).await.unwrap();
 
         assert_eq!(
-            compliance.get_policies(HashSet::from([process])).await,
-            HashSet::from([policy])
+            compliance.get_policies(HashSet::from([process])).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::from([policy]))
         );
     }
 
@@ -439,12 +453,12 @@ mod tests {
         let file_policy =
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
 
-        compliance.set_policy(process.clone(), process_policy.clone()).await;
-        compliance.set_policy(file.clone(), file_policy.clone()).await;
+        compliance.set_policy(process.clone(), process_policy.clone()).await.unwrap();
+        compliance.set_policy(file.clone(), file_policy.clone()).await.unwrap();
 
         assert_eq!(
-            compliance.get_policies(HashSet::from([process, file])).await,
-            HashSet::from([process_policy, file_policy])
+            compliance.get_policies(HashSet::from([process, file])).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::from([process_policy, file_policy]))
         );
     }
 
@@ -460,11 +474,11 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 8, deleted: false };
 
         // Set policy only for process, not for file
-        compliance.set_policy(process.clone(), process_policy.clone()).await;
+        compliance.set_policy(process.clone(), process_policy.clone()).await.unwrap();
 
         assert_eq!(
-            compliance.get_policies(HashSet::from([process, file])).await,
-            HashSet::from([process_policy, Policy::default()])
+            compliance.get_policies(HashSet::from([process, file])).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::from([process_policy, Policy::default()]))
         );
     }
 
@@ -473,7 +487,10 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
-        assert_eq!(compliance.get_policies(HashSet::new()).await.len(), 0);
+        assert_eq!(
+            compliance.get_policies(HashSet::new()).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::new())
+        );
     }
 
     #[tokio::test]
@@ -490,21 +507,21 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 9, deleted: false };
 
         // Set initial policy
-        compliance.set_policy(process.clone(), initial_policy.clone()).await;
+        compliance.set_policy(process.clone(), initial_policy.clone()).await.unwrap();
 
         // Verify initial policy
         assert_eq!(
-            compliance.get_policies(HashSet::from([process.clone()])).await,
-            HashSet::from([initial_policy])
+            compliance.get_policies(HashSet::from([process.clone()])).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::from([initial_policy]))
         );
 
         // Update policy
-        compliance.set_policy(process.clone(), updated_policy.clone()).await;
+        compliance.set_policy(process.clone(), updated_policy.clone()).await.unwrap();
 
         // Verify updated policy
         assert_eq!(
-            compliance.get_policies(HashSet::from([process])).await,
-            HashSet::from([updated_policy])
+            compliance.get_policies(HashSet::from([process])).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::from([updated_policy]))
         );
     }
 
@@ -518,20 +535,23 @@ mod tests {
         let policy =
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: true };
 
-        compliance.set_policy(process.clone(), policy.clone()).await;
+        compliance.set_policy(process.clone(), policy.clone()).await.unwrap();
 
         assert_eq!(
-            compliance.get_policies(HashSet::from([process.clone()])).await,
-            HashSet::from([policy.clone()])
+            compliance.get_policies(HashSet::from([process.clone()])).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::from([policy.clone()]))
         );
 
         // Setting a deleted policy must not have any effect, so it returns None
-        assert!(compliance.set_policy(process.clone(), Policy::default()).await.is_none());
+        assert_eq!(
+            compliance.set_policy(process.clone(), Policy::default()).await.unwrap(),
+            ComplianceResponse::PolicyNotUpdated
+        );
 
         // Getting the policies must return the deleted policy
         assert_eq!(
-            compliance.get_policies(HashSet::from([process])).await,
-            HashSet::from([policy])
+            compliance.get_policies(HashSet::from([process])).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::from([policy]))
         );
     }
 
@@ -545,7 +565,7 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: true };
 
         assert!(
-            !compliance
+            compliance
                 .compliance_check(
                     HashMap::from([(
                         String::new(),
@@ -554,15 +574,17 @@ mod tests {
                     Policy::default()
                 )
                 .await
+                .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
 
         assert!(
-            !compliance
+            compliance
                 .compliance_check(
                     HashMap::from([(String::new(), HashSet::from([Policy::default()]))]),
                     policy
                 )
                 .await
+                .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
     }
 }
