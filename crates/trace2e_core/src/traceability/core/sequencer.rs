@@ -50,26 +50,29 @@ impl SequencerService {
 
     /// Drop a flow
     /// Returns the SequencerResponse to the caller
-    async fn drop_flow(&self, destination: &Resource) -> SequencerResponse {
+    async fn drop_flow(
+        &self,
+        destination: &Resource,
+    ) -> Result<SequencerResponse, TraceabilityError> {
         if let Some((_, source)) = self.flows.remove(destination) {
             if self.flows.iter().any(|entry| entry.value() == &source) {
                 // Partial release of the flow
                 // source is still reserved as reader, notify the waiting queue of the destination
-                SequencerResponse::FlowReleased {
+                Ok(SequencerResponse::FlowReleased {
                     source: None,
                     destination: Some(destination.clone()),
-                }
+                })
             } else {
                 // Complete release of the flow
                 // both source and destination are available again, notify both waiting queues
-                SequencerResponse::FlowReleased {
+                Ok(SequencerResponse::FlowReleased {
                     source: Some(source),
                     destination: Some(destination.clone()),
-                }
+                })
             }
         } else {
             // Destination is not reserved, nothing to do
-            SequencerResponse::FlowReleased { source: None, destination: None }
+            Ok(SequencerResponse::FlowReleased { source: None, destination: None })
         }
     }
 }
@@ -98,7 +101,7 @@ impl Service<SequencerRequest> for SequencerService {
                 SequencerRequest::ReleaseFlow { destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[sequencer] ReleaseFlow: destination: {:?}", destination);
-                    Ok(this.drop_flow(&destination).await)
+                    this.drop_flow(&destination).await
                 }
             }
         })
@@ -241,7 +244,7 @@ mod tests {
             Ok(SequencerResponse::FlowReserved)
         );
         assert_eq!(
-            sequencer.drop_flow(&file).await,
+            sequencer.drop_flow(&file).await.unwrap(),
             SequencerResponse::FlowReleased {
                 source: Some(process.clone()),
                 destination: Some(file.clone())
@@ -252,7 +255,7 @@ mod tests {
             Ok(SequencerResponse::FlowReserved)
         );
         assert_eq!(
-            sequencer.drop_flow(&file).await,
+            sequencer.drop_flow(&file).await.unwrap(),
             SequencerResponse::FlowReleased { source: Some(process), destination: Some(file) }
         );
     }
@@ -269,7 +272,7 @@ mod tests {
             Ok(SequencerResponse::FlowReserved)
         );
         assert_eq!(
-            sequencer.drop_flow(&file).await,
+            sequencer.drop_flow(&file).await.unwrap(),
             SequencerResponse::FlowReleased {
                 source: Some(process),
                 destination: Some(file.clone())
@@ -277,7 +280,7 @@ mod tests {
         );
         // Already dropped, source is still available so it return true again
         assert_eq!(
-            sequencer.drop_flow(&file).await,
+            sequencer.drop_flow(&file).await.unwrap(),
             SequencerResponse::FlowReleased { source: None, destination: None }
         );
     }
@@ -313,11 +316,11 @@ mod tests {
 
         // Drop 2 reservations
         assert_eq!(
-            sequencer.drop_flow(&file2).await,
+            sequencer.drop_flow(&file2).await.unwrap(),
             SequencerResponse::FlowReleased { source: None, destination: Some(file2) }
         );
         assert_eq!(
-            sequencer.drop_flow(&file1).await,
+            sequencer.drop_flow(&file1).await.unwrap(),
             SequencerResponse::FlowReleased { source: None, destination: Some(file1) }
         );
 
@@ -329,7 +332,7 @@ mod tests {
 
         // Drop last reservation
         assert_eq!(
-            sequencer.drop_flow(&file3).await,
+            sequencer.drop_flow(&file3).await.unwrap(),
             SequencerResponse::FlowReleased {
                 source: Some(process.clone()),
                 destination: Some(file3)
