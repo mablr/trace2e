@@ -1507,6 +1507,7 @@ dependencies = [
 name = "trace2e_middleware"
 version = "0.0.2"
 dependencies = [
+ "clap",
  "tokio",
  "tonic",
  "tonic-reflection",
