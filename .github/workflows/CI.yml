@@ -13,40 +13,40 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Install protoc
       uses: taiki-e/install-action@v2
       with:
         tool: protoc@${{ env.PROTOC_VERSION }}
     - name: Code formatting check
-      run: cargo +nightly fmt --check
+      run: make fmt
       shell: bash
     - name: Run clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings
+      run: make clippy
       shell: bash
 
   middleware-tests:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Install protoc
       uses: taiki-e/install-action@v2
       with:
         tool: protoc@${{ env.PROTOC_VERSION }}
     - name: Run middleware tests
-      run: cargo test -p trace2e_core
+      run: make test-middleware
       shell: bash
 
   lib-tests:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Install protoc
       uses: taiki-e/install-action@v2
       with:
         tool: protoc@${{ env.PROTOC_VERSION }}
     - name: Run integration tests
-      run: ./test-lib.sh
+      run: make test-lib
       shell: bash
