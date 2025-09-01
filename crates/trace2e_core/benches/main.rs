@@ -403,38 +403,36 @@ fn bench_provenance_get_prov_populated(c: &mut Criterion) {
 
 // Stress test for provenance with interference patterns
 fn bench_provenance_stress_interference(c: &mut Criterion) {
-    let processes_count = 50;
-    let files_per_process_count = 20;
+    use criterion::BatchSize;
+    
+    let processes_count = 1000;
+    let files_per_process_count = 10;
+
     c.bench_function("provenance_stress_interference", |b| {
-        b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
-            // Pre-initialize P2M service with many processes and files
-            let (_, p2m_service, _) = init_middleware_with_enrolled_resources(
-                "node_test".to_string(),
-                None,
-                M2mNop,
-                processes_count,
-                files_per_process_count,
-            );
-
-            // Spawn concurrent tasks that handle complete request-grant-report cycles
-            let mut tasks = Vec::new();
-
-            // Create interference patterns: multiple processes compete for same files
-            for process_id in 0..processes_count as i32 {
-                for file_id in 0..files_per_process_count as i32 {
-                    let mut service_clone = p2m_service.clone();
-                    let task = tokio::spawn(async move {
+        b.to_async(tokio::runtime::Runtime::new().unwrap()).iter_batched(
+            || {
+                // Setup: Pre-initialize P2M service with many processes and files
+                // This initialization time is NOT measured
+                init_middleware_with_enrolled_resources(
+                    "node_test".to_string(),
+                    None,
+                    M2mNop,
+                    processes_count,
+                    files_per_process_count,
+                )
+            },
+            |(_, mut p2m_service, _)| async move {
+                // Only this section is measured
+                // Create interference patterns: multiple processes compete for same files
+                for process_id in 0..processes_count as i32 {
+                    for file_id in 0..files_per_process_count as i32 {
                         // Complete I/O cycle: request -> grant -> report
-                        if let Ok(P2mResponse::Grant(flow_id)) = service_clone
-                            .call(P2mRequest::IoRequest {
-                                pid: process_id,
-                                fd: file_id,
-                                output: true,
-                            })
+                        if let Ok(P2mResponse::Grant(flow_id)) = p2m_service
+                            .call(P2mRequest::IoRequest { pid: process_id, fd: file_id, output: true })
                             .await
                         {
                             // Report completion
-                            let _ = service_clone
+                            let _ = p2m_service
                                 .call(P2mRequest::IoReport {
                                     pid: process_id,
                                     fd: file_id,
@@ -443,16 +441,11 @@ fn bench_provenance_stress_interference(c: &mut Criterion) {
                                 })
                                 .await;
                         }
-                    });
-                    tasks.push(task);
+                    }
                 }
-            }
-
-            // Wait for all concurrent I/O operations to complete
-            for task in tasks {
-                let _ = black_box(task.await);
-            }
-        });
+            },
+            BatchSize::SmallInput,
+        );
     });
 }
 
