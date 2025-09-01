@@ -2,7 +2,7 @@
 
 # Format code
 fmt:
-	cargo +nightly fmt
+	cargo fmt
 
 # Run clippy
 clippy:
