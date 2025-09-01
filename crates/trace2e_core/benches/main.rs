@@ -404,7 +404,7 @@ fn bench_provenance_get_prov_populated(c: &mut Criterion) {
 // Stress test for provenance with interference patterns
 fn bench_provenance_stress_interference(c: &mut Criterion) {
     use criterion::BatchSize;
-    
+
     let processes_count = 1000;
     let files_per_process_count = 10;
 
@@ -428,7 +428,11 @@ fn bench_provenance_stress_interference(c: &mut Criterion) {
                     for file_id in 0..files_per_process_count as i32 {
                         // Complete I/O cycle: request -> grant -> report
                         if let Ok(P2mResponse::Grant(flow_id)) = p2m_service
-                            .call(P2mRequest::IoRequest { pid: process_id, fd: file_id, output: true })
+                            .call(P2mRequest::IoRequest {
+                                pid: process_id,
+                                fd: file_id,
+                                output: true,
+                            })
                             .await
                         {
                             // Report completion

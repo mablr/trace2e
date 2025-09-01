@@ -19,7 +19,7 @@ jobs:
       with:
         tool: protoc@${{ env.PROTOC_VERSION }}
     - name: Code formatting check
-      run: cargo fmt --check
+      run: cargo +nightly fmt --check
       shell: bash
     - name: Run clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
