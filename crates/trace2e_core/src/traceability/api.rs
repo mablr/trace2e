@@ -97,11 +97,8 @@ pub enum ProvenanceResponse {
 /// Compliance-specific API for policy management and flow authorization
 #[derive(Debug, Clone)]
 pub enum ComplianceRequest {
-    /// Check if a flow from source to destination is compliant with policies
-    CheckCompliance {
-        source_policies: HashMap<String, HashSet<Policy>>,
-        destination_policy: Policy,
-    },
+    /// Evaluate the compliance of policies for a flow from source to destination
+    EvalPolicies { source_policies: HashMap<String, HashSet<Policy>>, destination_policy: Policy },
     /// Get policies for a specific set of resources
     GetPolicies(HashSet<Resource>),
     /// Set policy for a specific resource

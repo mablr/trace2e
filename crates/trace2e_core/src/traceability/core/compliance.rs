@@ -77,9 +77,9 @@ impl ComplianceService {
         Ok(ComplianceResponse::PolicyUpdated)
     }
 
-    /// Check if a flow from source to destination is compliant with policies
+    /// Evaluate the compliance of policies for a flow from source to destination
     /// Returns true if the flow is compliant, false otherwise
-    async fn compliance_check(
+    async fn eval_policies(
         &self,
         source_policies: HashMap<String, HashSet<Policy>>,
         destination_policy: Policy,
@@ -123,13 +123,13 @@ impl Service<ComplianceRequest> for ComplianceService {
         let this = self.clone();
         Box::pin(async move {
             match request {
-                ComplianceRequest::CheckCompliance { source_policies, destination_policy } => {
+                ComplianceRequest::EvalPolicies { source_policies, destination_policy } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[compliance] CheckCompliance: source_policies: {:?}, destination_policy: {:?}",
                         source_policies, destination_policy
                     );
-                    this.compliance_check(source_policies, destination_policy).await
+                    this.eval_policies(source_policies, destination_policy).await
                 }
                 ComplianceRequest::GetPolicies(resources) => {
                     #[cfg(feature = "trace2e_tracing")]
@@ -191,7 +191,7 @@ mod tests {
 
         assert!(
             compliance
-                .compliance_check(
+                .eval_policies(
                     HashMap::from([(String::new(), HashSet::from([source_policy]))]),
                     dest_policy
                 )
@@ -214,7 +214,7 @@ mod tests {
 
         assert!(
             compliance
-                .compliance_check(
+                .eval_policies(
                     HashMap::from([(String::new(), HashSet::from([source_policy]))]),
                     dest_policy
                 )
@@ -237,7 +237,7 @@ mod tests {
 
         assert!(
             compliance
-                .compliance_check(
+                .eval_policies(
                     HashMap::from([(String::new(), HashSet::from([source_policy]))]),
                     dest_policy
                 )
@@ -260,7 +260,7 @@ mod tests {
 
         assert!(
             compliance
-                .compliance_check(
+                .eval_policies(
                     HashMap::from([(String::new(), HashSet::from([source_policy]))]),
                     dest_policy
                 )
@@ -278,7 +278,7 @@ mod tests {
         // Both should use default policies (Public, integrity 0)
         assert!(
             compliance
-                .compliance_check(
+                .eval_policies(
                     HashMap::from([
                         (String::new(), HashSet::from([Policy::default(), Policy::default()])),
                         ("10.0.0.1".to_string(), HashSet::from([Policy::default()]))
@@ -302,7 +302,7 @@ mod tests {
         // Source uses default (integrity 0), destination has integrity 2
         assert!(
             compliance
-                .compliance_check(
+                .eval_policies(
                     HashMap::from([
                         (String::new(), HashSet::from([Policy::default()])),
                         ("10.0.0.1".to_string(), HashSet::from([Policy::default()]))
@@ -326,7 +326,7 @@ mod tests {
         let dest_policy =
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
 
-        let request = ComplianceRequest::CheckCompliance {
+        let request = ComplianceRequest::EvalPolicies {
             source_policies: HashMap::from([(String::new(), HashSet::from([source_policy]))]),
             destination_policy: dest_policy,
         };
@@ -346,7 +346,7 @@ mod tests {
         let dest_policy =
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
 
-        let request = ComplianceRequest::CheckCompliance {
+        let request = ComplianceRequest::EvalPolicies {
             source_policies: HashMap::from([(String::new(), HashSet::from([source_policy]))]),
             destination_policy: dest_policy,
         };
@@ -377,7 +377,7 @@ mod tests {
 
         // High -> Medium: Should pass (integrity 10 >= 5, secret -> public is blocked but this is
         // reverse)
-        let request1 = ComplianceRequest::CheckCompliance {
+        let request1 = ComplianceRequest::EvalPolicies {
             source_policies: HashMap::from([
                 (String::new(), HashSet::from([Policy::default()])),
                 ("10.0.0.1".to_string(), HashSet::from([high_policy.clone()])),
@@ -390,14 +390,14 @@ mod tests {
         ); // Secret -> Public fails
 
         // Medium -> Low: Should pass (integrity 5 >= 1, public -> public)
-        let request2 = ComplianceRequest::CheckCompliance {
+        let request2 = ComplianceRequest::EvalPolicies {
             source_policies: HashMap::from([(String::new(), HashSet::from([medium_policy]))]),
             destination_policy: low_policy.clone(),
         };
         assert_eq!(compliance.call(request2).await.unwrap(), ComplianceResponse::Grant);
 
         // Low -> High: Should fail (integrity 1 < 10)
-        let request3 = ComplianceRequest::CheckCompliance {
+        let request3 = ComplianceRequest::EvalPolicies {
             source_policies: HashMap::from([(String::new(), HashSet::from([low_policy]))]),
             destination_policy: high_policy,
         };
@@ -566,7 +566,7 @@ mod tests {
 
         assert!(
             compliance
-                .compliance_check(
+                .eval_policies(
                     HashMap::from([(
                         String::new(),
                         HashSet::from([policy.clone(), Policy::default()])
@@ -579,7 +579,7 @@ mod tests {
 
         assert!(
             compliance
-                .compliance_check(
+                .eval_policies(
                     HashMap::from([(String::new(), HashSet::from([Policy::default()]))]),
                     policy
                 )

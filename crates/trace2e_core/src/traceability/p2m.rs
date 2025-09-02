@@ -297,7 +297,7 @@ where
                                     _ => return Err(TraceabilityError::InternalTrace2eError),
                                 };
                                 match compliance
-                                    .call(ComplianceRequest::CheckCompliance {
+                                    .call(ComplianceRequest::EvalPolicies {
                                         source_policies,
                                         destination_policy,
                                     })

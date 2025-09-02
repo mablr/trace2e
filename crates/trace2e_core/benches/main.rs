@@ -91,7 +91,7 @@ fn bench_compliance_check_pass(c: &mut Criterion) {
 
             let _ = black_box(
                 compliance
-                    .call(ComplianceRequest::CheckCompliance {
+                    .call(ComplianceRequest::EvalPolicies {
                         source_policies,
                         destination_policy: dest_policy,
                     })
@@ -111,7 +111,7 @@ fn bench_compliance_check_fail(c: &mut Criterion) {
 
             let _ = black_box(
                 compliance
-                    .call(ComplianceRequest::CheckCompliance {
+                    .call(ComplianceRequest::EvalPolicies {
                         source_policies,
                         destination_policy: dest_policy,
                     })
@@ -138,7 +138,7 @@ fn bench_compliance_check_complex(c: &mut Criterion) {
 
             let _ = black_box(
                 compliance
-                    .call(ComplianceRequest::CheckCompliance {
+                    .call(ComplianceRequest::EvalPolicies {
                         source_policies,
                         destination_policy: dest_policy,
                     })
