@@ -220,10 +220,7 @@ where
                                     .call(ProvenanceRequest::GetReferences(source.clone()))
                                     .await?
                                 {
-                                    ProvenanceResponse::Provenance {
-                                        authority,
-                                        mut references,
-                                    } => {
+                                    ProvenanceResponse::Provenance(mut references) => {
                                         #[cfg(feature = "trace2e_tracing")]
                                         debug!(
                                             "[p2m-{}] Aggregated resources: {:?}",
@@ -232,7 +229,7 @@ where
                                         );
                                         // Get local source policies
                                         let mut source_policies = if let Some(local_references) =
-                                            references.remove(&authority)
+                                            references.remove(&provenance.node_id())
                                         {
                                             match compliance
                                                 .call(ComplianceRequest::GetPolicies(
@@ -241,7 +238,10 @@ where
                                                 .await?
                                             {
                                                 ComplianceResponse::Policies(policies) => {
-                                                    HashMap::from([(authority, policies)])
+                                                    HashMap::from([(
+                                                        provenance.node_id(),
+                                                        policies,
+                                                    )])
                                                 }
                                                 _ => {
                                                     return Err(
@@ -340,7 +340,7 @@ where
                         );
                         if let Some(remote_stream) = destination.is_stream() {
                             match provenance.call(ProvenanceRequest::GetReferences(source)).await? {
-                                ProvenanceResponse::Provenance { references, .. } => {
+                                ProvenanceResponse::Provenance(references) => {
                                     m2m.ready()
                                         .await?
                                         .call(M2mRequest::UpdateProvenance {

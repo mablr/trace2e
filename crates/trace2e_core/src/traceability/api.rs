@@ -87,7 +87,7 @@ pub enum ProvenanceRequest {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ProvenanceResponse {
     /// Provenance set for the requested resource
-    Provenance { authority: String, references: HashMap<String, HashSet<Resource>> },
+    Provenance(HashMap<String, HashSet<Resource>>),
     /// Provenance successfully updated
     ProvenanceUpdated,
     /// Provenance not updated as the source is already in the destination provenance

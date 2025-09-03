@@ -125,10 +125,7 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                 ProvenanceRequest::GetReferences(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[provenance-{}] GetReferences: {:?}", this.node_id, resource);
-                    Ok(ProvenanceResponse::Provenance {
-                        authority: this.node_id.clone(),
-                        references: this.get_prov(&resource).await,
-                    })
+                    Ok(ProvenanceResponse::Provenance(this.get_prov(&resource).await))
                 }
                 ProvenanceRequest::UpdateProvenance { source, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
@@ -256,10 +253,10 @@ mod tests {
 
         assert_eq!(
             provenance.call(ProvenanceRequest::GetReferences(process.clone())).await.unwrap(),
-            ProvenanceResponse::Provenance {
-                authority: String::new(),
-                references: HashMap::from([(String::new(), HashSet::from([process.clone()]))]),
-            }
+            ProvenanceResponse::Provenance(HashMap::from([(
+                String::new(),
+                HashSet::from([process.clone()])
+            )]))
         );
 
         assert_eq!(
@@ -286,10 +283,10 @@ mod tests {
 
         assert_eq!(
             provenance.call(ProvenanceRequest::GetReferences(process.clone())).await.unwrap(),
-            ProvenanceResponse::Provenance {
-                authority: String::new(),
-                references: HashMap::from([(String::new(), HashSet::from([file, process]))]),
-            }
+            ProvenanceResponse::Provenance(HashMap::from([(
+                String::new(),
+                HashSet::from([file, process])
+            )]))
         );
     }
 }

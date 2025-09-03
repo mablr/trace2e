@@ -88,7 +88,7 @@ where
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[o2m-{}] GetReferences: resource: {:?}", provenance.node_id(), resource);
                     match provenance.call(ProvenanceRequest::GetReferences(resource)).await? {
-                        ProvenanceResponse::Provenance { references, .. } => {
+                        ProvenanceResponse::Provenance(references) => {
                             Ok(O2mResponse::References(references))
                         }
                         _ => Err(TraceabilityError::InternalTrace2eError),
