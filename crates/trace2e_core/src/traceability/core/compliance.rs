@@ -74,47 +74,41 @@ impl PolicyMap {
     }
 }
 
-/// Compliance service for managing policies
-///
-/// This service is responsible for managing the policies for the resources.
-/// It is also used to check the compliance of a flow.
+/// Helper function to evaluate the compliance of policies for a flow from source to destination
+/// Returns true if the flow is compliant, false otherwise
+fn eval_policies(
+    source_policies: HashMap<String, HashSet<Policy>>,
+    destination_policy: Policy,
+) -> Result<ComplianceResponse, TraceabilityError> {
+    // Merge local and remote source policies, ignoring the node
+    // TODO: implement node based policies
+    for source_policy in source_policies.values().flatten() {
+        // If the source or destination policy is deleted, the flow is not compliant
+        if source_policy.deleted || destination_policy.deleted {
+            return Err(TraceabilityError::DirectPolicyViolation);
+        }
+
+        // Integrity check: Source integrity must be greater than or equal to destination
+        // integrity
+        if source_policy.integrity < destination_policy.integrity {
+            return Err(TraceabilityError::DirectPolicyViolation);
+        }
+
+        // Confidentiality check: Secret data cannot flow to public destinations
+        if source_policy.confidentiality == ConfidentialityPolicy::Secret
+            && destination_policy.confidentiality == ConfidentialityPolicy::Public
+        {
+            return Err(TraceabilityError::DirectPolicyViolation);
+        }
+    }
+
+    Ok(ComplianceResponse::Grant)
+}
+
+/// Compliance service for managing and checking policies
 #[derive(Default, Clone, Debug)]
 pub struct ComplianceService {
     policies: PolicyMap,
-}
-
-impl ComplianceService {
-    /// Evaluate the compliance of policies for a flow from source to destination
-    /// Returns true if the flow is compliant, false otherwise
-    async fn eval_policies(
-        &self,
-        source_policies: HashMap<String, HashSet<Policy>>,
-        destination_policy: Policy,
-    ) -> Result<ComplianceResponse, TraceabilityError> {
-        // Merge local and remote source policies, ignoring the node
-        // TODO: implement node based policies
-        for source_policy in source_policies.values().flatten() {
-            // If the source or destination policy is deleted, the flow is not compliant
-            if source_policy.deleted || destination_policy.deleted {
-                return Err(TraceabilityError::DirectPolicyViolation);
-            }
-
-            // Integrity check: Source integrity must be greater than or equal to destination
-            // integrity
-            if source_policy.integrity < destination_policy.integrity {
-                return Err(TraceabilityError::DirectPolicyViolation);
-            }
-
-            // Confidentiality check: Secret data cannot flow to public destinations
-            if source_policy.confidentiality == ConfidentialityPolicy::Secret
-                && destination_policy.confidentiality == ConfidentialityPolicy::Public
-            {
-                return Err(TraceabilityError::DirectPolicyViolation);
-            }
-        }
-
-        Ok(ComplianceResponse::Grant)
-    }
 }
 
 impl Service<ComplianceRequest> for ComplianceService {
@@ -136,7 +130,7 @@ impl Service<ComplianceRequest> for ComplianceService {
                         "[compliance] CheckCompliance: source_policies: {:?}, destination_policy: {:?}",
                         source_policies, destination_policy
                     );
-                    this.eval_policies(source_policies, destination_policy).await
+                    eval_policies(source_policies, destination_policy)
                 }
                 ComplianceRequest::GetPolicies(resources) => {
                     #[cfg(feature = "trace2e_tracing")]
@@ -189,7 +183,6 @@ mod tests {
     async fn unit_compliance_check_integrity_pass() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
-        let compliance = ComplianceService::default();
 
         let source_policy =
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 5, deleted: false };
@@ -198,13 +191,11 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
 
         assert!(
-            compliance
-                .eval_policies(
-                    HashMap::from([(String::new(), HashSet::from([source_policy]))]),
-                    dest_policy
-                )
-                .await
-                .is_ok_and(|r| r == ComplianceResponse::Grant)
+            eval_policies(
+                HashMap::from([(String::new(), HashSet::from([source_policy]))]),
+                dest_policy
+            )
+            .is_ok_and(|r| r == ComplianceResponse::Grant)
         );
     }
 
@@ -212,7 +203,6 @@ mod tests {
     async fn unit_compliance_check_integrity_fail() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
-        let compliance = ComplianceService::default();
 
         let source_policy =
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
@@ -221,13 +211,11 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 5, deleted: false };
 
         assert!(
-            compliance
-                .eval_policies(
-                    HashMap::from([(String::new(), HashSet::from([source_policy]))]),
-                    dest_policy
-                )
-                .await
-                .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
+            eval_policies(
+                HashMap::from([(String::new(), HashSet::from([source_policy]))]),
+                dest_policy
+            )
+            .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
     }
 
@@ -235,7 +223,6 @@ mod tests {
     async fn unit_compliance_check_confidentiality_pass() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
-        let compliance = ComplianceService::default();
 
         let source_policy =
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: false };
@@ -244,13 +231,11 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 3, deleted: false };
 
         assert!(
-            compliance
-                .eval_policies(
-                    HashMap::from([(String::new(), HashSet::from([source_policy]))]),
-                    dest_policy
-                )
-                .await
-                .is_ok_and(|r| r == ComplianceResponse::Grant)
+            eval_policies(
+                HashMap::from([(String::new(), HashSet::from([source_policy]))]),
+                dest_policy
+            )
+            .is_ok_and(|r| r == ComplianceResponse::Grant)
         );
     }
 
@@ -258,7 +243,6 @@ mod tests {
     async fn unit_compliance_check_confidentiality_fail() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
-        let compliance = ComplianceService::default();
 
         let source_policy =
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: false };
@@ -267,13 +251,11 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
 
         assert!(
-            compliance
-                .eval_policies(
-                    HashMap::from([(String::new(), HashSet::from([source_policy]))]),
-                    dest_policy
-                )
-                .await
-                .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
+            eval_policies(
+                HashMap::from([(String::new(), HashSet::from([source_policy]))]),
+                dest_policy
+            )
+            .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
     }
 
@@ -281,20 +263,17 @@ mod tests {
     async fn unit_compliance_check_default_policies() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
-        let compliance = ComplianceService::default();
 
         // Both should use default policies (Public, integrity 0)
         assert!(
-            compliance
-                .eval_policies(
-                    HashMap::from([
-                        (String::new(), HashSet::from([Policy::default(), Policy::default()])),
-                        ("10.0.0.1".to_string(), HashSet::from([Policy::default()]))
-                    ]),
-                    Policy::default()
-                )
-                .await
-                .is_ok_and(|r| r == ComplianceResponse::Grant)
+            eval_policies(
+                HashMap::from([
+                    (String::new(), HashSet::from([Policy::default(), Policy::default()])),
+                    ("10.0.0.1".to_string(), HashSet::from([Policy::default()]))
+                ]),
+                Policy::default()
+            )
+            .is_ok_and(|r| r == ComplianceResponse::Grant)
         );
     }
 
@@ -302,23 +281,20 @@ mod tests {
     async fn unit_compliance_check_mixed_default_explicit() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
-        let compliance = ComplianceService::default();
 
         let dest_policy =
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 2, deleted: false };
 
         // Source uses default (integrity 0), destination has integrity 2
         assert!(
-            compliance
-                .eval_policies(
-                    HashMap::from([
-                        (String::new(), HashSet::from([Policy::default()])),
-                        ("10.0.0.1".to_string(), HashSet::from([Policy::default()]))
-                    ]),
-                    dest_policy
-                )
-                .await
-                .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
+            eval_policies(
+                HashMap::from([
+                    (String::new(), HashSet::from([Policy::default()])),
+                    ("10.0.0.1".to_string(), HashSet::from([Policy::default()]))
+                ]),
+                dest_policy
+            )
+            .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
     }
 
@@ -567,32 +543,27 @@ mod tests {
     async fn unit_compliance_policy_deleted_check() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
-        let compliance = ComplianceService::default();
 
         let policy =
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: true };
 
         assert!(
-            compliance
-                .eval_policies(
-                    HashMap::from([(
-                        String::new(),
-                        HashSet::from([policy.clone(), Policy::default()])
-                    )]),
-                    Policy::default()
-                )
-                .await
-                .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
+            eval_policies(
+                HashMap::from([(
+                    String::new(),
+                    HashSet::from([policy.clone(), Policy::default()])
+                )]),
+                Policy::default()
+            )
+            .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
 
         assert!(
-            compliance
-                .eval_policies(
-                    HashMap::from([(String::new(), HashSet::from([Policy::default()]))]),
-                    policy
-                )
-                .await
-                .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
+            eval_policies(
+                HashMap::from([(String::new(), HashSet::from([Policy::default()]))]),
+                policy
+            )
+            .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
     }
 }
