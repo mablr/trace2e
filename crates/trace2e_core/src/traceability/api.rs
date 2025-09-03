@@ -99,6 +99,8 @@ pub enum ProvenanceResponse {
 pub enum ComplianceRequest {
     /// Evaluate the compliance of policies for a flow from source to destination
     EvalPolicies { source_policies: HashMap<String, HashSet<Policy>>, destination_policy: Policy },
+    /// Check Compliance of a flow from sources to destination
+    CheckCompliance { sources: HashMap<String, HashSet<Resource>>, destination: Resource },
     /// Get policies for a specific set of resources
     GetPolicies(HashSet<Resource>),
     /// Set policy for a specific resource

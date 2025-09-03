@@ -141,6 +141,7 @@ impl Service<ComplianceRequest> for ComplianceService {
                     info!("[compliance] SetPolicy: resource: {:?}, policy: {:?}", resource, policy);
                     this.set_policy(resource, policy).await
                 }
+                ComplianceRequest::CheckCompliance { .. } => Err(TraceabilityError::InvalidRequest),
             }
         })
     }
