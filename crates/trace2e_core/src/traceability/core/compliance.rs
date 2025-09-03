@@ -37,10 +37,16 @@ pub struct Policy {
 
 #[derive(Default, Clone, Debug)]
 pub struct PolicyMap {
+    cache_mode: bool,
     policies: Arc<DashMap<Resource, Policy>>,
 }
 
 impl PolicyMap {
+    /// Create a new PolicyMap in cache mode
+    pub fn cache() -> Self {
+        Self { cache_mode: true, policies: Arc::new(DashMap::new()) }
+    }
+
     /// Get the policies for a specific resource
     /// Returns the default policy if the resource is not found
     async fn get_policies(
@@ -51,8 +57,13 @@ impl PolicyMap {
         for resource in resources {
             // Get the policy from the local policies, streams have no policies
             if resource.is_stream().is_none() {
-                let policy = self.policies.get(&resource).map(|p| p.clone()).unwrap_or_default();
-                policies_set.insert(policy);
+                if let Some(policy) = self.policies.get(&resource).map(|p| p.clone()) {
+                    policies_set.insert(policy);
+                } else if !self.cache_mode {
+                    policies_set.insert(Policy::default());
+                } else {
+                    return Err(TraceabilityError::PolicyNotFound(resource));
+                }
             }
         }
         Ok(ComplianceResponse::Policies(policies_set))
@@ -564,6 +575,106 @@ mod tests {
                 policy
             )
             .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_cache_mode_policy_not_found() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
+
+        let cache_policy_map = PolicyMap::cache();
+        let process = Resource::new_process_mock(0);
+
+        // In cache mode, requesting policy for non-existent resource should return PolicyNotFound error
+        assert!(
+            cache_policy_map.get_policies(HashSet::from([process.clone()])).await.is_err_and(
+                |e| matches!(e, TraceabilityError::PolicyNotFound(res) if res == process)
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_normal_mode_vs_cache_mode() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
+
+        let normal_policy_map = PolicyMap::default();
+        let cache_policy_map = PolicyMap::cache();
+        let process = Resource::new_process_mock(0);
+
+        // Normal mode should return default policy when resource not found
+        assert_eq!(
+            normal_policy_map.get_policies(HashSet::from([process.clone()])).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::from([Policy::default()]))
+        );
+
+        // Cache mode should return PolicyNotFound error when resource not found
+        assert!(
+            cache_policy_map.get_policies(HashSet::from([process.clone()])).await.is_err_and(
+                |e| matches!(e, TraceabilityError::PolicyNotFound(res) if res == process)
+            )
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_cache_mode_with_existing_policies() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
+
+        let cache_policy_map = PolicyMap::cache();
+        let process = Resource::new_process_mock(0);
+
+        let policy =
+            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 7, deleted: false };
+
+        // Set policy first
+        cache_policy_map.set_policy(process.clone(), policy.clone()).await.unwrap();
+
+        // Now getting policy should work in cache mode
+        assert_eq!(
+            cache_policy_map.get_policies(HashSet::from([process])).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::from([policy]))
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_cache_mode_mixed_resources() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
+
+        let cache_policy_map = PolicyMap::cache();
+        let process1 = Resource::new_process_mock(1);
+        let process2 = Resource::new_process_mock(2);
+
+        let policy1 =
+            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
+
+        // Set policy only for process1
+        cache_policy_map.set_policy(process1.clone(), policy1).await.unwrap();
+
+        // Request policies for both processes - should fail because process2 has no policy
+        assert!(
+            cache_policy_map
+                .get_policies(HashSet::from([process1, process2.clone()]))
+                .await
+                .is_err_and(
+                    |e| matches!(e, TraceabilityError::PolicyNotFound(res) if res == process2)
+                )
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_cache_mode_empty_request() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
+
+        let cache_policy_map = PolicyMap::cache();
+
+        // Empty request should work the same in both modes
+        assert_eq!(
+            cache_policy_map.get_policies(HashSet::new()).await.unwrap(),
+            ComplianceResponse::Policies(HashSet::new())
         );
     }
 }
