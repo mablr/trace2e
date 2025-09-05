@@ -69,7 +69,7 @@ impl PolicyMap {
     fn get_policies(
         &self,
         resources: HashSet<Resource>,
-    ) -> Result<ComplianceResponse, TraceabilityError> {
+    ) -> Result<HashSet<Policy>, TraceabilityError> {
         let mut policies_set = HashSet::new();
         for resource in resources {
             // Get the policy from the local policies, streams have no policies
@@ -83,7 +83,7 @@ impl PolicyMap {
                 }
             }
         }
-        Ok(ComplianceResponse::Policies(policies_set))
+        Ok(policies_set)
     }
 
     /// Set the policy for a specific resource
@@ -148,7 +148,7 @@ struct CachedPoliciesMap {
 impl CachedPoliciesMap {
     /// Cache a batch of policies for a specific node
     #[allow(dead_code)]
-    fn cache_batch(&self, node_id: String, resources: HashMap<Resource, Policy>) {
+    fn cache_policies_batch(&self, node_id: String, resources: HashMap<Resource, Policy>) {
         if let Some(policies) = self.policies.get(&node_id) {
             for (resource, policy) in resources {
                 policies.policies.insert(resource, policy);
@@ -157,16 +157,15 @@ impl CachedPoliciesMap {
             self.policies.insert(node_id, PolicyMap::from(resources));
         }
     }
+
     /// Get the policies for a specific node
-    fn get_policies(
+    fn get_cached_policies(
         &self,
         aggregated_resources: HashMap<String, HashSet<Resource>>,
     ) -> HashMap<String, HashSet<Policy>> {
         let mut policies = HashMap::new();
         for (node_id, resources) in aggregated_resources {
-            if let Some(Ok(ComplianceResponse::Policies(p))) =
-                self.policies.get(&node_id).map(|p| p.get_policies(resources))
-            {
+            if let Some(Ok(p)) = self.policies.get(&node_id).map(|p| p.get_policies(resources)) {
                 policies.insert(node_id, p);
             }
         }
@@ -177,6 +176,7 @@ impl CachedPoliciesMap {
 /// Compliance service for managing and checking policies
 #[derive(Default, Clone, Debug)]
 pub struct ComplianceService {
+    node_id: String,
     policies: PolicyMap,
     cached_policies: CachedPoliciesMap,
 }
@@ -220,23 +220,25 @@ impl Service<ComplianceRequest> for ComplianceService {
                 ComplianceRequest::GetPolicies(resources) => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance] GetPolicies: resources: {:?}", resources);
-                    this.policies.get_policies(resources)
+                    Ok(ComplianceResponse::Policies(this.policies.get_policies(resources)?))
                 }
                 ComplianceRequest::SetPolicy { resource, policy } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance] SetPolicy: resource: {:?}, policy: {:?}", resource, policy);
                     this.policies.set_policy(resource, policy)
                 }
-                ComplianceRequest::CheckCompliance { sources, destination } => {
+                ComplianceRequest::CheckCompliance { mut sources, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[compliance] CheckCompliance: sources: {:?}, destination: {:?}",
                         sources, destination
                     );
-                    eval_policies(
-                        this.cached_policies.get_policies(sources),
-                        this.policies.get_policy(&destination)?,
-                    )
+                    let local_source_policies = this
+                        .policies
+                        .get_policies(sources.remove(&this.node_id).unwrap_or_default())?;
+                    let mut source_policies = this.cached_policies.get_cached_policies(sources);
+                    source_policies.insert(this.node_id, local_source_policies);
+                    eval_policies(source_policies, this.policies.get_policy(&destination)?)
                 }
             }
         })
@@ -496,7 +498,7 @@ mod tests {
 
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process, file])).unwrap(),
-            ComplianceResponse::Policies(HashSet::from([Policy::default()]))
+            HashSet::from([Policy::default()])
         );
     }
 
@@ -514,7 +516,7 @@ mod tests {
 
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process])).unwrap(),
-            ComplianceResponse::Policies(HashSet::from([policy]))
+            HashSet::from([policy])
         );
     }
 
@@ -537,7 +539,7 @@ mod tests {
 
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process, file])).unwrap(),
-            ComplianceResponse::Policies(HashSet::from([process_policy, file_policy]))
+            HashSet::from([process_policy, file_policy])
         );
     }
 
@@ -557,7 +559,7 @@ mod tests {
 
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process, file])).unwrap(),
-            ComplianceResponse::Policies(HashSet::from([process_policy, Policy::default()]))
+            HashSet::from([process_policy, Policy::default()])
         );
     }
 
@@ -566,10 +568,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
-        assert_eq!(
-            compliance.policies.get_policies(HashSet::new()).unwrap(),
-            ComplianceResponse::Policies(HashSet::new())
-        );
+        assert_eq!(compliance.policies.get_policies(HashSet::new()).unwrap(), HashSet::new());
     }
 
     #[tokio::test]
@@ -591,7 +590,7 @@ mod tests {
         // Verify initial policy
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
-            ComplianceResponse::Policies(HashSet::from([initial_policy]))
+            HashSet::from([initial_policy])
         );
 
         // Update policy
@@ -600,7 +599,7 @@ mod tests {
         // Verify updated policy
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process])).unwrap(),
-            ComplianceResponse::Policies(HashSet::from([updated_policy]))
+            HashSet::from([updated_policy])
         );
     }
 
@@ -618,7 +617,7 @@ mod tests {
 
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
-            ComplianceResponse::Policies(HashSet::from([policy.clone()]))
+            HashSet::from([policy.clone()])
         );
 
         // Setting a deleted policy must not have any effect, so it returns None
@@ -630,7 +629,7 @@ mod tests {
         // Getting the policies must return the deleted policy
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process])).unwrap(),
-            ComplianceResponse::Policies(HashSet::from([policy]))
+            HashSet::from([policy])
         );
     }
 
@@ -690,7 +689,7 @@ mod tests {
         // Normal mode should return default policy when resource not found
         assert_eq!(
             normal_policy_map.get_policies(HashSet::from([process.clone()])).unwrap(),
-            ComplianceResponse::Policies(HashSet::from([Policy::default()]))
+            HashSet::from([Policy::default()])
         );
 
         // Cache mode should return PolicyNotFound error when resource not found
@@ -718,7 +717,7 @@ mod tests {
         // Now getting policy should work in cache mode
         assert_eq!(
             cache_policy_map.get_policies(HashSet::from([process])).unwrap(),
-            ComplianceResponse::Policies(HashSet::from([policy]))
+            HashSet::from([policy])
         );
     }
 
@@ -753,9 +752,6 @@ mod tests {
         let cache_policy_map = PolicyMap::init_cache();
 
         // Empty request should work the same in both modes
-        assert_eq!(
-            cache_policy_map.get_policies(HashSet::new()).unwrap(),
-            ComplianceResponse::Policies(HashSet::new())
-        );
+        assert_eq!(cache_policy_map.get_policies(HashSet::new()).unwrap(), HashSet::new());
     }
 }
