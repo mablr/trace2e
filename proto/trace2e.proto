@@ -11,8 +11,8 @@ service Trace2eGrpc {
     rpc P2MIoReport(IoResult) returns (Ack);
 
     // Middleware to Middleware operations
-    rpc M2MDestinationCompliance(DestinationCompliance) returns (Compliance);
-    rpc M2MSourceCompliance(SourceCompliance) returns (Compliance);
+    rpc M2MDestinationCompliance(GetDestinationCompliance) returns (DestinationCompliance);
+    rpc M2MSourceCompliance(GetSourceCompliance) returns (SourceCompliance);
     rpc M2MUpdateProvenance(UpdateProvenance) returns (Ack);
 }
 
@@ -86,12 +86,12 @@ message Resource {
     }
 }
 
-message DestinationCompliance {
+message GetDestinationCompliance {
     Resource source = 1;
     Resource destination = 2;
 }
 
-message SourceCompliance {
+message GetSourceCompliance {
     repeated Resource resources = 1;
 }
 
@@ -106,7 +106,11 @@ message Policy {
     bool deleted = 3;
 }
 
-message Compliance {
+message DestinationCompliance {
+    Policy policy = 1;
+}
+
+message SourceCompliance {
     repeated Policy policies = 1;
 }
 

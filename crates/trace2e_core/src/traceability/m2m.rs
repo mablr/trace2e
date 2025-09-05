@@ -1,4 +1,4 @@
-use std::{collections::HashSet, future::Future, pin::Pin, task::Poll};
+use std::{future::Future, pin::Pin, task::Poll};
 
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
@@ -85,12 +85,10 @@ where
                         .await?
                     {
                         SequencerResponse::FlowReserved => {
-                            match compliance
-                                .call(ComplianceRequest::GetPolicies(HashSet::from([destination])))
-                                .await?
+                            match compliance.call(ComplianceRequest::GetPolicy(destination)).await?
                             {
-                                ComplianceResponse::Policies(policies) => {
-                                    Ok(M2mResponse::Compliance(policies))
+                                ComplianceResponse::Policy(policy) => {
+                                    Ok(M2mResponse::DestinationCompliance(policy))
                                 }
                                 _ => Err(TraceabilityError::InternalTrace2eError),
                             }
@@ -107,7 +105,7 @@ where
                     );
                     match compliance.call(ComplianceRequest::GetPolicies(resources)).await? {
                         ComplianceResponse::Policies(policies) => {
-                            Ok(M2mResponse::Compliance(policies))
+                            Ok(M2mResponse::SourceCompliance(policies))
                         }
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }

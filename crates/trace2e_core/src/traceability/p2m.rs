@@ -1,10 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
-    future::Future,
-    pin::Pin,
-    sync::Arc,
-    task::Poll,
-    time::SystemTime,
+    collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll, time::SystemTime,
 };
 
 use dashmap::DashMap;
@@ -189,32 +184,29 @@ where
                                 // If destination is a stream, query remote policy via m2m
                                 // else if query local destination policy
                                 // else return error
-                                let destination_policy = if let Some(remote_stream) =
-                                    destination.is_stream()
-                                {
-                                    if let M2mResponse::Compliance(policies) = m2m
-                                        .ready()
-                                        .await?
-                                        .call(M2mRequest::GetDestinationCompliance {
-                                            source: source.clone(),
-                                            destination: remote_stream,
-                                        })
+                                let destination_policy =
+                                    if let Some(remote_stream) = destination.is_stream() {
+                                        if let M2mResponse::DestinationCompliance(policy) = m2m
+                                            .ready()
+                                            .await?
+                                            .call(M2mRequest::GetDestinationCompliance {
+                                                source: source.clone(),
+                                                destination: remote_stream,
+                                            })
+                                            .await?
+                                        {
+                                            policy
+                                        } else {
+                                            return Err(TraceabilityError::InternalTrace2eError);
+                                        }
+                                    } else if let ComplianceResponse::Policy(policy) = compliance
+                                        .call(ComplianceRequest::GetPolicy(destination.clone()))
                                         .await?
                                     {
-                                        policies.iter().next().cloned().unwrap_or_default()
+                                        policy
                                     } else {
                                         return Err(TraceabilityError::InternalTrace2eError);
-                                    }
-                                } else if let ComplianceResponse::Policies(policies) = compliance
-                                    .call(ComplianceRequest::GetPolicies(HashSet::from([
-                                        destination.clone(),
-                                    ])))
-                                    .await?
-                                {
-                                    policies.iter().next().cloned().unwrap_or_default()
-                                } else {
-                                    return Err(TraceabilityError::InternalTrace2eError);
-                                };
+                                    };
 
                                 let source_policies = match provenance
                                     .call(ProvenanceRequest::GetReferences(source.clone()))
@@ -281,7 +273,7 @@ where
                                                 TraceabilityError::InternalTrace2eError
                                             })?;
                                             match result? {
-                                                M2mResponse::Compliance(policies) => {
+                                                M2mResponse::SourceCompliance(policies) => {
                                                     source_policies.insert(node_id, policies);
                                                 }
                                                 _ => {

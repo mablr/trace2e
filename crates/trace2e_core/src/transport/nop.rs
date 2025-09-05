@@ -24,9 +24,11 @@ impl Service<M2mRequest> for M2mNop {
         Box::pin(async move {
             Ok(match request {
                 M2mRequest::GetDestinationCompliance { .. } => {
-                    M2mResponse::Compliance(HashSet::from([Policy::default()]))
+                    M2mResponse::DestinationCompliance(Policy::default())
                 }
-                M2mRequest::GetSourceCompliance { .. } => M2mResponse::Compliance(HashSet::new()),
+                M2mRequest::GetSourceCompliance { .. } => {
+                    M2mResponse::SourceCompliance(HashSet::new())
+                }
                 M2mRequest::UpdateProvenance { .. } => M2mResponse::Ack,
             })
         })

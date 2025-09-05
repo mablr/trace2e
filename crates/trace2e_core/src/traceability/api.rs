@@ -33,7 +33,8 @@ pub enum M2mRequest {
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum M2mResponse {
-    Compliance(HashSet<Policy>),
+    SourceCompliance(HashSet<Policy>),
+    DestinationCompliance(Policy),
     Ack,
 }
 
@@ -101,6 +102,8 @@ pub enum ComplianceRequest {
     EvalPolicies { source_policies: HashMap<String, HashSet<Policy>>, destination_policy: Policy },
     /// Check Compliance of a flow from sources to destination
     CheckCompliance { sources: HashMap<String, HashSet<Resource>>, destination: Resource },
+    /// Get policy for a specific resource
+    GetPolicy(Resource),
     /// Get policies for a specific set of resources
     GetPolicies(HashSet<Resource>),
     /// Set policy for a specific resource
@@ -111,6 +114,8 @@ pub enum ComplianceRequest {
 pub enum ComplianceResponse {
     /// Flow is compliant and authorized
     Grant,
+    /// Policy for the requested resource
+    Policy(Policy),
     /// Policies for the requested resources
     Policies(HashSet<Policy>),
     /// Policy successfully set

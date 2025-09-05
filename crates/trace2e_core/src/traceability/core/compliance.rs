@@ -42,14 +42,32 @@ pub struct PolicyMap {
 }
 
 impl PolicyMap {
+    /// Create a new empty PolicyMap in cache mode for testing purposes
+    #[cfg(test)]
+    pub fn init_cache() -> Self {
+        Self::cache(Arc::new(DashMap::new()))
+    }
+
     /// Create a new PolicyMap in cache mode
-    pub fn cache() -> Self {
-        Self { cache_mode: true, policies: Arc::new(DashMap::new()) }
+    #[allow(dead_code)]
+    fn cache(policies: Arc<DashMap<Resource, Policy>>) -> Self {
+        Self { cache_mode: true, policies }
+    }
+
+    fn get_policy(&self, resource: &Resource) -> Result<Policy, TraceabilityError> {
+        self.policies.get(resource).map(|p| p.to_owned()).map_or(
+            if self.cache_mode {
+                Err(TraceabilityError::PolicyNotFound(resource.to_owned()))
+            } else {
+                Ok(Policy::default())
+            },
+             Ok,
+        )
     }
 
     /// Get the policies for a specific resource
     /// Returns the default policy if the resource is not found
-    async fn get_policies(
+    fn get_policies(
         &self,
         resources: HashSet<Resource>,
     ) -> Result<ComplianceResponse, TraceabilityError> {
@@ -57,7 +75,7 @@ impl PolicyMap {
         for resource in resources {
             // Get the policy from the local policies, streams have no policies
             if resource.is_stream().is_none() {
-                if let Some(policy) = self.policies.get(&resource).map(|p| p.clone()) {
+                if let Ok(policy) = self.get_policy(&resource) {
                     policies_set.insert(policy);
                 } else if !self.cache_mode {
                     policies_set.insert(Policy::default());
@@ -71,7 +89,7 @@ impl PolicyMap {
 
     /// Set the policy for a specific resource
     /// Returns the old policy if the resource is already set
-    async fn set_policy(
+    fn set_policy(
         &self,
         resource: Resource,
         policy: Policy,
@@ -143,15 +161,20 @@ impl Service<ComplianceRequest> for ComplianceService {
                     );
                     eval_policies(source_policies, destination_policy)
                 }
+                ComplianceRequest::GetPolicy(resource) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[compliance] GetPolicy: resource: {:?}", resource);
+                    Ok(ComplianceResponse::Policy(this.policies.get_policy(&resource)?))
+                }
                 ComplianceRequest::GetPolicies(resources) => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance] GetPolicies: resources: {:?}", resources);
-                    this.policies.get_policies(resources).await
+                    this.policies.get_policies(resources)
                 }
                 ComplianceRequest::SetPolicy { resource, policy } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance] SetPolicy: resource: {:?}, policy: {:?}", resource, policy);
-                    this.policies.set_policy(resource, policy).await
+                    this.policies.set_policy(resource, policy)
                 }
                 ComplianceRequest::CheckCompliance { .. } => Err(TraceabilityError::InvalidRequest),
             }
@@ -176,7 +199,7 @@ mod tests {
 
         // First time setting policy should return None
         assert_eq!(
-            compliance.policies.set_policy(process.clone(), policy.clone()).await.unwrap(),
+            compliance.policies.set_policy(process.clone(), policy.clone()).unwrap(),
             ComplianceResponse::PolicyUpdated
         );
 
@@ -185,7 +208,7 @@ mod tests {
 
         // Second time setting policy should return the old policy
         assert_eq!(
-            compliance.policies.set_policy(process, new_policy).await.unwrap(),
+            compliance.policies.set_policy(process, new_policy).unwrap(),
             ComplianceResponse::PolicyUpdated
         );
     }
@@ -411,7 +434,7 @@ mod tests {
         let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process, file])).await.unwrap(),
+            compliance.policies.get_policies(HashSet::from([process, file])).unwrap(),
             ComplianceResponse::Policies(HashSet::from([Policy::default()]))
         );
     }
@@ -426,10 +449,10 @@ mod tests {
         let policy =
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 7, deleted: false };
 
-        compliance.policies.set_policy(process.clone(), policy.clone()).await.unwrap();
+        compliance.policies.set_policy(process.clone(), policy.clone()).unwrap();
 
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process])).await.unwrap(),
+            compliance.policies.get_policies(HashSet::from([process])).unwrap(),
             ComplianceResponse::Policies(HashSet::from([policy]))
         );
     }
@@ -448,11 +471,11 @@ mod tests {
         let file_policy =
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
 
-        compliance.policies.set_policy(process.clone(), process_policy.clone()).await.unwrap();
-        compliance.policies.set_policy(file.clone(), file_policy.clone()).await.unwrap();
+        compliance.policies.set_policy(process.clone(), process_policy.clone()).unwrap();
+        compliance.policies.set_policy(file.clone(), file_policy.clone()).unwrap();
 
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process, file])).await.unwrap(),
+            compliance.policies.get_policies(HashSet::from([process, file])).unwrap(),
             ComplianceResponse::Policies(HashSet::from([process_policy, file_policy]))
         );
     }
@@ -469,10 +492,10 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 8, deleted: false };
 
         // Set policy only for process, not for file
-        compliance.policies.set_policy(process.clone(), process_policy.clone()).await.unwrap();
+        compliance.policies.set_policy(process.clone(), process_policy.clone()).unwrap();
 
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process, file])).await.unwrap(),
+            compliance.policies.get_policies(HashSet::from([process, file])).unwrap(),
             ComplianceResponse::Policies(HashSet::from([process_policy, Policy::default()]))
         );
     }
@@ -483,7 +506,7 @@ mod tests {
         crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
         assert_eq!(
-            compliance.policies.get_policies(HashSet::new()).await.unwrap(),
+            compliance.policies.get_policies(HashSet::new()).unwrap(),
             ComplianceResponse::Policies(HashSet::new())
         );
     }
@@ -502,20 +525,20 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 9, deleted: false };
 
         // Set initial policy
-        compliance.policies.set_policy(process.clone(), initial_policy.clone()).await.unwrap();
+        compliance.policies.set_policy(process.clone(), initial_policy.clone()).unwrap();
 
         // Verify initial policy
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process.clone()])).await.unwrap(),
+            compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
             ComplianceResponse::Policies(HashSet::from([initial_policy]))
         );
 
         // Update policy
-        compliance.policies.set_policy(process.clone(), updated_policy.clone()).await.unwrap();
+        compliance.policies.set_policy(process.clone(), updated_policy.clone()).unwrap();
 
         // Verify updated policy
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process])).await.unwrap(),
+            compliance.policies.get_policies(HashSet::from([process])).unwrap(),
             ComplianceResponse::Policies(HashSet::from([updated_policy]))
         );
     }
@@ -530,22 +553,22 @@ mod tests {
         let policy =
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: true };
 
-        compliance.policies.set_policy(process.clone(), policy.clone()).await.unwrap();
+        compliance.policies.set_policy(process.clone(), policy.clone()).unwrap();
 
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process.clone()])).await.unwrap(),
+            compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
             ComplianceResponse::Policies(HashSet::from([policy.clone()]))
         );
 
         // Setting a deleted policy must not have any effect, so it returns None
         assert_eq!(
-            compliance.policies.set_policy(process.clone(), Policy::default()).await.unwrap(),
+            compliance.policies.set_policy(process.clone(), Policy::default()).unwrap(),
             ComplianceResponse::PolicyNotUpdated
         );
 
         // Getting the policies must return the deleted policy
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process])).await.unwrap(),
+            compliance.policies.get_policies(HashSet::from([process])).unwrap(),
             ComplianceResponse::Policies(HashSet::from([policy]))
         );
     }
@@ -583,12 +606,12 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
 
-        let cache_policy_map = PolicyMap::cache();
+        let cache_policy_map = PolicyMap::init_cache();
         let process = Resource::new_process_mock(0);
 
         // In cache mode, requesting policy for non-existent resource should return PolicyNotFound error
         assert!(
-            cache_policy_map.get_policies(HashSet::from([process.clone()])).await.is_err_and(
+            cache_policy_map.get_policies(HashSet::from([process.clone()])).is_err_and(
                 |e| matches!(e, TraceabilityError::PolicyNotFound(res) if res == process)
             )
         );
@@ -600,18 +623,18 @@ mod tests {
         crate::trace2e_tracing::init();
 
         let normal_policy_map = PolicyMap::default();
-        let cache_policy_map = PolicyMap::cache();
+        let cache_policy_map = PolicyMap::init_cache();
         let process = Resource::new_process_mock(0);
 
         // Normal mode should return default policy when resource not found
         assert_eq!(
-            normal_policy_map.get_policies(HashSet::from([process.clone()])).await.unwrap(),
+            normal_policy_map.get_policies(HashSet::from([process.clone()])).unwrap(),
             ComplianceResponse::Policies(HashSet::from([Policy::default()]))
         );
 
         // Cache mode should return PolicyNotFound error when resource not found
         assert!(
-            cache_policy_map.get_policies(HashSet::from([process.clone()])).await.is_err_and(
+            cache_policy_map.get_policies(HashSet::from([process.clone()])).is_err_and(
                 |e| matches!(e, TraceabilityError::PolicyNotFound(res) if res == process)
             )
         );
@@ -622,18 +645,18 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
 
-        let cache_policy_map = PolicyMap::cache();
+        let cache_policy_map = PolicyMap::init_cache();
         let process = Resource::new_process_mock(0);
 
         let policy =
             Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 7, deleted: false };
 
         // Set policy first
-        cache_policy_map.set_policy(process.clone(), policy.clone()).await.unwrap();
+        cache_policy_map.set_policy(process.clone(), policy.clone()).unwrap();
 
         // Now getting policy should work in cache mode
         assert_eq!(
-            cache_policy_map.get_policies(HashSet::from([process])).await.unwrap(),
+            cache_policy_map.get_policies(HashSet::from([process])).unwrap(),
             ComplianceResponse::Policies(HashSet::from([policy]))
         );
     }
@@ -643,7 +666,7 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
 
-        let cache_policy_map = PolicyMap::cache();
+        let cache_policy_map = PolicyMap::init_cache();
         let process1 = Resource::new_process_mock(1);
         let process2 = Resource::new_process_mock(2);
 
@@ -651,16 +674,13 @@ mod tests {
             Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
 
         // Set policy only for process1
-        cache_policy_map.set_policy(process1.clone(), policy1).await.unwrap();
+        cache_policy_map.set_policy(process1.clone(), policy1).unwrap();
 
         // Request policies for both processes - should fail because process2 has no policy
         assert!(
-            cache_policy_map
-                .get_policies(HashSet::from([process1, process2.clone()]))
-                .await
-                .is_err_and(
-                    |e| matches!(e, TraceabilityError::PolicyNotFound(res) if res == process2)
-                )
+            cache_policy_map.get_policies(HashSet::from([process1, process2.clone()])).is_err_and(
+                |e| matches!(e, TraceabilityError::PolicyNotFound(res) if res == process2)
+            )
         );
     }
 
@@ -669,11 +689,11 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
 
-        let cache_policy_map = PolicyMap::cache();
+        let cache_policy_map = PolicyMap::init_cache();
 
         // Empty request should work the same in both modes
         assert_eq!(
-            cache_policy_map.get_policies(HashSet::new()).await.unwrap(),
+            cache_policy_map.get_policies(HashSet::new()).unwrap(),
             ComplianceResponse::Policies(HashSet::new())
         );
     }

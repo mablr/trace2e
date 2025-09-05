@@ -86,7 +86,7 @@ impl Service<M2mRequest> for M2mGrpc {
             match request {
                 M2mRequest::GetDestinationCompliance { source, destination } => {
                     // Create the protobuf request
-                    let proto_req = proto::DestinationCompliance {
+                    let proto_req = proto::GetDestinationCompliance {
                         source: Some(source.into()),
                         destination: Some(destination.into()),
                     };
@@ -97,13 +97,13 @@ impl Service<M2mRequest> for M2mGrpc {
                         .await
                         .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
                         .into_inner();
-                    Ok(M2mResponse::Compliance(
-                        response.policies.into_iter().map(|policy| policy.into()).collect(),
+                    Ok(M2mResponse::DestinationCompliance(
+                        response.policy.map(|policy| policy.into()).unwrap_or_default(),
                     ))
                 }
                 M2mRequest::GetSourceCompliance { resources, .. } => {
                     // Create the protobuf request
-                    let proto_req = proto::SourceCompliance {
+                    let proto_req = proto::GetSourceCompliance {
                         resources: resources.into_iter().map(|r| r.into()).collect(),
                     };
 
@@ -113,7 +113,7 @@ impl Service<M2mRequest> for M2mGrpc {
                         .await
                         .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
                         .into_inner();
-                    Ok(M2mResponse::Compliance(
+                    Ok(M2mResponse::SourceCompliance(
                         response.policies.into_iter().map(|policy| policy.into()).collect(),
                     ))
                 }
@@ -245,24 +245,24 @@ where
     // M2M operations
     async fn m2m_destination_compliance(
         &self,
-        request: Request<proto::DestinationCompliance>,
-    ) -> Result<Response<proto::Compliance>, Status> {
+        request: Request<proto::GetDestinationCompliance>,
+    ) -> Result<Response<proto::DestinationCompliance>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
         match m2m.call(req.into()).await? {
-            M2mResponse::Compliance(policies) => Ok(Response::new(policies.into())),
+            M2mResponse::DestinationCompliance(policy) => Ok(Response::new(policy.into())),
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
 
     async fn m2m_source_compliance(
         &self,
-        request: Request<proto::SourceCompliance>,
-    ) -> Result<Response<proto::Compliance>, Status> {
+        request: Request<proto::GetSourceCompliance>,
+    ) -> Result<Response<proto::SourceCompliance>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
         match m2m.call(req.into()).await? {
-            M2mResponse::Compliance(policies) => Ok(Response::new(policies.into())),
+            M2mResponse::SourceCompliance(policies) => Ok(Response::new(policies.into())),
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
@@ -282,8 +282,8 @@ where
 
 // Conversion trait implementations
 
-impl From<proto::DestinationCompliance> for M2mRequest {
-    fn from(req: proto::DestinationCompliance) -> Self {
+impl From<proto::GetDestinationCompliance> for M2mRequest {
+    fn from(req: proto::GetDestinationCompliance) -> Self {
         M2mRequest::GetDestinationCompliance {
             source: req.source.map(|s| s.into()).unwrap_or_default(),
             destination: req.destination.map(|d| d.into()).unwrap_or_default(),
@@ -291,8 +291,8 @@ impl From<proto::DestinationCompliance> for M2mRequest {
     }
 }
 
-impl From<proto::SourceCompliance> for M2mRequest {
-    fn from(req: proto::SourceCompliance) -> Self {
+impl From<proto::GetSourceCompliance> for M2mRequest {
+    fn from(req: proto::GetSourceCompliance) -> Self {
         M2mRequest::GetSourceCompliance {
             authority_ip: String::new(), // Already routed so no authority IP needed
             resources: req.resources.into_iter().map(|r| r.into()).collect(),
@@ -315,9 +315,17 @@ impl From<proto::UpdateProvenance> for M2mRequest {
     }
 }
 
-impl From<HashSet<Policy>> for proto::Compliance {
+impl From<Policy> for proto::DestinationCompliance {
+    fn from(policy: Policy) -> Self {
+        proto::DestinationCompliance { policy: Some(policy.into()) }
+    }
+}
+
+impl From<HashSet<Policy>> for proto::SourceCompliance {
     fn from(policies: HashSet<Policy>) -> Self {
-        proto::Compliance { policies: policies.into_iter().map(|policy| policy.into()).collect() }
+        proto::SourceCompliance {
+            policies: policies.into_iter().map(|policy| policy.into()).collect(),
+        }
     }
 }
 
