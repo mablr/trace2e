@@ -32,7 +32,7 @@ impl ProvenanceService {
 
     fn init_provenance(&self, resource: &Resource) -> HashMap<String, HashSet<Resource>> {
         if resource.is_stream().is_none() {
-            HashMap::from([(self.node_id.clone(), HashSet::from([resource.clone()]))])
+            HashMap::from([(self.node_id.clone(), HashSet::from([resource.to_owned()]))])
         } else {
             HashMap::new()
         }
@@ -44,7 +44,7 @@ impl ProvenanceService {
     /// If the resource is not found, it returns an empty map.
     async fn get_prov(&self, resource: &Resource) -> HashMap<String, HashSet<Resource>> {
         if let Some(prov) = self.provenance.get(resource) {
-            prov.clone()
+            prov.to_owned()
         } else {
             self.init_provenance(resource)
         }
@@ -95,7 +95,7 @@ impl ProvenanceService {
         if updated {
             #[cfg(feature = "trace2e_tracing")]
             debug!("[provenance-raw] Updated {:?} provenance: {:?}", destination, destination_prov);
-            self.set_prov(destination.clone(), destination_prov).await;
+            self.set_prov(destination.to_owned(), destination_prov).await;
             Ok(ProvenanceResponse::ProvenanceUpdated)
         } else {
             Ok(ProvenanceResponse::ProvenanceNotUpdated)
@@ -105,7 +105,7 @@ impl ProvenanceService {
 
 impl NodeId for ProvenanceService {
     fn node_id(&self) -> String {
-        self.node_id.clone()
+        self.node_id.to_owned()
     }
 }
 

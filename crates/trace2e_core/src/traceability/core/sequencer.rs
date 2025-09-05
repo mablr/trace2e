@@ -60,14 +60,14 @@ impl SequencerService {
                 // source is still reserved as reader, notify the waiting queue of the destination
                 Ok(SequencerResponse::FlowReleased {
                     source: None,
-                    destination: Some(destination.clone()),
+                    destination: Some(destination.to_owned()),
                 })
             } else {
                 // Complete release of the flow
                 // both source and destination are available again, notify both waiting queues
                 Ok(SequencerResponse::FlowReleased {
                     source: Some(source),
-                    destination: Some(destination.clone()),
+                    destination: Some(destination.to_owned()),
                 })
             }
         } else {
@@ -135,7 +135,7 @@ impl<T> WaitingQueueService<T> {
         } else {
             let mut queue = VecDeque::new();
             queue.push_back(tx);
-            self.waiting_queue.insert(resource.clone(), queue);
+            self.waiting_queue.insert(resource.to_owned(), queue);
         }
         rx
     }

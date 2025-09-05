@@ -225,7 +225,7 @@ fn bench_sequencer_multiple_readers(c: &mut Criterion) {
 
             // Create multiple reader flows
             for file in &files {
-                let file = file.clone();
+                let file = file.to_owned();
                 let process = process.clone();
                 let _ = black_box(
                     sequencer
@@ -236,7 +236,7 @@ fn bench_sequencer_multiple_readers(c: &mut Criterion) {
 
             // Drop flows
             for file in &files {
-                let file = file.clone();
+                let file = file.to_owned();
                 let _ = black_box(
                     sequencer.call(SequencerRequest::ReleaseFlow { destination: file }).await,
                 );

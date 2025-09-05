@@ -31,15 +31,15 @@ impl FileMapping {
     }
     pub fn file_path(&self) -> String {
         match &self.file {
-            Resource::Fd(Fd::File(file)) => file.path.clone(),
+            Resource::Fd(Fd::File(file)) => file.path.to_owned(),
             _ => panic!("FileMapping is not a file"),
         }
     }
     pub fn process(&self) -> Resource {
-        self.process.clone()
+        self.process.to_owned()
     }
     pub fn file(&self) -> Resource {
-        self.file.clone()
+        self.file.to_owned()
     }
 }
 
@@ -60,21 +60,21 @@ impl StreamMapping {
     }
     pub fn stream_local_socket(&self) -> String {
         match &self.stream {
-            Resource::Fd(Fd::Stream(stream)) => stream.local_socket.clone(),
+            Resource::Fd(Fd::Stream(stream)) => stream.local_socket.to_owned(),
             _ => panic!("StreamMapping is not a stream"),
         }
     }
     pub fn stream_peer_socket(&self) -> String {
         match &self.stream {
-            Resource::Fd(Fd::Stream(stream)) => stream.peer_socket.clone(),
+            Resource::Fd(Fd::Stream(stream)) => stream.peer_socket.to_owned(),
             _ => panic!("StreamMapping is not a stream"),
         }
     }
     pub fn process(&self) -> Resource {
-        self.process.clone()
+        self.process.to_owned()
     }
     pub fn stream(&self) -> Resource {
-        self.stream.clone()
+        self.stream.to_owned()
     }
 }
 

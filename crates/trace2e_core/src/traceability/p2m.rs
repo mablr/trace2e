@@ -162,9 +162,9 @@ where
                             Err(_) => return Err(TraceabilityError::SystemTimeError),
                         };
                         let (source, destination) = if output {
-                            (resource.0.clone(), resource.1.clone())
+                            (resource.0.to_owned(), resource.1.to_owned())
                         } else {
-                            (resource.1.clone(), resource.0.clone())
+                            (resource.1.to_owned(), resource.0.to_owned())
                         };
                         #[cfg(feature = "trace2e_tracing")]
                         info!(

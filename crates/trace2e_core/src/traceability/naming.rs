@@ -69,7 +69,7 @@ impl Resource {
 
     pub fn is_stream(&self) -> Option<Self> {
         if let Resource::Fd(Fd::Stream(stream)) = self {
-            Some(Self::new_stream(stream.peer_socket.clone(), stream.local_socket.clone()))
+            Some(Self::new_stream(stream.peer_socket.to_owned(), stream.local_socket.to_owned()))
         } else {
             None
         }
