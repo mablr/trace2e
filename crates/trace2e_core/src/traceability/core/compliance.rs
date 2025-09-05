@@ -36,7 +36,7 @@ pub struct Policy {
 }
 
 #[derive(Default, Clone, Debug)]
-pub struct PolicyMap {
+struct PolicyMap {
     cache_mode: bool,
     policies: Arc<DashMap<Resource, Policy>>,
 }
