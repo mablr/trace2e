@@ -250,26 +250,124 @@ mod tests {
     use super::*;
     use crate::traceability::naming::Resource;
 
-    #[tokio::test]
-    async fn unit_compliance_set_policy_basic() {
+    // Helper functions to reduce test code duplication
+    fn create_public_policy(integrity: u32) -> Policy {
+        Policy { confidentiality: ConfidentialityPolicy::Public, integrity, deleted: false }
+    }
+
+    fn create_secret_policy(integrity: u32) -> Policy {
+        Policy { confidentiality: ConfidentialityPolicy::Secret, integrity, deleted: false }
+    }
+
+    fn create_deleted_policy(integrity: u32) -> Policy {
+        Policy { confidentiality: ConfidentialityPolicy::Public, integrity, deleted: true }
+    }
+
+    fn init_tracing() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_check_compliance_with_cached_policies() {
+        init_tracing();
+        let mut compliance = ComplianceService::new("local_node".to_string());
+
+        // Set up test resources
+        let local_process = Resource::new_process_mock(1);
+        let local_file = Resource::new_file("/tmp/local.txt".to_string());
+        let destination = Resource::new_file("/tmp/dest.txt".to_string());
+
+        // Set up local policies
+        compliance.policies.set_policy(local_process.clone(), create_secret_policy(8)).unwrap();
+        compliance.policies.set_policy(local_file.clone(), create_public_policy(5)).unwrap();
+        compliance.policies.set_policy(destination.clone(), create_public_policy(3)).unwrap();
+
+        // Set up cached policies for remote nodes
+        let remote_node1 = "10.0.0.1".to_string();
+        let remote_node2 = "10.0.0.2".to_string();
+
+        let remote1_resources = HashMap::from([
+            (Resource::new_process_mock(10), create_public_policy(7)),
+            (Resource::new_file("/remote1/data.txt".to_string()), create_public_policy(4)),
+        ]);
+
+        let remote2_resources =
+            HashMap::from([(Resource::new_process_mock(20), create_public_policy(6))]);
+
+        // Cache the remote policies
+        compliance
+            .cached_policies
+            .cache_policies_batch(remote_node1.clone(), remote1_resources.clone());
+        compliance
+            .cached_policies
+            .cache_policies_batch(remote_node2.clone(), remote2_resources.clone());
+
+        // Test 1: CheckCompliance with mixed local and cached policies - should pass
+        let sources = HashMap::from([
+            ("local_node".to_string(), HashSet::from([local_file.clone()])),
+            (remote_node1.clone(), remote1_resources.keys().cloned().collect()),
+            (remote_node2.clone(), remote2_resources.keys().cloned().collect()),
+        ]);
+
+        let request1 =
+            ComplianceRequest::CheckCompliance { sources, destination: destination.clone() };
+
+        assert_eq!(compliance.call(request1).await.unwrap(), ComplianceResponse::Grant);
+
+        // Test 2: CheckCompliance with confidentiality violation - should fail
+        // Create a public destination for the secret source to violate confidentiality
+        let public_dest = Resource::new_file("/tmp/public_dest.txt".to_string());
+        compliance.policies.set_policy(public_dest.clone(), create_public_policy(2)).unwrap();
+
+        let sources_secret_dest = HashMap::from([
+            ("local_node".to_string(), HashSet::from([local_process.clone()])), // Secret policy (integrity 8)
+        ]);
+
+        let request2 = ComplianceRequest::CheckCompliance {
+            sources: sources_secret_dest,
+            destination: public_dest, // Public destination - should violate confidentiality
+        };
+
+        assert_eq!(
+            compliance.call(request2).await.unwrap_err(),
+            TraceabilityError::DirectPolicyViolation
+        );
+
+        // Test 3: CheckCompliance with only cached policies
+        let dest_remote_only = Resource::new_file("/tmp/remote_dest.txt".to_string());
+        compliance.policies.set_policy(dest_remote_only.clone(), create_public_policy(2)).unwrap();
+
+        let sources_cached_only = HashMap::from([
+            (remote_node1, remote1_resources.keys().cloned().collect()),
+            (remote_node2, remote2_resources.keys().cloned().collect()),
+        ]);
+
+        let request3 = ComplianceRequest::CheckCompliance {
+            sources: sources_cached_only,
+            destination: dest_remote_only,
+        };
+
+        assert_eq!(compliance.call(request3).await.unwrap(), ComplianceResponse::Grant);
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_set_policy_basic() {
+        init_tracing();
         let compliance = ComplianceService::default();
         let process = Resource::new_process_mock(0);
 
-        let policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: false };
+        let policy = create_secret_policy(5);
 
-        // First time setting policy should return None
+        // First time setting policy should return PolicyUpdated
         assert_eq!(
-            compliance.policies.set_policy(process.clone(), policy.clone()).unwrap(),
+            compliance.policies.set_policy(process.clone(), policy).unwrap(),
             ComplianceResponse::PolicyUpdated
         );
 
-        let new_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 3, deleted: false };
+        let new_policy = create_secret_policy(3);
 
-        // Second time setting policy should return the old policy
+        // Updating existing policy should also return PolicyUpdated
         assert_eq!(
             compliance.policies.set_policy(process, new_policy).unwrap(),
             ComplianceResponse::PolicyUpdated
@@ -277,91 +375,61 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unit_compliance_check_integrity_pass() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
+    async fn unit_compliance_policy_evaluation_scenarios() {
+        init_tracing();
 
-        let source_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 5, deleted: false };
+        // Test integrity constraints
+        let test_cases = [
+            // (source_policy, dest_policy, should_pass, description)
+            (create_public_policy(5), create_public_policy(3), true, "integrity pass: 5 >= 3"),
+            (create_public_policy(3), create_public_policy(5), false, "integrity fail: 3 < 5"),
+            (
+                create_secret_policy(5),
+                create_secret_policy(3),
+                true,
+                "confidentiality pass: secret -> secret",
+            ),
+            (
+                create_secret_policy(5),
+                create_public_policy(3),
+                false,
+                "confidentiality fail: secret -> public",
+            ),
+            (
+                create_public_policy(5),
+                create_secret_policy(3),
+                true,
+                "confidentiality pass: public -> secret",
+            ),
+        ];
 
-        let dest_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
-
-        assert!(
-            eval_policies(
+        for (source_policy, dest_policy, should_pass, description) in test_cases {
+            let result = eval_policies(
                 HashMap::from([(String::new(), HashSet::from([source_policy]))]),
-                dest_policy
-            )
-            .is_ok_and(|r| r == ComplianceResponse::Grant)
-        );
+                dest_policy,
+            );
+
+            if should_pass {
+                assert!(
+                    result.is_ok_and(|r| r == ComplianceResponse::Grant),
+                    "Test failed: {}",
+                    description
+                );
+            } else {
+                assert!(
+                    result.is_err_and(|e| e == TraceabilityError::DirectPolicyViolation),
+                    "Test failed: {}",
+                    description
+                );
+            }
+        }
     }
 
     #[tokio::test]
-    async fn unit_compliance_check_integrity_fail() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
+    async fn unit_compliance_default_policies() {
+        init_tracing();
 
-        let source_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
-
-        let dest_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 5, deleted: false };
-
-        assert!(
-            eval_policies(
-                HashMap::from([(String::new(), HashSet::from([source_policy]))]),
-                dest_policy
-            )
-            .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_check_confidentiality_pass() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-
-        let source_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: false };
-
-        let dest_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 3, deleted: false };
-
-        assert!(
-            eval_policies(
-                HashMap::from([(String::new(), HashSet::from([source_policy]))]),
-                dest_policy
-            )
-            .is_ok_and(|r| r == ComplianceResponse::Grant)
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_check_confidentiality_fail() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-
-        let source_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: false };
-
-        let dest_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
-
-        assert!(
-            eval_policies(
-                HashMap::from([(String::new(), HashSet::from([source_policy]))]),
-                dest_policy
-            )
-            .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_check_default_policies() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-
-        // Both should use default policies (Public, integrity 0)
+        // Test 1: All default policies should pass
         assert!(
             eval_policies(
                 HashMap::from([
@@ -372,92 +440,60 @@ mod tests {
             )
             .is_ok_and(|r| r == ComplianceResponse::Grant)
         );
-    }
 
-    #[tokio::test]
-    async fn unit_compliance_check_mixed_default_explicit() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-
-        let dest_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 2, deleted: false };
-
-        // Source uses default (integrity 0), destination has integrity 2
+        // Test 2: Mixed default and explicit policies - integrity violation
+        let dest_policy = create_public_policy(2);
         assert!(
             eval_policies(
                 HashMap::from([
-                    (String::new(), HashSet::from([Policy::default()])),
+                    (String::new(), HashSet::from([Policy::default()])), // integrity: 0
                     ("10.0.0.1".to_string(), HashSet::from([Policy::default()]))
                 ]),
-                dest_policy
+                dest_policy // integrity: 2, so 0 < 2 should fail
             )
             .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
     }
 
     #[tokio::test]
-    async fn unit_compliance_service_request_grant() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
+    async fn unit_compliance_service_eval_policies_requests() {
+        init_tracing();
         let mut compliance = ComplianceService::default();
 
-        let source_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 5, deleted: false };
-
-        let dest_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
-
-        let request = ComplianceRequest::EvalPolicies {
-            source_policies: HashMap::from([(String::new(), HashSet::from([source_policy]))]),
-            destination_policy: dest_policy,
+        // Test case 1: Valid policy flow - should grant
+        let grant_request = ComplianceRequest::EvalPolicies {
+            source_policies: HashMap::from([(
+                String::new(),
+                HashSet::from([create_public_policy(5)]),
+            )]),
+            destination_policy: create_public_policy(3),
         };
+        assert_eq!(compliance.call(grant_request).await.unwrap(), ComplianceResponse::Grant);
 
-        assert_eq!(compliance.call(request).await.unwrap(), ComplianceResponse::Grant);
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_service_request_deny() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-        let mut compliance = ComplianceService::default();
-
-        let source_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: false };
-
-        let dest_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
-
-        let request = ComplianceRequest::EvalPolicies {
-            source_policies: HashMap::from([(String::new(), HashSet::from([source_policy]))]),
-            destination_policy: dest_policy,
+        // Test case 2: Invalid policy flow - should deny
+        let deny_request = ComplianceRequest::EvalPolicies {
+            source_policies: HashMap::from([(
+                String::new(),
+                HashSet::from([create_secret_policy(5)]),
+            )]),
+            destination_policy: create_public_policy(3),
         };
-
         assert_eq!(
-            compliance.call(request).await.unwrap_err(),
+            compliance.call(deny_request).await.unwrap_err(),
             TraceabilityError::DirectPolicyViolation
         );
     }
 
     #[tokio::test]
     async fn unit_compliance_service_complex_policy_scenario() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
+        init_tracing();
         let mut compliance = ComplianceService::default();
 
-        let high_policy = Policy {
-            confidentiality: ConfidentialityPolicy::Secret,
-            integrity: 10,
-            deleted: false,
-        };
+        let high_policy = create_secret_policy(10);
+        let medium_policy = create_public_policy(5);
+        let low_policy = create_public_policy(1);
 
-        let medium_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 5, deleted: false };
-
-        let low_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 1, deleted: false };
-
-        // High -> Medium: Should pass (integrity 10 >= 5, secret -> public is blocked but this is
-        // reverse)
+        // Test 1: High (Secret) -> Medium (Public): Should fail due to confidentiality
         let request1 = ComplianceRequest::EvalPolicies {
             source_policies: HashMap::from([
                 (String::new(), HashSet::from([Policy::default()])),
@@ -470,14 +506,14 @@ mod tests {
             TraceabilityError::DirectPolicyViolation
         ); // Secret -> Public fails
 
-        // Medium -> Low: Should pass (integrity 5 >= 1, public -> public)
+        // Test 2: Medium -> Low: Should pass (integrity 5 >= 1, public -> public)
         let request2 = ComplianceRequest::EvalPolicies {
             source_policies: HashMap::from([(String::new(), HashSet::from([medium_policy]))]),
             destination_policy: low_policy.clone(),
         };
         assert_eq!(compliance.call(request2).await.unwrap(), ComplianceResponse::Grant);
 
-        // Low -> High: Should fail (integrity 1 < 10)
+        // Test 3: Low -> High: Should fail due to integrity (1 < 10)
         let request3 = ComplianceRequest::EvalPolicies {
             source_policies: HashMap::from([(String::new(), HashSet::from([low_policy]))]),
             destination_policy: high_policy,
@@ -503,100 +539,63 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unit_compliance_get_policies_single_resource() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
+    async fn unit_compliance_get_policies_scenarios() {
+        init_tracing();
         let compliance = ComplianceService::default();
-        let process = Resource::new_process_mock(0);
 
-        let policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 7, deleted: false };
-
-        compliance.policies.set_policy(process.clone(), policy.clone()).unwrap();
-
-        assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process])).unwrap(),
-            HashSet::from([policy])
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_get_policies_multiple_resources() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-        let compliance = ComplianceService::default();
+        // Test resources
         let process = Resource::new_process_mock(0);
         let file = Resource::new_file("/tmp/test".to_string());
 
-        let process_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: false };
+        // Test policies
+        let process_policy = create_secret_policy(7);
+        let file_policy = create_public_policy(3);
 
-        let file_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
-
+        // Test 1: Single resource with policy
         compliance.policies.set_policy(process.clone(), process_policy.clone()).unwrap();
+        assert_eq!(
+            compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
+            HashSet::from([process_policy.clone()])
+        );
+
+        // Test 2: Multiple resources with policies
         compliance.policies.set_policy(file.clone(), file_policy.clone()).unwrap();
-
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process, file])).unwrap(),
-            HashSet::from([process_policy, file_policy])
+            compliance
+                .policies
+                .get_policies(HashSet::from([process.clone(), file.clone()]))
+                .unwrap(),
+            HashSet::from([process_policy.clone(), file_policy])
         );
-    }
 
-    #[tokio::test]
-    async fn unit_compliance_get_policies_mixed_existing_default() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-        let compliance = ComplianceService::default();
-        let process = Resource::new_process_mock(0);
-        let file = Resource::new_file("/tmp/test".to_string());
-
-        let process_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 8, deleted: false };
-
-        // Set policy only for process, not for file
-        compliance.policies.set_policy(process.clone(), process_policy.clone()).unwrap();
-
+        // Test 3: Mixed existing and default policies
+        let new_file = Resource::new_file("/tmp/new.txt".to_string());
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process, file])).unwrap(),
+            compliance.policies.get_policies(HashSet::from([process, new_file])).unwrap(),
             HashSet::from([process_policy, Policy::default()])
         );
     }
 
     #[tokio::test]
-    async fn unit_compliance_get_policies_empty_request() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-        let compliance = ComplianceService::default();
-        assert_eq!(compliance.policies.get_policies(HashSet::new()).unwrap(), HashSet::new());
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_get_policies_after_update() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
+    async fn unit_compliance_get_policies_edge_cases() {
+        init_tracing();
         let compliance = ComplianceService::default();
         let process = Resource::new_process_mock(0);
 
-        let initial_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 2, deleted: false };
+        // Test 1: Empty request
+        assert_eq!(compliance.policies.get_policies(HashSet::new()).unwrap(), HashSet::new());
 
-        let updated_policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 9, deleted: false };
+        // Test 2: Policy updates
+        let initial_policy = create_public_policy(2);
+        let updated_policy = create_secret_policy(9);
 
-        // Set initial policy
         compliance.policies.set_policy(process.clone(), initial_policy.clone()).unwrap();
-
-        // Verify initial policy
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
             HashSet::from([initial_policy])
         );
 
-        // Update policy
         compliance.policies.set_policy(process.clone(), updated_policy.clone()).unwrap();
-
-        // Verify updated policy
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process])).unwrap(),
             HashSet::from([updated_policy])
@@ -604,48 +603,39 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unit_compliance_policy_deleted_properties() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
+    async fn unit_compliance_deleted_policy_behavior() {
+        init_tracing();
         let compliance = ComplianceService::default();
         let process = Resource::new_process_mock(0);
 
-        let policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: true };
+        // Create and set a deleted policy
+        let deleted_policy = create_deleted_policy(5);
+        compliance.policies.set_policy(process.clone(), deleted_policy.clone()).unwrap();
 
-        compliance.policies.set_policy(process.clone(), policy.clone()).unwrap();
-
+        // Test 1: Deleted policy is returned correctly
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
-            HashSet::from([policy.clone()])
+            HashSet::from([deleted_policy.clone()])
         );
 
-        // Setting a deleted policy must not have any effect, so it returns None
+        // Test 2: Cannot update deleted policy
         assert_eq!(
             compliance.policies.set_policy(process.clone(), Policy::default()).unwrap(),
             ComplianceResponse::PolicyNotUpdated
         );
 
-        // Getting the policies must return the deleted policy
+        // Test 3: Policy remains deleted after update attempt
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process])).unwrap(),
-            HashSet::from([policy])
+            HashSet::from([deleted_policy.clone()])
         );
-    }
 
-    #[tokio::test]
-    async fn unit_compliance_policy_deleted_check() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-
-        let policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 5, deleted: true };
-
+        // Test 4: Deleted policies cause policy violations in evaluation
         assert!(
             eval_policies(
                 HashMap::from([(
                     String::new(),
-                    HashSet::from([policy.clone(), Policy::default()])
+                    HashSet::from([deleted_policy.clone(), Policy::default()])
                 )]),
                 Policy::default()
             )
@@ -655,7 +645,7 @@ mod tests {
         assert!(
             eval_policies(
                 HashMap::from([(String::new(), HashSet::from([Policy::default()]))]),
-                policy
+                deleted_policy
             )
             .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
