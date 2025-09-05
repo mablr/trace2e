@@ -70,8 +70,8 @@ where
             core::sequencer::WaitingQueueService::new(inner, max_retries)
         }))
         .service(core::sequencer::SequencerService::default());
-    let provenance = core::provenance::ProvenanceService::new(node_id);
-    let compliance = core::compliance::ComplianceService::default();
+    let provenance = core::provenance::ProvenanceService::new(node_id.clone());
+    let compliance = core::compliance::ComplianceService::new(node_id);
 
     let m2m_service: M2mApiDefaultStack =
         m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());

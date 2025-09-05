@@ -181,6 +181,16 @@ pub struct ComplianceService {
     cached_policies: CachedPoliciesMap,
 }
 
+impl ComplianceService {
+    pub fn new(node_id: String) -> Self {
+        Self {
+            node_id,
+            policies: PolicyMap::default(),
+            cached_policies: CachedPoliciesMap::default(),
+        }
+    }
+}
+
 impl Service<ComplianceRequest> for ComplianceService {
     type Response = ComplianceResponse;
     type Error = TraceabilityError;
