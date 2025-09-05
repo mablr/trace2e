@@ -49,7 +49,6 @@ impl PolicyMap {
     }
 
     /// Create a new PolicyMap in cache mode
-    #[allow(dead_code)]
     fn cache(policies: Arc<DashMap<Resource, Policy>>) -> Self {
         Self { cache_mode: true, policies }
     }
@@ -61,7 +60,7 @@ impl PolicyMap {
             } else {
                 Ok(Policy::default())
             },
-             Ok,
+            Ok,
         )
     }
 
@@ -103,6 +102,13 @@ impl PolicyMap {
     }
 }
 
+impl From<HashMap<Resource, Policy>> for PolicyMap {
+    fn from(map: HashMap<Resource, Policy>) -> Self {
+        let dash_map = DashMap::from_iter(map);
+        Self::cache(Arc::new(dash_map))
+    }
+}
+
 /// Helper function to evaluate the compliance of policies for a flow from source to destination
 /// Returns true if the flow is compliant, false otherwise
 fn eval_policies(
@@ -134,10 +140,45 @@ fn eval_policies(
     Ok(ComplianceResponse::Grant)
 }
 
+#[derive(Default, Clone, Debug)]
+struct CachedPoliciesMap {
+    policies: Arc<DashMap<String, PolicyMap>>,
+}
+
+impl CachedPoliciesMap {
+    /// Cache a batch of policies for a specific node
+    #[allow(dead_code)]
+    fn cache_batch(&self, node_id: String, resources: HashMap<Resource, Policy>) {
+        if let Some(policies) = self.policies.get(&node_id) {
+            for (resource, policy) in resources {
+                policies.policies.insert(resource, policy);
+            }
+        } else {
+            self.policies.insert(node_id, PolicyMap::from(resources));
+        }
+    }
+    /// Get the policies for a specific node
+    fn get_policies(
+        &self,
+        aggregated_resources: HashMap<String, HashSet<Resource>>,
+    ) -> HashMap<String, HashSet<Policy>> {
+        let mut policies = HashMap::new();
+        for (node_id, resources) in aggregated_resources {
+            if let Some(Ok(ComplianceResponse::Policies(p))) =
+                self.policies.get(&node_id).map(|p| p.get_policies(resources))
+            {
+                policies.insert(node_id, p);
+            }
+        }
+        policies
+    }
+}
+
 /// Compliance service for managing and checking policies
 #[derive(Default, Clone, Debug)]
 pub struct ComplianceService {
     policies: PolicyMap,
+    cached_policies: CachedPoliciesMap,
 }
 
 impl Service<ComplianceRequest> for ComplianceService {
@@ -176,7 +217,17 @@ impl Service<ComplianceRequest> for ComplianceService {
                     info!("[compliance] SetPolicy: resource: {:?}, policy: {:?}", resource, policy);
                     this.policies.set_policy(resource, policy)
                 }
-                ComplianceRequest::CheckCompliance { .. } => Err(TraceabilityError::InvalidRequest),
+                ComplianceRequest::CheckCompliance { sources, destination } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[compliance] CheckCompliance: sources: {:?}, destination: {:?}",
+                        sources, destination
+                    );
+                    eval_policies(
+                        this.cached_policies.get_policies(sources),
+                        this.policies.get_policy(&destination)?,
+                    )
+                }
             }
         })
     }
