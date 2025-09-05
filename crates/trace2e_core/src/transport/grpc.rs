@@ -1,5 +1,5 @@
 //! gRPC service for the Trace2e middleware.
-use std::{collections::HashSet, future::Future, ops::Deref as _, pin::Pin, sync::Arc, task::Poll};
+use std::{collections::HashSet, future::Future, pin::Pin, sync::Arc, task::Poll};
 
 use dashmap::DashMap;
 use tonic::{Request, Response, Status, transport::Channel};
@@ -55,7 +55,7 @@ impl M2mGrpc {
         &self,
         remote_ip: String,
     ) -> Option<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> {
-        self.connected_remotes.get(&remote_ip).map(|c| c.deref().clone())
+        self.connected_remotes.get(&remote_ip).map(|c| c.to_owned())
     }
 
     async fn get_client_or_connect(

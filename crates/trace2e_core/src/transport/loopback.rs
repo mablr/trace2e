@@ -1,7 +1,6 @@
 use std::{
     collections::VecDeque,
     future::Future,
-    ops::Deref as _,
     pin::Pin,
     sync::Arc,
     task::Poll,
@@ -76,7 +75,7 @@ impl M2mLoopback {
     ) -> Result<M2mApiDefaultStack, TraceabilityError> {
         self.middlewares
             .get(&ip)
-            .map(|c| c.deref().clone())
+            .map(|c| c.to_owned())
             .ok_or(TraceabilityError::TransportFailedToContactRemote(ip))
     }
 
