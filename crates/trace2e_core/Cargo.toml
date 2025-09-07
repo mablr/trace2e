@@ -6,8 +6,9 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-prost.workspace = true
+clap = { workspace = true, features = ["derive"] }
 dashmap.workspace = true
+prost.workspace = true
 sysinfo = { workspace = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

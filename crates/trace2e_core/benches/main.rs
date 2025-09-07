@@ -416,6 +416,7 @@ fn bench_provenance_stress_interference(c: &mut Criterion) {
                 init_middleware_with_enrolled_resources(
                     "node_test".to_string(),
                     None,
+                    Default::default(),
                     M2mNop,
                     processes_count,
                     files_per_process_count,

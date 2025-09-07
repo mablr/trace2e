@@ -13,6 +13,7 @@ use crate::traceability::{
         ProvenanceRequest, ProvenanceResponse, SequencerRequest, SequencerResponse,
     },
     error::TraceabilityError,
+    mode::Mode,
     naming::{NodeId, Resource},
 };
 
@@ -30,6 +31,8 @@ pub struct P2mApiService<S, P, C, M> {
     resource_map: Arc<ResourceMap>,
     /// Maps flow_id to (source_resource, destination_resource) pairs for active flows
     flow_map: Arc<FlowMap>,
+    /// Compliance propagation mode
+    mode: Mode,
     /// Service for managing flows sequencing
     sequencer: S,
     /// Service for tracking resources provenance
@@ -46,11 +49,17 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
         Self {
             resource_map: Arc::new(ResourceMap::new()),
             flow_map: Arc::new(FlowMap::new()),
+            mode: Default::default(),
             sequencer,
             provenance,
             compliance,
             m2m,
         }
+    }
+
+    /// Sets the compliance propagation mode
+    pub fn with_mode(self, mode: Mode) -> Self {
+        Self { mode, ..self }
     }
 
     /// Enrolls the given number of processes and files per process for testing/mocking purposes.
@@ -116,6 +125,7 @@ where
     fn call(&mut self, request: P2mRequest) -> Self::Future {
         let resource_map = self.resource_map.clone();
         let flow_map = self.flow_map.clone();
+        let mode = self.mode.clone();
         let mut sequencer = self.sequencer.clone();
         let mut provenance = self.provenance.clone();
         let mut compliance = self.compliance.clone();
@@ -184,29 +194,31 @@ where
                                 // If destination is a stream, query remote policy via m2m
                                 // else if query local destination policy
                                 // else return error
-                                let destination_policy =
-                                    if let Some(remote_stream) = destination.is_stream() {
-                                        if let M2mResponse::DestinationCompliance(policy) = m2m
-                                            .ready()
-                                            .await?
-                                            .call(M2mRequest::GetDestinationCompliance {
-                                                source: source.clone(),
-                                                destination: remote_stream,
-                                            })
-                                            .await?
-                                        {
-                                            policy
-                                        } else {
-                                            return Err(TraceabilityError::InternalTrace2eError);
-                                        }
-                                    } else if let ComplianceResponse::Policy(policy) = compliance
-                                        .call(ComplianceRequest::GetPolicy(destination.clone()))
+                                let destination_policy = if let Some(remote_stream) =
+                                    destination.is_stream()
+                                    && mode == Mode::Pull
+                                {
+                                    if let M2mResponse::DestinationCompliance(policy) = m2m
+                                        .ready()
+                                        .await?
+                                        .call(M2mRequest::GetDestinationCompliance {
+                                            source: source.clone(),
+                                            destination: remote_stream,
+                                        })
                                         .await?
                                     {
                                         policy
                                     } else {
                                         return Err(TraceabilityError::InternalTrace2eError);
-                                    };
+                                    }
+                                } else if let ComplianceResponse::Policy(policy) = compliance
+                                    .call(ComplianceRequest::GetPolicy(destination.clone()))
+                                    .await?
+                                {
+                                    policy
+                                } else {
+                                    return Err(TraceabilityError::InternalTrace2eError);
+                                };
 
                                 let source_policies = match provenance
                                     .call(ProvenanceRequest::GetReferences(source.clone()))
@@ -244,16 +256,16 @@ where
                                         } else {
                                             HashMap::new()
                                         };
-
-                                        // Get remote source policies
-                                        // Collect all futures without awaiting them
-                                        let mut tasks = Vec::new();
-                                        for (node_id, resources) in references {
-                                            let mut m2m_clone = m2m.clone();
-                                            let node_id_clone = node_id.clone();
-                                            let task = tokio::spawn(async move {
-                                                let result =
-                                                    match m2m_clone.ready().await {
+                                        match mode {
+                                            Mode::Pull => {
+                                                // Get remote source policies
+                                                // Collect all futures without awaiting them
+                                                let mut tasks = Vec::new();
+                                                for (node_id, resources) in references {
+                                                    let mut m2m_clone = m2m.clone();
+                                                    let node_id_clone = node_id.clone();
+                                                    let task = tokio::spawn(async move {
+                                                        let result = match m2m_clone.ready().await {
                                                         Ok(ready_service) => ready_service
                                                             .call(M2mRequest::GetSourceCompliance {
                                                                 authority_ip: node_id_clone.clone(),
@@ -262,29 +274,35 @@ where
                                                             .await,
                                                         Err(e) => Err(e),
                                                     };
-                                                (node_id_clone, result)
-                                            });
-                                            tasks.push(task);
-                                        }
+                                                        (node_id_clone, result)
+                                                    });
+                                                    tasks.push(task);
+                                                }
 
-                                        // Await all requests concurrently
-                                        for task in tasks {
-                                            let (node_id, result) = task.await.map_err(|_| {
-                                                TraceabilityError::InternalTrace2eError
-                                            })?;
-                                            match result? {
-                                                M2mResponse::SourceCompliance(policies) => {
-                                                    source_policies.insert(node_id, policies);
+                                                // Await all requests concurrently
+                                                for task in tasks {
+                                                    let (node_id, result) =
+                                                        task.await.map_err(|_| {
+                                                            TraceabilityError::InternalTrace2eError
+                                                        })?;
+                                                    match result? {
+                                                        M2mResponse::SourceCompliance(policies) => {
+                                                            source_policies
+                                                                .insert(node_id, policies);
+                                                        }
+                                                        _ => {
+                                                            return Err(
+                                                            TraceabilityError::InternalTrace2eError,
+                                                        );
+                                                        }
+                                                    }
                                                 }
-                                                _ => {
-                                                    return Err(
-                                                        TraceabilityError::InternalTrace2eError,
-                                                    );
-                                                }
+                                                source_policies
+                                            }
+                                            Mode::Push => {
+                                                todo!()
                                             }
                                         }
-
-                                        source_policies
                                     }
                                     _ => return Err(TraceabilityError::InternalTrace2eError),
                                 };

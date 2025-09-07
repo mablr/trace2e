@@ -2,7 +2,7 @@ use clap::Parser;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
 use trace2e_core::{
-    traceability::init_middleware,
+    traceability::{init_middleware, mode::Mode},
     transport::grpc::{
         DEFAULT_GRPC_PORT, M2mGrpc, Trace2eRouter,
         proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_grpc_server::Trace2eGrpcServer},
@@ -21,6 +21,10 @@ struct Trace2eMiddlewareArgs {
     #[arg(short, long, default_value_t = DEFAULT_GRPC_PORT)]
     port: u16,
 
+    /// Compliance propagation mode
+    #[arg(value_enum, short, long, default_value = "pull")]
+    mode: Mode,
+
     /// Enable gRPC reflection
     #[arg(short, long, default_value_t = false)]
     reflection: bool,
@@ -35,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Trace2eMiddlewareArgs::parse();
 
     let (m2m_service, p2m_service, _) =
-        init_middleware(args.address.clone(), None, M2mGrpc::default());
+        init_middleware(args.address.clone(), None, args.mode, M2mGrpc::default());
 
     let address = format!("{}:{}", args.address, args.port).parse().unwrap();
 

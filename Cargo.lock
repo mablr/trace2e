@@ -1468,6 +1468,7 @@ dependencies = [
 name = "trace2e_core"
 version = "0.0.2"
 dependencies = [
+ "clap",
  "criterion",
  "dashmap",
  "prost",
