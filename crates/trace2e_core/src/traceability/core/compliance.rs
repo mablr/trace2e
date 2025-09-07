@@ -73,15 +73,15 @@ impl PolicyMap {
     fn get_policies(
         &self,
         resources: HashSet<Resource>,
-    ) -> Result<HashSet<Policy>, TraceabilityError> {
-        let mut policies_set = HashSet::new();
+    ) -> Result<HashMap<Resource, Policy>, TraceabilityError> {
+        let mut policies_set = HashMap::new();
         for resource in resources {
             // Get the policy from the local policies, streams have no policies
             if resource.is_stream().is_none() {
                 if let Ok(policy) = self.get_policy(&resource) {
-                    policies_set.insert(policy);
+                    policies_set.insert(resource, policy);
                 } else if !self.cache_mode {
-                    policies_set.insert(Policy::default());
+                    policies_set.insert(resource, Policy::default());
                 } else {
                     return Err(TraceabilityError::PolicyNotFound(resource));
                 }
@@ -116,28 +116,30 @@ impl From<HashMap<Resource, Policy>> for PolicyMap {
 /// Helper function to evaluate the compliance of policies for a flow from source to destination
 /// Returns true if the flow is compliant, false otherwise
 fn eval_policies(
-    source_policies: HashMap<String, HashSet<Policy>>,
+    source_policies: HashMap<String, HashMap<Resource, Policy>>,
     destination_policy: Policy,
 ) -> Result<ComplianceResponse, TraceabilityError> {
     // Merge local and remote source policies, ignoring the node
     // TODO: implement node based policies
-    for source_policy in source_policies.values().flatten() {
-        // If the source or destination policy is deleted, the flow is not compliant
-        if source_policy.deleted || destination_policy.deleted {
-            return Err(TraceabilityError::DirectPolicyViolation);
-        }
+    for source_policy_batch in source_policies.values() {
+        for source_policy in source_policy_batch.values() {
+            // If the source or destination policy is deleted, the flow is not compliant
+            if source_policy.deleted || destination_policy.deleted {
+                return Err(TraceabilityError::DirectPolicyViolation);
+            }
 
-        // Integrity check: Source integrity must be greater than or equal to destination
-        // integrity
-        if source_policy.integrity < destination_policy.integrity {
-            return Err(TraceabilityError::DirectPolicyViolation);
-        }
+            // Integrity check: Source integrity must be greater than or equal to destination
+            // integrity
+            if source_policy.integrity < destination_policy.integrity {
+                return Err(TraceabilityError::DirectPolicyViolation);
+            }
 
-        // Confidentiality check: Secret data cannot flow to public destinations
-        if source_policy.confidentiality == ConfidentialityPolicy::Secret
-            && destination_policy.confidentiality == ConfidentialityPolicy::Public
-        {
-            return Err(TraceabilityError::DirectPolicyViolation);
+            // Confidentiality check: Secret data cannot flow to public destinations
+            if source_policy.confidentiality == ConfidentialityPolicy::Secret
+                && destination_policy.confidentiality == ConfidentialityPolicy::Public
+            {
+                return Err(TraceabilityError::DirectPolicyViolation);
+            }
         }
     }
 
@@ -151,22 +153,27 @@ struct CachedPoliciesMap {
 
 impl CachedPoliciesMap {
     /// Cache a batch of policies for a specific node
-    #[allow(dead_code)]
-    fn cache_policies_batch(&self, node_id: String, resources: HashMap<Resource, Policy>) {
-        if let Some(policies) = self.policies.get(&node_id) {
-            for (resource, policy) in resources {
-                policies.policies.insert(resource, policy);
+    fn cache_policies_batch(
+        &self,
+        resources: HashMap<String, HashMap<Resource, Policy>>,
+    ) -> Result<ComplianceResponse, TraceabilityError> {
+        for (node_id, policy_batch) in resources {
+            if let Some(policy_map) = self.policies.get(&node_id) {
+                for (resource, policy) in policy_batch {
+                    policy_map.set_policy(resource, policy)?;
+                }
+            } else {
+                self.policies.insert(node_id, PolicyMap::from(policy_batch));
             }
-        } else {
-            self.policies.insert(node_id, PolicyMap::from(resources));
         }
+        Ok(ComplianceResponse::PolicyUpdated)
     }
 
     /// Get the policies for a specific node
     fn get_cached_policies(
         &self,
         aggregated_resources: HashMap<String, HashSet<Resource>>,
-    ) -> HashMap<String, HashSet<Policy>> {
+    ) -> HashMap<String, HashMap<Resource, Policy>> {
         let mut policies = HashMap::new();
         for (node_id, resources) in aggregated_resources {
             if let Some(Ok(p)) = self.policies.get(&node_id).map(|p| p.get_policies(resources)) {
@@ -226,10 +233,22 @@ impl Service<ComplianceRequest> for ComplianceService {
                     info!("[compliance] GetPolicies: resources: {:?}", resources);
                     Ok(ComplianceResponse::Policies(this.policies.get_policies(resources)?))
                 }
+                ComplianceRequest::GetPoliciesBatch(resources) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[compliance] GetPoliciesBatch: resources: {:?}", resources);
+                    Ok(ComplianceResponse::PoliciesBatch(
+                        this.cached_policies.get_cached_policies(resources),
+                    ))
+                }
                 ComplianceRequest::SetPolicy { resource, policy } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance] SetPolicy: resource: {:?}, policy: {:?}", resource, policy);
                     this.policies.set_policy(resource, policy)
+                }
+                ComplianceRequest::SetPoliciesBatch(policies) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[compliance] SetPoliciesBatch: policies: {:?}", policies);
+                    this.cached_policies.cache_policies_batch(policies)
                 }
                 ComplianceRequest::CheckCompliance { mut sources, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
@@ -300,12 +319,10 @@ mod tests {
             HashMap::from([(Resource::new_process_mock(20), create_public_policy(6))]);
 
         // Cache the remote policies
-        compliance
-            .cached_policies
-            .cache_policies_batch(remote_node1.clone(), remote1_resources.clone());
-        compliance
-            .cached_policies
-            .cache_policies_batch(remote_node2.clone(), remote2_resources.clone());
+        let _ = compliance.cached_policies.cache_policies_batch(HashMap::from([
+            (remote_node1.clone(), remote1_resources.clone()),
+            (remote_node2.clone(), remote2_resources.clone()),
+        ]));
 
         // Test 1: CheckCompliance with mixed local and cached policies - should pass
         let sources = HashMap::from([
@@ -409,7 +426,10 @@ mod tests {
 
         for (source_policy, dest_policy, should_pass, description) in test_cases {
             let result = eval_policies(
-                HashMap::from([(String::new(), HashSet::from([source_policy]))]),
+                HashMap::from([(
+                    String::new(),
+                    HashMap::from([(Resource::new_process_mock(0), source_policy)]),
+                )]),
                 dest_policy,
             );
 
@@ -437,8 +457,17 @@ mod tests {
         assert!(
             eval_policies(
                 HashMap::from([
-                    (String::new(), HashSet::from([Policy::default(), Policy::default()])),
-                    ("10.0.0.1".to_string(), HashSet::from([Policy::default()]))
+                    (
+                        String::new(),
+                        HashMap::from([
+                            (Resource::new_process_mock(0), Policy::default()),
+                            (Resource::new_process_mock(1), Policy::default())
+                        ])
+                    ),
+                    (
+                        "10.0.0.1".to_string(),
+                        HashMap::from([(Resource::new_process_mock(0), Policy::default())])
+                    )
                 ]),
                 Policy::default()
             )
@@ -450,8 +479,14 @@ mod tests {
         assert!(
             eval_policies(
                 HashMap::from([
-                    (String::new(), HashSet::from([Policy::default()])), // integrity: 0
-                    ("10.0.0.1".to_string(), HashSet::from([Policy::default()]))
+                    (
+                        String::new(),
+                        HashMap::from([(Resource::new_process_mock(0), Policy::default())])
+                    ), // integrity: 0
+                    (
+                        "10.0.0.1".to_string(),
+                        HashMap::from([(Resource::new_process_mock(0), Policy::default())])
+                    )
                 ]),
                 dest_policy // integrity: 2, so 0 < 2 should fail
             )
@@ -468,7 +503,7 @@ mod tests {
         let grant_request = ComplianceRequest::EvalPolicies {
             source_policies: HashMap::from([(
                 String::new(),
-                HashSet::from([create_public_policy(5)]),
+                HashMap::from([(Resource::new_process_mock(0), create_public_policy(5))]),
             )]),
             destination_policy: create_public_policy(3),
         };
@@ -478,7 +513,7 @@ mod tests {
         let deny_request = ComplianceRequest::EvalPolicies {
             source_policies: HashMap::from([(
                 String::new(),
-                HashSet::from([create_secret_policy(5)]),
+                HashMap::from([(Resource::new_process_mock(0), create_secret_policy(5))]),
             )]),
             destination_policy: create_public_policy(3),
         };
@@ -500,8 +535,14 @@ mod tests {
         // Test 1: High (Secret) -> Medium (Public): Should fail due to confidentiality
         let request1 = ComplianceRequest::EvalPolicies {
             source_policies: HashMap::from([
-                (String::new(), HashSet::from([Policy::default()])),
-                ("10.0.0.1".to_string(), HashSet::from([high_policy.clone()])),
+                (
+                    String::new(),
+                    HashMap::from([(Resource::new_process_mock(0), Policy::default())]),
+                ),
+                (
+                    "10.0.0.1".to_string(),
+                    HashMap::from([(Resource::new_process_mock(0), high_policy.clone())]),
+                ),
             ]),
             destination_policy: medium_policy.clone(),
         };
@@ -512,14 +553,20 @@ mod tests {
 
         // Test 2: Medium -> Low: Should pass (integrity 5 >= 1, public -> public)
         let request2 = ComplianceRequest::EvalPolicies {
-            source_policies: HashMap::from([(String::new(), HashSet::from([medium_policy]))]),
+            source_policies: HashMap::from([(
+                String::new(),
+                HashMap::from([(Resource::new_process_mock(0), medium_policy)]),
+            )]),
             destination_policy: low_policy.clone(),
         };
         assert_eq!(compliance.call(request2).await.unwrap(), ComplianceResponse::Grant);
 
         // Test 3: Low -> High: Should fail due to integrity (1 < 10)
         let request3 = ComplianceRequest::EvalPolicies {
-            source_policies: HashMap::from([(String::new(), HashSet::from([low_policy]))]),
+            source_policies: HashMap::from([(
+                String::new(),
+                HashMap::from([(Resource::new_process_mock(0), low_policy)]),
+            )]),
             destination_policy: high_policy,
         };
         assert_eq!(
@@ -537,8 +584,11 @@ mod tests {
         let file = Resource::new_file("/tmp/test".to_string());
 
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process, file])).unwrap(),
-            HashSet::from([Policy::default()])
+            compliance
+                .policies
+                .get_policies(HashSet::from([process.clone(), file.clone()]))
+                .unwrap(),
+            HashMap::from([(process, Policy::default()), (file, Policy::default())])
         );
     }
 
@@ -559,7 +609,7 @@ mod tests {
         compliance.policies.set_policy(process.clone(), process_policy.clone()).unwrap();
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
-            HashSet::from([process_policy.clone()])
+            HashMap::from([(process.clone(), process_policy.clone())])
         );
 
         // Test 2: Multiple resources with policies
@@ -569,14 +619,17 @@ mod tests {
                 .policies
                 .get_policies(HashSet::from([process.clone(), file.clone()]))
                 .unwrap(),
-            HashSet::from([process_policy.clone(), file_policy])
+            HashMap::from([(process.clone(), process_policy.clone()), (file.clone(), file_policy)])
         );
 
         // Test 3: Mixed existing and default policies
         let new_file = Resource::new_file("/tmp/new.txt".to_string());
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process, new_file])).unwrap(),
-            HashSet::from([process_policy, Policy::default()])
+            compliance
+                .policies
+                .get_policies(HashSet::from([process.clone(), new_file.clone()]))
+                .unwrap(),
+            HashMap::from([(process, process_policy), (new_file, Policy::default())])
         );
     }
 
@@ -587,7 +640,7 @@ mod tests {
         let process = Resource::new_process_mock(0);
 
         // Test 1: Empty request
-        assert_eq!(compliance.policies.get_policies(HashSet::new()).unwrap(), HashSet::new());
+        assert_eq!(compliance.policies.get_policies(HashSet::new()).unwrap(), HashMap::new());
 
         // Test 2: Policy updates
         let initial_policy = create_public_policy(2);
@@ -596,13 +649,13 @@ mod tests {
         compliance.policies.set_policy(process.clone(), initial_policy.clone()).unwrap();
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
-            HashSet::from([initial_policy])
+            HashMap::from([(process.clone(), initial_policy.clone())])
         );
 
         compliance.policies.set_policy(process.clone(), updated_policy.clone()).unwrap();
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process])).unwrap(),
-            HashSet::from([updated_policy])
+            compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
+            HashMap::from([(process, updated_policy)])
         );
     }
 
@@ -619,7 +672,7 @@ mod tests {
         // Test 1: Deleted policy is returned correctly
         assert_eq!(
             compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
-            HashSet::from([deleted_policy.clone()])
+            HashMap::from([(process.clone(), deleted_policy.clone())])
         );
 
         // Test 2: Cannot update deleted policy
@@ -630,8 +683,8 @@ mod tests {
 
         // Test 3: Policy remains deleted after update attempt
         assert_eq!(
-            compliance.policies.get_policies(HashSet::from([process])).unwrap(),
-            HashSet::from([deleted_policy.clone()])
+            compliance.policies.get_policies(HashSet::from([process.clone()])).unwrap(),
+            HashMap::from([(process, deleted_policy.clone())])
         );
 
         // Test 4: Deleted policies cause policy violations in evaluation
@@ -639,7 +692,10 @@ mod tests {
             eval_policies(
                 HashMap::from([(
                     String::new(),
-                    HashSet::from([deleted_policy.clone(), Policy::default()])
+                    HashMap::from([
+                        (Resource::new_process_mock(0), deleted_policy.clone()),
+                        (Resource::new_process_mock(1), Policy::default())
+                    ])
                 )]),
                 Policy::default()
             )
@@ -648,7 +704,10 @@ mod tests {
 
         assert!(
             eval_policies(
-                HashMap::from([(String::new(), HashSet::from([Policy::default()]))]),
+                HashMap::from([(
+                    String::new(),
+                    HashMap::from([(Resource::new_process_mock(0), Policy::default())])
+                )]),
                 deleted_policy
             )
             .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
@@ -683,7 +742,7 @@ mod tests {
         // Normal mode should return default policy when resource not found
         assert_eq!(
             normal_policy_map.get_policies(HashSet::from([process.clone()])).unwrap(),
-            HashSet::from([Policy::default()])
+            HashMap::from([(process.clone(), Policy::default())])
         );
 
         // Cache mode should return PolicyNotFound error when resource not found
@@ -710,8 +769,8 @@ mod tests {
 
         // Now getting policy should work in cache mode
         assert_eq!(
-            cache_policy_map.get_policies(HashSet::from([process])).unwrap(),
-            HashSet::from([policy])
+            cache_policy_map.get_policies(HashSet::from([process.clone()])).unwrap(),
+            HashMap::from([(process, policy)])
         );
     }
 
@@ -746,6 +805,6 @@ mod tests {
         let cache_policy_map = PolicyMap::init_cache();
 
         // Empty request should work the same in both modes
-        assert_eq!(cache_policy_map.get_policies(HashSet::new()).unwrap(), HashSet::new());
+        assert_eq!(cache_policy_map.get_policies(HashSet::new()).unwrap(), HashMap::new());
     }
 }

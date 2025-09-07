@@ -1,4 +1,4 @@
-use std::{collections::HashSet, pin::Pin, task::Poll};
+use std::{collections::HashMap, pin::Pin, task::Poll};
 
 use tower::Service;
 
@@ -27,9 +27,10 @@ impl Service<M2mRequest> for M2mNop {
                     M2mResponse::DestinationCompliance(Policy::default())
                 }
                 M2mRequest::GetSourceCompliance { .. } => {
-                    M2mResponse::SourceCompliance(HashSet::new())
+                    M2mResponse::SourceCompliance(HashMap::new())
                 }
                 M2mRequest::UpdateProvenance { .. } => M2mResponse::Ack,
+                M2mRequest::UpdatePolicies { .. } => M2mResponse::Ack,
             })
         })
     }

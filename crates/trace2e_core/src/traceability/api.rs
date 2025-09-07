@@ -29,11 +29,13 @@ pub enum M2mRequest {
     GetSourceCompliance { authority_ip: String, resources: HashSet<Resource> },
     /// Update the provenance of a remote resource
     UpdateProvenance { source_prov: HashMap<String, HashSet<Resource>>, destination: Resource },
+    /// Update the policies of a remote resource
+    UpdatePolicies { policies: HashMap<String, HashMap<Resource, Policy>>, destination: Resource },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum M2mResponse {
-    SourceCompliance(HashSet<Policy>),
+    SourceCompliance(HashMap<Resource, Policy>),
     DestinationCompliance(Policy),
     Ack,
 }
@@ -50,7 +52,7 @@ pub enum O2mRequest {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum O2mResponse {
     /// Policies for the requested resources
-    Policies(HashSet<Policy>),
+    Policies(HashMap<Resource, Policy>),
     /// Policy successfully set
     Ack,
     /// Provenance set for the requested resource
@@ -99,15 +101,22 @@ pub enum ProvenanceResponse {
 #[derive(Debug, Clone)]
 pub enum ComplianceRequest {
     /// Evaluate the compliance of policies for a flow from source to destination
-    EvalPolicies { source_policies: HashMap<String, HashSet<Policy>>, destination_policy: Policy },
+    EvalPolicies {
+        source_policies: HashMap<String, HashMap<Resource, Policy>>,
+        destination_policy: Policy,
+    },
     /// Check Compliance of a flow from sources to destination
     CheckCompliance { sources: HashMap<String, HashSet<Resource>>, destination: Resource },
     /// Get policy for a specific resource
     GetPolicy(Resource),
     /// Get policies for a specific set of resources
     GetPolicies(HashSet<Resource>),
+    /// Get local and cached policies for a specific set of resources
+    GetPoliciesBatch(HashMap<String, HashSet<Resource>>),
     /// Set policy for a specific resource
     SetPolicy { resource: Resource, policy: Policy },
+    /// Cache remote policies for a specific set of resources
+    SetPoliciesBatch(HashMap<String, HashMap<Resource, Policy>>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -117,7 +126,9 @@ pub enum ComplianceResponse {
     /// Policy for the requested resource
     Policy(Policy),
     /// Policies for the requested resources
-    Policies(HashSet<Policy>),
+    Policies(HashMap<Resource, Policy>),
+    /// Policies for the requested resources
+    PoliciesBatch(HashMap<String, HashMap<Resource, Policy>>),
     /// Policy successfully set
     PolicyUpdated,
     /// Policy not updated

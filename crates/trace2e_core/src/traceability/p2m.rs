@@ -403,12 +403,31 @@ where
                             destination
                         );
                         if let Some(remote_stream) = destination.is_stream() {
-                            match provenance.call(ProvenanceRequest::GetReferences(source)).await? {
+                            let references = match provenance
+                                .call(ProvenanceRequest::GetReferences(source))
+                                .await?
+                            {
                                 ProvenanceResponse::Provenance(references) => {
                                     m2m.ready()
                                         .await?
                                         .call(M2mRequest::UpdateProvenance {
-                                            source_prov: references,
+                                            source_prov: references.clone(),
+                                            destination: remote_stream.clone(),
+                                        })
+                                        .await?;
+                                    references
+                                }
+                                _ => return Err(TraceabilityError::InternalTrace2eError),
+                            };
+                            match compliance
+                                .call(ComplianceRequest::GetPoliciesBatch(references))
+                                .await?
+                            {
+                                ComplianceResponse::PoliciesBatch(policies) => {
+                                    m2m.ready()
+                                        .await?
+                                        .call(M2mRequest::UpdatePolicies {
+                                            policies,
                                             destination: remote_stream,
                                         })
                                         .await?;

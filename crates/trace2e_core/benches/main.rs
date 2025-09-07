@@ -87,7 +87,10 @@ fn bench_compliance_check_pass(c: &mut Criterion) {
             let mut compliance = ComplianceService::default();
             let source_policy = create_test_policy(ConfidentialityPolicy::Public, 5, false);
             let dest_policy = create_test_policy(ConfidentialityPolicy::Public, 3, false);
-            let source_policies = HashMap::from([(String::new(), HashSet::from([source_policy]))]);
+            let source_policies = HashMap::from([(
+                String::new(),
+                HashMap::from([(Resource::new_process_mock(0), source_policy)]),
+            )]);
 
             let _ = black_box(
                 compliance
@@ -107,7 +110,10 @@ fn bench_compliance_check_fail(c: &mut Criterion) {
             let mut compliance = ComplianceService::default();
             let source_policy = create_test_policy(ConfidentialityPolicy::Secret, 5, false);
             let dest_policy = create_test_policy(ConfidentialityPolicy::Public, 3, false);
-            let source_policies = HashMap::from([(String::new(), HashSet::from([source_policy]))]);
+            let source_policies = HashMap::from([(
+                String::new(),
+                HashMap::from([(Resource::new_process_mock(0), source_policy)]),
+            )]);
 
             let _ = black_box(
                 compliance
@@ -130,9 +136,21 @@ fn bench_compliance_check_complex(c: &mut Criterion) {
             let low_policy = create_test_policy(ConfidentialityPolicy::Public, 1, false);
 
             let source_policies = HashMap::from([
-                (String::new(), HashSet::from([Policy::default()])),
-                ("10.0.0.1".to_string(), HashSet::from([high_policy, medium_policy])),
-                ("10.0.0.2".to_string(), HashSet::from([low_policy])),
+                (
+                    String::new(),
+                    HashMap::from([(Resource::new_process_mock(0), Policy::default())]),
+                ),
+                (
+                    "10.0.0.1".to_string(),
+                    HashMap::from([
+                        (Resource::new_process_mock(0), high_policy),
+                        (Resource::new_process_mock(1), medium_policy),
+                    ]),
+                ),
+                (
+                    "10.0.0.2".to_string(),
+                    HashMap::from([(Resource::new_process_mock(0), low_policy)]),
+                ),
             ]);
             let dest_policy = create_test_policy(ConfidentialityPolicy::Public, 3, false);
 

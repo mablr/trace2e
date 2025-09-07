@@ -1,5 +1,11 @@
 //! gRPC service for the Trace2e middleware.
-use std::{collections::HashSet, future::Future, pin::Pin, sync::Arc, task::Poll};
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    task::Poll,
+};
 
 use dashmap::DashMap;
 use tonic::{Request, Response, Status, transport::Channel};
@@ -114,7 +120,16 @@ impl Service<M2mRequest> for M2mGrpc {
                         .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
                         .into_inner();
                     Ok(M2mResponse::SourceCompliance(
-                        response.policies.into_iter().map(|policy| policy.into()).collect(),
+                        response
+                            .policies
+                            .into_iter()
+                            .map(|policy| {
+                                (
+                                    policy.resource.map(|r| r.into()).unwrap_or_default(),
+                                    policy.policy.map(|p| p.into()).unwrap_or_default(),
+                                )
+                            })
+                            .collect(),
                     ))
                 }
                 M2mRequest::UpdateProvenance { source_prov, destination } => {
@@ -126,6 +141,19 @@ impl Service<M2mRequest> for M2mGrpc {
 
                     // Make the gRPC call
                     client.m2m_update_provenance(Request::new(proto_req)).await.map_err(|_| {
+                        TraceabilityError::TransportFailedToContactRemote(remote_ip)
+                    })?;
+
+                    Ok(M2mResponse::Ack)
+                }
+                M2mRequest::UpdatePolicies { policies, .. } => {
+                    // Create the protobuf request
+                    let proto_req = proto::UpdatePolicies {
+                        policies: policies.into_iter().map(|s| s.into()).collect(),
+                    };
+
+                    // Make the gRPC call
+                    client.m2m_update_policies(Request::new(proto_req)).await.map_err(|_| {
                         TraceabilityError::TransportFailedToContactRemote(remote_ip)
                     })?;
 
@@ -278,6 +306,17 @@ where
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
+    async fn m2m_update_policies(
+        &self,
+        request: Request<proto::UpdatePolicies>,
+    ) -> Result<Response<proto::Ack>, Status> {
+        let req = request.into_inner();
+        let mut m2m = self.m2m.clone();
+        match m2m.call(req.into()).await? {
+            M2mResponse::Ack => Ok(Response::new(proto::Ack {})),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
 }
 
 // Conversion trait implementations
@@ -300,6 +339,15 @@ impl From<proto::GetSourceCompliance> for M2mRequest {
     }
 }
 
+impl From<proto::MappedPolicy> for (Resource, Policy) {
+    fn from(policy: proto::MappedPolicy) -> Self {
+        (
+            policy.resource.map(|r| r.into()).unwrap_or_default(),
+            policy.policy.map(|p| p.into()).unwrap_or_default(),
+        )
+    }
+}
+
 impl From<proto::References> for (String, HashSet<Resource>) {
     fn from(references: proto::References) -> Self {
         (references.node, references.resources.into_iter().map(|r| r.into()).collect())
@@ -315,16 +363,36 @@ impl From<proto::UpdateProvenance> for M2mRequest {
     }
 }
 
+impl From<proto::NodePolicies> for (String, HashMap<Resource, Policy>) {
+    fn from(policies: proto::NodePolicies) -> Self {
+        (policies.node, policies.policies.into_iter().map(|p| p.into()).collect())
+    }
+}
+
+impl From<proto::UpdatePolicies> for M2mRequest {
+    fn from(req: proto::UpdatePolicies) -> Self {
+        M2mRequest::UpdatePolicies {
+            policies: req.policies.into_iter().map(|s| s.into()).collect(),
+            destination: Resource::None, // Already routed so no destination needed
+        }
+    }
+}
 impl From<Policy> for proto::DestinationCompliance {
     fn from(policy: Policy) -> Self {
         proto::DestinationCompliance { policy: Some(policy.into()) }
     }
 }
 
-impl From<HashSet<Policy>> for proto::SourceCompliance {
-    fn from(policies: HashSet<Policy>) -> Self {
+impl From<HashMap<Resource, Policy>> for proto::SourceCompliance {
+    fn from(policies: HashMap<Resource, Policy>) -> Self {
         proto::SourceCompliance {
-            policies: policies.into_iter().map(|policy| policy.into()).collect(),
+            policies: policies
+                .into_iter()
+                .map(|(resource, policy)| proto::MappedPolicy {
+                    resource: Some(resource.into()),
+                    policy: Some(policy.into()),
+                })
+                .collect(),
         }
     }
 }
@@ -332,6 +400,18 @@ impl From<HashSet<Policy>> for proto::SourceCompliance {
 impl From<(String, HashSet<Resource>)> for proto::References {
     fn from((node, resources): (String, HashSet<Resource>)) -> Self {
         proto::References { node, resources: resources.into_iter().map(|r| r.into()).collect() }
+    }
+}
+
+impl From<(Resource, Policy)> for proto::MappedPolicy {
+    fn from((resource, policy): (Resource, Policy)) -> Self {
+        proto::MappedPolicy { resource: Some(resource.into()), policy: Some(policy.into()) }
+    }
+}
+
+impl From<(String, HashMap<Resource, Policy>)> for proto::NodePolicies {
+    fn from((node, policies): (String, HashMap<Resource, Policy>)) -> Self {
+        proto::NodePolicies { node, policies: policies.into_iter().map(|p| p.into()).collect() }
     }
 }
 
