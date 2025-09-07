@@ -53,6 +53,9 @@ impl PolicyMap {
         Self { cache_mode: true, policies }
     }
 
+    /// Get the policy for a specific resource
+    /// It returns a PolicyNotFound error if the resource is not found in cache mode
+    /// It returns the default policy if the resource is not found in normal mode
     fn get_policy(&self, resource: &Resource) -> Result<Policy, TraceabilityError> {
         self.policies.get(resource).map(|p| p.to_owned()).map_or(
             if self.cache_mode {
@@ -64,8 +67,9 @@ impl PolicyMap {
         )
     }
 
-    /// Get the policies for a specific resource
-    /// Returns the default policy if the resource is not found
+    /// Get the policies for a set of resources
+    /// It returns a PolicyNotFound error if the resource is not found in cache mode
+    /// It returns the default policy if the resource is not found in normal mode
     fn get_policies(
         &self,
         resources: HashSet<Resource>,
