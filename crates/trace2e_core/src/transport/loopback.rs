@@ -16,26 +16,28 @@ use crate::{
         api::{M2mRequest, M2mResponse},
         error::TraceabilityError,
         init_middleware,
+        mode::Mode,
     },
     transport::eval_remote_ip,
 };
 
 pub async fn spawn_loopback_middlewares(
     ips: Vec<String>,
+    mode: Mode,
 ) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
-    spawn_loopback_middlewares_with_entropy(ips, 0, 0).await
+    spawn_loopback_middlewares_with_entropy(ips, 0, 0, mode).await
 }
 
 pub async fn spawn_loopback_middlewares_with_entropy(
     ips: Vec<String>,
     base_delay_ms: u64,
     jitter_max_ms: u64,
+    mode: Mode,
 ) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
     let m2m_loopback = M2mLoopback::new(base_delay_ms, jitter_max_ms);
     let mut middlewares = VecDeque::new();
     for ip in ips {
-        let (m2m, p2m, o2m) =
-            init_middleware(ip.clone(), None, Default::default(), m2m_loopback.clone());
+        let (m2m, p2m, o2m) = init_middleware(ip.clone(), None, mode, m2m_loopback.clone());
         m2m_loopback.register_middleware(ip.clone(), m2m).await;
         middlewares.push_back((p2m, o2m));
     }
