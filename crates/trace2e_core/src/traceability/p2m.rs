@@ -125,7 +125,7 @@ where
     fn call(&mut self, request: P2mRequest) -> Self::Future {
         let resource_map = self.resource_map.clone();
         let flow_map = self.flow_map.clone();
-        let mode = self.mode.clone();
+        let mode = self.mode;
         let mut sequencer = self.sequencer.clone();
         let mut provenance = self.provenance.clone();
         let mut compliance = self.compliance.clone();

@@ -13,7 +13,8 @@ use crate::{
     traceability::{
         api::{O2mRequest, O2mResponse, P2mRequest, P2mResponse},
         core::compliance::{ConfidentialityPolicy, Policy},
-        init_middleware, init_middleware_with_enrolled_resources, mode::Mode,
+        init_middleware, init_middleware_with_enrolled_resources,
+        mode::Mode,
     },
     transport::{
         loopback::{spawn_loopback_middlewares, spawn_loopback_middlewares_with_entropy},
@@ -58,8 +59,10 @@ async fn integration_spawn_loopback_middlewares() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
-    let mut middlewares =
-        spawn_loopback_middlewares(ips.clone(), Default::default()).await.into_iter().map(|(p2m, o2m)| {
+    let mut middlewares = spawn_loopback_middlewares(ips.clone(), Default::default())
+        .await
+        .into_iter()
+        .map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -135,8 +138,10 @@ async fn integration_o2m_remote_provenance_basic() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
-    let mut middlewares =
-        spawn_loopback_middlewares(ips.clone(), Default::default()).await.into_iter().map(|(p2m, o2m)| {
+    let mut middlewares = spawn_loopback_middlewares(ips.clone(), Default::default())
+        .await
+        .into_iter()
+        .map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -198,8 +203,10 @@ async fn integration_o2m_remote_provenance_complex() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
-    let mut middlewares =
-        spawn_loopback_middlewares(ips.clone(), Default::default()).await.into_iter().map(|(p2m, o2m)| {
+    let mut middlewares = spawn_loopback_middlewares(ips.clone(), Default::default())
+        .await
+        .into_iter()
+        .map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -292,7 +299,9 @@ async fn integration_o2m_remote_provenance_complex_with_entropy() {
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
     let mut middlewares =
-        spawn_loopback_middlewares_with_entropy(ips.clone(), 10, 100, Default::default()).await.into_iter();
+        spawn_loopback_middlewares_with_entropy(ips.clone(), 10, 100, Default::default())
+            .await
+            .into_iter();
 
     let (mut p2m_1, mut o2m_1) = middlewares.next().unwrap();
     let (mut p2m_2, mut o2m_2) = middlewares.next().unwrap();
@@ -373,8 +382,10 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
-    let mut middlewares =
-        spawn_loopback_middlewares(ips.clone(), Default::default()).await.into_iter().map(|(p2m, o2m)| {
+    let mut middlewares = spawn_loopback_middlewares(ips.clone(), Default::default())
+        .await
+        .into_iter()
+        .map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -471,8 +482,10 @@ async fn integration_o2m_remote_integrity_enforcement() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
-    let mut middlewares =
-        spawn_loopback_middlewares(ips.clone(), Default::default()).await.into_iter().map(|(p2m, o2m)| {
+    let mut middlewares = spawn_loopback_middlewares(ips.clone(), Default::default())
+        .await
+        .into_iter()
+        .map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -543,8 +556,10 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
-    let mut middlewares =
-        spawn_loopback_middlewares(ips.clone(), Default::default()).await.into_iter().map(|(p2m, o2m)| {
+    let mut middlewares = spawn_loopback_middlewares(ips.clone(), Default::default())
+        .await
+        .into_iter()
+        .map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(10)))
