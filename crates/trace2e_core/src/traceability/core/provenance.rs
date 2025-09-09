@@ -74,7 +74,7 @@ impl ProvenanceService {
         let source_prov = self.get_prov(source).await;
         // Record the node IDs to which local resources propagate
         if let Resource::Fd(Fd::Stream(stream)) = destination {
-            match stream.local_socket.parse::<SocketAddr>() {
+            match stream.peer_socket.parse::<SocketAddr>() {
                 Ok(addr) => {
                     if let Some(local_sources) = source_prov.get(&self.node_id) {
                         for local_source in local_sources {
@@ -269,6 +269,23 @@ mod tests {
                 ("10.0.0.1".to_string(), HashSet::from([process0.clone(), process1.clone()])),
                 ("10.0.0.2".to_string(), HashSet::from([file0, process0, process1]))
             ])
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_provenance_tracks_propagation_nodes_for_local_sources() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
+        let mut provenance = ProvenanceService::default();
+        let process = Resource::new_process_mock(0);
+        let stream = Resource::new_stream("10.0.0.1:8080".to_string(), "10.0.0.2:8081".to_string());
+
+        // Process writes to a stream → record local node IP for the source
+        provenance.update(&process, &stream).await.unwrap();
+
+        assert_eq!(
+            provenance.propagation.get(&process).unwrap().to_owned(),
+            HashSet::from(["10.0.0.2".to_string()])
         );
     }
 
