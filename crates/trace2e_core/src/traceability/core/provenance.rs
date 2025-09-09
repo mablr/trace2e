@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    net::SocketAddr,
     pin::Pin,
     sync::Arc,
     task::Poll,
@@ -13,21 +14,27 @@ use tracing::{debug, info};
 use crate::traceability::{
     api::{ProvenanceRequest, ProvenanceResponse},
     error::TraceabilityError,
-    naming::{NodeId, Resource},
+    naming::{Fd, NodeId, Resource},
 };
 
 type ProvenanceMap = DashMap<Resource, HashMap<String, HashSet<Resource>>>;
+type PropagationMap = DashMap<Resource, HashSet<String>>;
 
 /// Provenance service for tracking resources provenance
 #[derive(Debug, Default, Clone)]
 pub struct ProvenanceService {
     node_id: String,
     provenance: Arc<ProvenanceMap>,
+    propagation: Arc<PropagationMap>,
 }
 
 impl ProvenanceService {
     pub fn new(node_id: String) -> Self {
-        Self { node_id, provenance: Arc::new(DashMap::new()) }
+        Self {
+            node_id,
+            provenance: Arc::new(DashMap::new()),
+            propagation: Arc::new(DashMap::new()),
+        }
     }
 
     fn init_provenance(&self, resource: &Resource) -> HashMap<String, HashSet<Resource>> {
@@ -65,6 +72,28 @@ impl ProvenanceService {
         destination: &Resource,
     ) -> Result<ProvenanceResponse, TraceabilityError> {
         let source_prov = self.get_prov(source).await;
+        // Record the node IDs to which local resources propagate
+        if let Resource::Fd(Fd::Stream(stream)) = destination {
+            match stream.local_socket.parse::<SocketAddr>() {
+                Ok(addr) => {
+                    if let Some(local_sources) = source_prov.get(&self.node_id) {
+                        for local_source in local_sources {
+                            if let Some(mut local_sources) = self.propagation.get_mut(local_source)
+                            {
+                                local_sources.insert(addr.ip().to_string());
+                            } else {
+                                self.propagation.insert(
+                                    local_source.to_owned(),
+                                    HashSet::from([addr.ip().to_string()]),
+                                );
+                            }
+                        }
+                    }
+                }
+                Err(_) => return Err(TraceabilityError::TransportFailedToEvaluateRemote),
+            }
+        }
+        // Update the provenance of the destination with the source provenance
         self.update_raw(source_prov, destination).await
     }
 
