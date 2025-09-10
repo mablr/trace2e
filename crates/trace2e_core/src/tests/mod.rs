@@ -659,38 +659,34 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
 async fn integration_p2m_stress_interference() {
     let processes_count = 10;
     let files_per_process_count = 10;
+    let streams_per_process_count = 10;
 
     // Pre-initialize P2M service with many processes and files
     let (_, p2m_service, _) = init_middleware_with_enrolled_resources(
-        "node_test".to_string(),
+        "127.0.0.1".to_string(),
         Some(1),
         Default::default(),
         M2mNop,
         processes_count,
         files_per_process_count,
+        streams_per_process_count,
     );
 
     // Spawn concurrent tasks that handle complete request-grant-report cycles
     let mut tasks = Vec::new();
 
     // Create interference patterns: multiple processes compete for same files
-    for process_id in 0..processes_count as i32 {
-        for file_id in 0..files_per_process_count as i32 {
+    for pid in 0..processes_count as i32 {
+        for fd in 0..files_per_process_count as i32 {
             let mut service_clone = p2m_service.clone();
             let task = tokio::spawn(async move {
                 // Complete I/O cycle: request -> grant -> report
-                if let Ok(P2mResponse::Grant(flow_id)) = service_clone
-                    .call(P2mRequest::IoRequest { pid: process_id, fd: file_id, output: true })
-                    .await
+                if let Ok(P2mResponse::Grant(grant_id)) =
+                    service_clone.call(P2mRequest::IoRequest { pid, fd, output: true }).await
                 {
                     // Report completion
                     let _ = service_clone
-                        .call(P2mRequest::IoReport {
-                            pid: process_id,
-                            fd: file_id,
-                            grant_id: flow_id,
-                            result: true,
-                        })
+                        .call(P2mRequest::IoReport { pid, fd, grant_id, result: true })
                         .await;
                 }
             });
@@ -708,33 +704,29 @@ async fn integration_p2m_stress_interference() {
 async fn integration_p2m_seq_stress_interference() {
     let processes_count = 10;
     let files_per_process_count = 10;
+    let streams_per_process_count = 10;
 
     // Pre-initialize P2M service with many processes and files
     let (_, mut p2m_service, _) = init_middleware_with_enrolled_resources(
-        "node_test".to_string(),
+        "127.0.0.1".to_string(),
         Some(1),
         Default::default(),
         M2mNop,
         processes_count,
         files_per_process_count,
+        streams_per_process_count,
     );
 
     // Create interference patterns: multiple processes compete for same files
-    for process_id in 0..processes_count as i32 {
-        for file_id in 0..files_per_process_count as i32 {
+    for pid in 0..processes_count as i32 {
+        for fd in 0..files_per_process_count as i32 {
             // Complete I/O cycle: request -> grant -> report
-            if let Ok(P2mResponse::Grant(flow_id)) = p2m_service
-                .call(P2mRequest::IoRequest { pid: process_id, fd: file_id, output: true })
-                .await
+            if let Ok(P2mResponse::Grant(grant_id)) =
+                p2m_service.call(P2mRequest::IoRequest { pid, fd, output: true }).await
             {
                 // Report completion
                 let _ = p2m_service
-                    .call(P2mRequest::IoReport {
-                        pid: process_id,
-                        fd: file_id,
-                        grant_id: flow_id,
-                        result: true,
-                    })
+                    .call(P2mRequest::IoReport { pid, fd, grant_id, result: true })
                     .await;
             }
         }

@@ -425,6 +425,7 @@ fn bench_provenance_stress_interference(c: &mut Criterion) {
 
     let processes_count = 1000;
     let files_per_process_count = 10;
+    let streams_per_process_count = 10;
 
     c.bench_function("provenance_stress_interference", |b| {
         b.to_async(tokio::runtime::Runtime::new().unwrap()).iter_batched(
@@ -432,36 +433,28 @@ fn bench_provenance_stress_interference(c: &mut Criterion) {
                 // Setup: Pre-initialize P2M service with many processes and files
                 // This initialization time is NOT measured
                 init_middleware_with_enrolled_resources(
-                    "node_test".to_string(),
+                    "127.0.0.1".to_string(),
                     None,
                     Default::default(),
                     M2mNop,
                     processes_count,
                     files_per_process_count,
+                    streams_per_process_count,
                 )
             },
             |(_, mut p2m_service, _)| async move {
                 // Only this section is measured
                 // Create interference patterns: multiple processes compete for same files
-                for process_id in 0..processes_count as i32 {
-                    for file_id in 0..files_per_process_count as i32 {
+                for pid in 0..processes_count as i32 {
+                    for fd in 0..(files_per_process_count + streams_per_process_count) as i32 {
                         // Complete I/O cycle: request -> grant -> report
-                        if let Ok(P2mResponse::Grant(flow_id)) = p2m_service
-                            .call(P2mRequest::IoRequest {
-                                pid: process_id,
-                                fd: file_id,
-                                output: true,
-                            })
+                        if let Ok(P2mResponse::Grant(grant_id)) = p2m_service
+                            .call(P2mRequest::IoRequest { pid, fd, output: (pid + fd) % 2 == 0 })
                             .await
                         {
                             // Report completion
                             let _ = p2m_service
-                                .call(P2mRequest::IoReport {
-                                    pid: process_id,
-                                    fd: file_id,
-                                    grant_id: flow_id,
-                                    result: true,
-                                })
+                                .call(P2mRequest::IoReport { pid, fd, grant_id, result: true })
                                 .await;
                         }
                     }

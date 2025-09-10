@@ -63,9 +63,14 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
     }
 
     /// Enrolls the given number of processes and files per process for testing/mocking purposes.
-    pub fn with_enrolled_resources(self, process_count: u32, per_process_file_count: u32) -> Self {
+    pub fn with_enrolled_resources(
+        self,
+        process_count: u32,
+        per_process_file_count: u32,
+        per_process_stream_count: u32,
+    ) -> Self {
         // Pre-calculate all entries to avoid repeated allocations during insertion
-        let entries: Vec<_> = (0..process_count as i32)
+        let file_entries: Vec<_> = (0..process_count as i32)
             .flat_map(|process_id| {
                 (0..per_process_file_count as i32).map(move |file_id| {
                     (
@@ -81,9 +86,25 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
                 })
             })
             .collect();
+        let stream_entries: Vec<_> = (0..process_count as i32)
+            .flat_map(|process_id| {
+                (0..per_process_stream_count as i32).map(move |stream_id| {
+                    (
+                        (process_id, stream_id),
+                        (
+                            Resource::new_process_mock(process_id),
+                            Resource::new_stream(
+                                format!("127.0.0.1:{}", stream_id),
+                                format!("127.0.0.2:{}", stream_id),
+                            ),
+                        ),
+                    )
+                })
+            })
+            .collect();
 
         // Batch insert all entries at once using DashMap's concurrent insert capabilities
-        for (key, value) in entries {
+        for (key, value) in file_entries.into_iter().chain(stream_entries.into_iter()) {
             self.resource_map.insert(key, value);
         }
         self

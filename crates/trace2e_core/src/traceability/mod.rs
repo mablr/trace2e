@@ -46,7 +46,7 @@ where
         + 'static,
     M::Future: Send,
 {
-    init_middleware_with_enrolled_resources(node_id, max_retries, mode, m2m_client, 0, 0)
+    init_middleware_with_enrolled_resources(node_id, max_retries, mode, m2m_client, 0, 0, 0)
 }
 
 /// Helper function to initialize the middleware stack with enrolled resources.
@@ -59,6 +59,7 @@ pub fn init_middleware_with_enrolled_resources<M>(
     m2m_client: M,
     process_count: u32,
     per_process_file_count: u32,
+    per_process_stream_count: u32,
 ) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack)
 where
     M: tower::Service<
@@ -82,9 +83,18 @@ where
         m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
 
     let p2m_service: P2mApiDefaultStack<M> =
-        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
-            .with_mode(mode)
-            .with_enrolled_resources(process_count, per_process_file_count);
+        if process_count > 0 || per_process_file_count > 0 || per_process_stream_count > 0 {
+            p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
+                .with_mode(mode)
+                .with_enrolled_resources(
+                    process_count,
+                    per_process_file_count,
+                    per_process_stream_count,
+                )
+        } else {
+            p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
+                .with_mode(mode)
+        };
 
     let o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
 
