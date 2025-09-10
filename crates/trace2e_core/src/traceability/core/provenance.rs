@@ -92,9 +92,11 @@ impl ProvenanceService {
                 }
                 Err(_) => return Err(TraceabilityError::TransportFailedToEvaluateRemote),
             }
+            Ok(ProvenanceResponse::ProvenanceUpdated)
+        } else {
+            // Update the provenance of the destination with the source provenance
+            self.update_raw(source_prov, destination).await
         }
-        // Update the provenance of the destination with the source provenance
-        self.update_raw(source_prov, destination).await
     }
 
     /// Update the provenance of the destination with the raw source provenance
@@ -210,26 +212,6 @@ mod tests {
 
         // Check the proper handling of circular dependencies
         assert_eq!(provenance.get_prov(&file).await, provenance.get_prov(&process).await);
-    }
-
-    #[tokio::test]
-    async fn unit_provenance_update_stream_idempotent() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-        let mut provenance = ProvenanceService::default();
-        let process0 = Resource::new_process_mock(0);
-        let process1 = Resource::new_process_mock(1);
-
-        let stream =
-            Resource::new_stream("127.0.0.1:8080".to_string(), "127.0.0.1:8081".to_string());
-
-        provenance.update(&process0, &stream).await.unwrap();
-        provenance.update(&stream, &process1).await.unwrap();
-
-        assert_eq!(
-            provenance.get_prov(&process1).await,
-            HashMap::from([(String::new(), HashSet::from([process0, process1]))])
-        );
     }
 
     #[tokio::test]

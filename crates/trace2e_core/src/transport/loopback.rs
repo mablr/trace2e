@@ -15,7 +15,7 @@ use crate::{
         M2mApiDefaultStack, O2mApiDefaultStack, P2mApiDefaultStack,
         api::{M2mRequest, M2mResponse},
         error::TraceabilityError,
-        init_middleware,
+        init_middleware_with_enrolled_resources,
         mode::Mode,
     },
     transport::eval_remote_ip,
@@ -25,7 +25,26 @@ pub async fn spawn_loopback_middlewares(
     ips: Vec<String>,
     mode: Mode,
 ) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
-    spawn_loopback_middlewares_with_entropy(ips, 0, 0, mode).await
+    spawn_loopback_middlewares_with_enrolled_resources(ips, mode, 0, 0, 0).await
+}
+
+pub async fn spawn_loopback_middlewares_with_enrolled_resources(
+    ips: Vec<String>,
+    mode: Mode,
+    process_count: u32,
+    per_process_file_count: u32,
+    per_process_stream_count: u32,
+) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
+    spawn_loopback_middlewares_with_entropy(
+        ips,
+        0,
+        0,
+        mode,
+        process_count,
+        per_process_file_count,
+        per_process_stream_count,
+    )
+    .await
 }
 
 pub async fn spawn_loopback_middlewares_with_entropy(
@@ -33,11 +52,22 @@ pub async fn spawn_loopback_middlewares_with_entropy(
     base_delay_ms: u64,
     jitter_max_ms: u64,
     mode: Mode,
+    process_count: u32,
+    per_process_file_count: u32,
+    per_process_stream_count: u32,
 ) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
     let m2m_loopback = M2mLoopback::new(base_delay_ms, jitter_max_ms);
     let mut middlewares = VecDeque::new();
     for ip in ips {
-        let (m2m, p2m, o2m) = init_middleware(ip.clone(), None, mode, m2m_loopback.clone());
+        let (m2m, p2m, o2m) = init_middleware_with_enrolled_resources(
+            ip.clone(),
+            None,
+            mode,
+            m2m_loopback.clone(),
+            process_count,
+            per_process_file_count,
+            per_process_stream_count,
+        );
         m2m_loopback.register_middleware(ip.clone(), m2m).await;
         middlewares.push_back((p2m, o2m));
     }

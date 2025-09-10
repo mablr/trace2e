@@ -72,7 +72,7 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
         // Pre-calculate all entries to avoid repeated allocations during insertion
         let file_entries: Vec<_> = (0..process_count as i32)
             .flat_map(|process_id| {
-                (0..per_process_file_count as i32).map(move |file_id| {
+                (3..(per_process_file_count + 3) as i32).map(move |file_id| {
                     (
                         (process_id, file_id),
                         (
@@ -88,18 +88,20 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
             .collect();
         let stream_entries: Vec<_> = (0..process_count as i32)
             .flat_map(|process_id| {
-                (0..per_process_stream_count as i32).map(move |stream_id| {
-                    (
-                        (process_id, stream_id),
+                ((per_process_file_count + 3) as i32
+                    ..(per_process_stream_count + per_process_file_count + 3) as i32)
+                    .map(move |stream_id| {
                         (
-                            Resource::new_process_mock(process_id),
-                            Resource::new_stream(
-                                format!("127.0.0.1:{}", stream_id),
-                                format!("127.0.0.2:{}", stream_id),
+                            (process_id, stream_id),
+                            (
+                                Resource::new_process_mock(process_id),
+                                Resource::new_stream(
+                                    format!("127.0.0.1:{}", stream_id),
+                                    format!("127.0.0.2:{}", stream_id),
+                                ),
                             ),
-                        ),
-                    )
-                })
+                        )
+                    })
             })
             .collect();
 
@@ -425,7 +427,7 @@ where
                         );
                         if let Some(remote_stream) = destination.is_stream() {
                             let references = match provenance
-                                .call(ProvenanceRequest::GetReferences(source))
+                                .call(ProvenanceRequest::GetReferences(source.clone()))
                                 .await?
                             {
                                 ProvenanceResponse::Provenance(references) => {
@@ -455,14 +457,15 @@ where
                                 }
                                 _ => return Err(TraceabilityError::InternalTrace2eError),
                             }
-                        } else {
-                            provenance
-                                .call(ProvenanceRequest::UpdateProvenance {
-                                    source,
-                                    destination: destination.clone(),
-                                })
-                                .await?;
                         }
+
+                        provenance
+                            .call(ProvenanceRequest::UpdateProvenance {
+                                source,
+                                destination: destination.clone(),
+                            })
+                            .await?;
+
                         sequencer.call(SequencerRequest::ReleaseFlow { destination }).await?;
                         Ok(P2mResponse::Ack)
                     } else {

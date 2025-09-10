@@ -10,10 +10,9 @@ use trace2e_core::{
             provenance::ProvenanceService,
             sequencer::SequencerService,
         },
-        init_middleware_with_enrolled_resources,
         naming::Resource,
     },
-    transport::nop::M2mNop,
+    transport::loopback::spawn_loopback_middlewares_with_enrolled_resources,
 };
 
 // Helper functions for creating test data
@@ -423,37 +422,48 @@ fn bench_provenance_get_prov_populated(c: &mut Criterion) {
 fn bench_provenance_stress_interference(c: &mut Criterion) {
     use criterion::BatchSize;
 
-    let processes_count = 1000;
+    let processes_count = 10;
     let files_per_process_count = 10;
     let streams_per_process_count = 10;
 
     c.bench_function("provenance_stress_interference", |b| {
         b.to_async(tokio::runtime::Runtime::new().unwrap()).iter_batched(
-            || {
+            async || {
                 // Setup: Pre-initialize P2M service with many processes and files
                 // This initialization time is NOT measured
-                init_middleware_with_enrolled_resources(
-                    "127.0.0.1".to_string(),
-                    None,
+                let mut p2m_services = spawn_loopback_middlewares_with_enrolled_resources(
+                    vec!["127.0.0.1".to_string(), "127.0.0.2".to_string()],
                     Default::default(),
-                    M2mNop,
                     processes_count,
                     files_per_process_count,
                     streams_per_process_count,
                 )
+                .await;
+                (p2m_services.pop_front().unwrap().0, p2m_services.pop_front().unwrap().0)
             },
-            |(_, mut p2m_service, _)| async move {
+            |p2m_services| async move {
+                let (mut p2m_service_0, mut p2m_service_1) = p2m_services.await;
                 // Only this section is measured
                 // Create interference patterns: multiple processes compete for same files
                 for pid in 0..processes_count as i32 {
                     for fd in 0..(files_per_process_count + streams_per_process_count) as i32 {
                         // Complete I/O cycle: request -> grant -> report
-                        if let Ok(P2mResponse::Grant(grant_id)) = p2m_service
+                        if let Ok(P2mResponse::Grant(grant_id)) = p2m_service_0
                             .call(P2mRequest::IoRequest { pid, fd, output: (pid + fd) % 2 == 0 })
                             .await
                         {
                             // Report completion
-                            let _ = p2m_service
+                            let _ = p2m_service_0
+                                .call(P2mRequest::IoReport { pid, fd, grant_id, result: true })
+                                .await;
+                        }
+                        // Complete I/O cycle: request -> grant -> report
+                        if let Ok(P2mResponse::Grant(grant_id)) = p2m_service_1
+                            .call(P2mRequest::IoRequest { pid, fd, output: (pid + fd) % 2 == 0 })
+                            .await
+                        {
+                            // Report completion
+                            let _ = p2m_service_1
                                 .call(P2mRequest::IoReport { pid, fd, grant_id, result: true })
                                 .await;
                         }

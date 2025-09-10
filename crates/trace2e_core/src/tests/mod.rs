@@ -13,11 +13,14 @@ use crate::{
     traceability::{
         api::{O2mRequest, O2mResponse, P2mRequest, P2mResponse},
         core::compliance::{ConfidentialityPolicy, Policy},
-        init_middleware, init_middleware_with_enrolled_resources,
+        init_middleware,
         mode::Mode,
     },
     transport::{
-        loopback::{spawn_loopback_middlewares, spawn_loopback_middlewares_with_entropy},
+        loopback::{
+            spawn_loopback_middlewares, spawn_loopback_middlewares_with_enrolled_resources,
+            spawn_loopback_middlewares_with_entropy,
+        },
         nop::M2mNop,
     },
 };
@@ -299,7 +302,7 @@ async fn integration_o2m_remote_provenance_complex_with_entropy() {
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
     let mut middlewares =
-        spawn_loopback_middlewares_with_entropy(ips.clone(), 10, 100, Default::default())
+        spawn_loopback_middlewares_with_entropy(ips.clone(), 10, 100, Default::default(), 0, 0, 0)
             .await
             .into_iter();
 
@@ -657,35 +660,51 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
 
 #[tokio::test]
 async fn integration_p2m_stress_interference() {
+    #[cfg(feature = "trace2e_tracing")]
+    crate::trace2e_tracing::init();
     let processes_count = 10;
     let files_per_process_count = 10;
     let streams_per_process_count = 10;
 
     // Pre-initialize P2M service with many processes and files
-    let (_, p2m_service, _) = init_middleware_with_enrolled_resources(
-        "127.0.0.1".to_string(),
-        Some(1),
+    let mut middlewares = spawn_loopback_middlewares_with_enrolled_resources(
+        vec!["127.0.0.1".to_string(), "127.0.0.2".to_string()],
         Default::default(),
-        M2mNop,
         processes_count,
         files_per_process_count,
         streams_per_process_count,
-    );
+    )
+    .await;
+
+    let (p2m_service_0, _) = middlewares.pop_front().unwrap();
+    let (p2m_service_1, _) = middlewares.pop_front().unwrap();
 
     // Spawn concurrent tasks that handle complete request-grant-report cycles
     let mut tasks = Vec::new();
 
     // Create interference patterns: multiple processes compete for same files
     for pid in 0..processes_count as i32 {
-        for fd in 0..files_per_process_count as i32 {
-            let mut service_clone = p2m_service.clone();
+        for fd in 0..(files_per_process_count + streams_per_process_count) as i32 {
+            let mut p2m_service_0_clone = p2m_service_0.clone();
+            let mut p2m_service_1_clone = p2m_service_1.clone();
             let task = tokio::spawn(async move {
                 // Complete I/O cycle: request -> grant -> report
-                if let Ok(P2mResponse::Grant(grant_id)) =
-                    service_clone.call(P2mRequest::IoRequest { pid, fd, output: true }).await
+                if let Ok(P2mResponse::Grant(grant_id)) = p2m_service_0_clone
+                    .call(P2mRequest::IoRequest { pid, fd, output: (pid + fd) % 2 == 0 })
+                    .await
                 {
                     // Report completion
-                    let _ = service_clone
+                    let _ = p2m_service_0_clone
+                        .call(P2mRequest::IoReport { pid, fd, grant_id, result: true })
+                        .await;
+                }
+                // Complete I/O cycle: request -> grant -> report
+                if let Ok(P2mResponse::Grant(grant_id)) = p2m_service_1_clone
+                    .call(P2mRequest::IoRequest { pid, fd, output: (pid + fd) % 2 == 0 })
+                    .await
+                {
+                    // Report completion
+                    let _ = p2m_service_1_clone
                         .call(P2mRequest::IoReport { pid, fd, grant_id, result: true })
                         .await;
                 }
@@ -702,30 +721,45 @@ async fn integration_p2m_stress_interference() {
 
 #[tokio::test]
 async fn integration_p2m_seq_stress_interference() {
+    #[cfg(feature = "trace2e_tracing")]
+    crate::trace2e_tracing::init();
     let processes_count = 10;
     let files_per_process_count = 10;
     let streams_per_process_count = 10;
 
     // Pre-initialize P2M service with many processes and files
-    let (_, mut p2m_service, _) = init_middleware_with_enrolled_resources(
-        "127.0.0.1".to_string(),
-        Some(1),
+    let mut middlewares = spawn_loopback_middlewares_with_enrolled_resources(
+        vec!["127.0.0.1".to_string(), "127.0.0.2".to_string()],
         Default::default(),
-        M2mNop,
         processes_count,
         files_per_process_count,
         streams_per_process_count,
-    );
+    )
+    .await;
+
+    let (mut p2m_service_0, _) = middlewares.pop_front().unwrap();
+    let (mut p2m_service_1, _) = middlewares.pop_front().unwrap();
 
     // Create interference patterns: multiple processes compete for same files
     for pid in 0..processes_count as i32 {
-        for fd in 0..files_per_process_count as i32 {
+        for fd in 0..(files_per_process_count + streams_per_process_count) as i32 {
             // Complete I/O cycle: request -> grant -> report
-            if let Ok(P2mResponse::Grant(grant_id)) =
-                p2m_service.call(P2mRequest::IoRequest { pid, fd, output: true }).await
+            if let Ok(P2mResponse::Grant(grant_id)) = p2m_service_0
+                .call(P2mRequest::IoRequest { pid, fd, output: (pid + fd) % 2 == 0 })
+                .await
             {
                 // Report completion
-                let _ = p2m_service
+                let _ = p2m_service_0
+                    .call(P2mRequest::IoReport { pid, fd, grant_id, result: true })
+                    .await;
+            }
+            // Complete I/O cycle: request -> grant -> report
+            if let Ok(P2mResponse::Grant(grant_id)) = p2m_service_1
+                .call(P2mRequest::IoRequest { pid, fd, output: (pid + fd) % 2 == 0 })
+                .await
+            {
+                // Report completion
+                let _ = p2m_service_1
                     .call(P2mRequest::IoReport { pid, fd, grant_id, result: true })
                     .await;
             }
