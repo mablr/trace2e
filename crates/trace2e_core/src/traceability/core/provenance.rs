@@ -14,6 +14,7 @@ use tracing::{debug, info};
 use crate::traceability::{
     api::{ProvenanceRequest, ProvenanceResponse},
     error::TraceabilityError,
+    mode::Mode,
     naming::{Fd, NodeId, Resource},
 };
 
@@ -26,6 +27,7 @@ pub struct ProvenanceService {
     node_id: String,
     provenance: Arc<ProvenanceMap>,
     propagation: Arc<PropagationMap>,
+    mode: Mode,
 }
 
 impl ProvenanceService {
@@ -34,6 +36,7 @@ impl ProvenanceService {
             node_id,
             provenance: Arc::new(DashMap::new()),
             propagation: Arc::new(DashMap::new()),
+            mode: Default::default(),
         }
     }
 
@@ -43,6 +46,10 @@ impl ProvenanceService {
         } else {
             HashMap::new()
         }
+    }
+
+    pub fn with_mode(self, mode: Mode) -> Self {
+        Self { mode, ..self }
     }
 
     /// Get the provenance of a resource
@@ -73,7 +80,9 @@ impl ProvenanceService {
     ) -> Result<ProvenanceResponse, TraceabilityError> {
         let source_prov = self.get_prov(source).await;
         // Record the node IDs to which local resources propagate
-        if let Resource::Fd(Fd::Stream(stream)) = destination {
+        if let Resource::Fd(Fd::Stream(stream)) = destination
+            && self.mode == Mode::Push
+        {
             match stream.peer_socket.parse::<SocketAddr>() {
                 Ok(addr) => {
                     if let Some(local_sources) = source_prov.get(&self.node_id) {
@@ -93,9 +102,11 @@ impl ProvenanceService {
                 Err(_) => return Err(TraceabilityError::TransportFailedToEvaluateRemote),
             }
             Ok(ProvenanceResponse::ProvenanceUpdated)
-        } else {
+        } else if destination.is_stream().is_none() {
             // Update the provenance of the destination with the source provenance
             self.update_raw(source_prov, destination).await
+        } else {
+            Ok(ProvenanceResponse::ProvenanceNotUpdated)
         }
     }
 
@@ -258,7 +269,7 @@ mod tests {
     async fn unit_provenance_tracks_propagation_nodes_for_local_sources() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
-        let mut provenance = ProvenanceService::default();
+        let mut provenance = ProvenanceService::default().with_mode(Mode::Push);
         let process = Resource::new_process_mock(0);
         let stream = Resource::new_stream("10.0.0.1:8080".to_string(), "10.0.0.2:8081".to_string());
 
