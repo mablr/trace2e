@@ -16,21 +16,18 @@ use crate::{
         api::{M2mRequest, M2mResponse},
         error::TraceabilityError,
         init_middleware_with_enrolled_resources,
-        mode::Mode,
     },
     transport::eval_remote_ip,
 };
 
 pub async fn spawn_loopback_middlewares(
     ips: Vec<String>,
-    mode: Mode,
 ) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
-    spawn_loopback_middlewares_with_enrolled_resources(ips, mode, 0, 0, 0).await
+    spawn_loopback_middlewares_with_enrolled_resources(ips, 0, 0, 0).await
 }
 
 pub async fn spawn_loopback_middlewares_with_enrolled_resources(
     ips: Vec<String>,
-    mode: Mode,
     process_count: u32,
     per_process_file_count: u32,
     per_process_stream_count: u32,
@@ -39,7 +36,6 @@ pub async fn spawn_loopback_middlewares_with_enrolled_resources(
         ips,
         0,
         0,
-        mode,
         process_count,
         per_process_file_count,
         per_process_stream_count,
@@ -51,7 +47,6 @@ pub async fn spawn_loopback_middlewares_with_entropy(
     ips: Vec<String>,
     base_delay_ms: u64,
     jitter_max_ms: u64,
-    mode: Mode,
     process_count: u32,
     per_process_file_count: u32,
     per_process_stream_count: u32,
@@ -62,7 +57,6 @@ pub async fn spawn_loopback_middlewares_with_entropy(
         let (m2m, p2m, o2m) = init_middleware_with_enrolled_resources(
             ip.clone(),
             None,
-            mode,
             m2m_loopback.clone(),
             process_count,
             per_process_file_count,

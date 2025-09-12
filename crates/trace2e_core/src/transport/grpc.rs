@@ -146,19 +146,6 @@ impl Service<M2mRequest> for M2mGrpc {
 
                     Ok(M2mResponse::Ack)
                 }
-                M2mRequest::UpdatePolicies { policies, .. } => {
-                    // Create the protobuf request
-                    let proto_req = proto::UpdatePolicies {
-                        policies: policies.into_iter().map(|s| s.into()).collect(),
-                    };
-
-                    // Make the gRPC call
-                    client.m2m_update_policies(Request::new(proto_req)).await.map_err(|_| {
-                        TraceabilityError::TransportFailedToContactRemote(remote_ip)
-                    })?;
-
-                    Ok(M2mResponse::Ack)
-                }
             }
         })
     }
@@ -306,17 +293,6 @@ where
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
-    async fn m2m_update_policies(
-        &self,
-        request: Request<proto::UpdatePolicies>,
-    ) -> Result<Response<proto::Ack>, Status> {
-        let req = request.into_inner();
-        let mut m2m = self.m2m.clone();
-        match m2m.call(req.into()).await? {
-            M2mResponse::Ack => Ok(Response::new(proto::Ack {})),
-            _ => Err(Status::internal("Internal traceability API error")),
-        }
-    }
 }
 
 // Conversion trait implementations
@@ -363,20 +339,6 @@ impl From<proto::UpdateProvenance> for M2mRequest {
     }
 }
 
-impl From<proto::NodePolicies> for (String, HashMap<Resource, Policy>) {
-    fn from(policies: proto::NodePolicies) -> Self {
-        (policies.node, policies.policies.into_iter().map(|p| p.into()).collect())
-    }
-}
-
-impl From<proto::UpdatePolicies> for M2mRequest {
-    fn from(req: proto::UpdatePolicies) -> Self {
-        M2mRequest::UpdatePolicies {
-            policies: req.policies.into_iter().map(|s| s.into()).collect(),
-            destination: Resource::None, // Already routed so no destination needed
-        }
-    }
-}
 impl From<Policy> for proto::DestinationCompliance {
     fn from(policy: Policy) -> Self {
         proto::DestinationCompliance { policy: Some(policy.into()) }
@@ -406,12 +368,6 @@ impl From<(String, HashSet<Resource>)> for proto::References {
 impl From<(Resource, Policy)> for proto::MappedPolicy {
     fn from((resource, policy): (Resource, Policy)) -> Self {
         proto::MappedPolicy { resource: Some(resource.into()), policy: Some(policy.into()) }
-    }
-}
-
-impl From<(String, HashMap<Resource, Policy>)> for proto::NodePolicies {
-    fn from((node, policies): (String, HashMap<Resource, Policy>)) -> Self {
-        proto::NodePolicies { node, policies: policies.into_iter().map(|p| p.into()).collect() }
     }
 }
 

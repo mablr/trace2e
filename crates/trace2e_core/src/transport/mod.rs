@@ -13,8 +13,7 @@ pub mod nop;
 pub fn eval_remote_ip(req: M2mRequest) -> Result<String, TraceabilityError> {
     match req {
         M2mRequest::GetDestinationCompliance { destination, .. }
-        | M2mRequest::UpdateProvenance { destination, .. }
-        | M2mRequest::UpdatePolicies { destination, .. } => match destination {
+        | M2mRequest::UpdateProvenance { destination, .. } => match destination {
             // Local socket is the remote socket of the remote stream
             Resource::Fd(Fd::Stream(stream)) => match stream.local_socket.parse::<SocketAddr>() {
                 Ok(addr) => Ok(addr.ip().to_string()),

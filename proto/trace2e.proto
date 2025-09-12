@@ -14,7 +14,6 @@ service Trace2eGrpc {
     rpc M2MDestinationCompliance(GetDestinationCompliance) returns (DestinationCompliance);
     rpc M2MSourceCompliance(GetSourceCompliance) returns (SourceCompliance);
     rpc M2MUpdateProvenance(UpdateProvenance) returns (Ack);
-    rpc M2MUpdatePolicies(UpdatePolicies) returns (Ack);
 }
 
 // Common Messages
@@ -111,13 +110,13 @@ message DestinationCompliance {
     Policy policy = 1;
 }
 
-message SourceCompliance {
-    repeated MappedPolicy policies = 1;
-}
-
 message MappedPolicy {
     Resource resource = 1;
     Policy policy = 2;
+}
+
+message SourceCompliance {
+    repeated MappedPolicy policies = 1;
 }
 
 message References {
@@ -129,13 +128,3 @@ message UpdateProvenance {
     repeated References source_prov = 1;
     Resource destination = 2;
 }
-
-message NodePolicies {
-    string node = 1;
-    repeated MappedPolicy policies = 2;
-}
-
-message UpdatePolicies {
-    repeated NodePolicies policies = 1;
-}
-

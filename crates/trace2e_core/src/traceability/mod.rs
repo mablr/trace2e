@@ -3,7 +3,6 @@ pub mod api;
 pub mod core;
 pub mod error;
 pub mod m2m;
-pub mod mode;
 pub mod naming;
 pub mod o2m;
 pub mod p2m;
@@ -25,15 +24,12 @@ pub type P2mApiDefaultStack<M> = p2m::P2mApiService<
 pub type O2mApiDefaultStack =
     o2m::O2mApiService<core::provenance::ProvenanceService, core::compliance::ComplianceService>;
 
-use mode::Mode;
-
 /// Helper function to initialize the middleware stack.
 ///
 /// This function initializes the middleware stack with the given max_retries and m2m_client.
 pub fn init_middleware<M>(
     node_id: String,
     max_retries: Option<u32>,
-    mode: Mode,
     m2m_client: M,
 ) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack)
 where
@@ -46,7 +42,7 @@ where
         + 'static,
     M::Future: Send,
 {
-    init_middleware_with_enrolled_resources(node_id, max_retries, mode, m2m_client, 0, 0, 0)
+    init_middleware_with_enrolled_resources(node_id, max_retries, m2m_client, 0, 0, 0)
 }
 
 /// Helper function to initialize the middleware stack with enrolled resources.
@@ -55,7 +51,6 @@ where
 pub fn init_middleware_with_enrolled_resources<M>(
     node_id: String,
     max_retries: Option<u32>,
-    mode: Mode,
     m2m_client: M,
     process_count: u32,
     per_process_file_count: u32,
@@ -76,8 +71,8 @@ where
             core::sequencer::WaitingQueueService::new(inner, max_retries)
         }))
         .service(core::sequencer::SequencerService::default());
-    let provenance = core::provenance::ProvenanceService::new(node_id.clone()).with_mode(mode);
-    let compliance = core::compliance::ComplianceService::new(node_id);
+    let provenance = core::provenance::ProvenanceService::new(node_id);
+    let compliance = core::compliance::ComplianceService::default();
 
     let m2m_service: M2mApiDefaultStack =
         m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
@@ -85,7 +80,6 @@ where
     let p2m_service: P2mApiDefaultStack<M> =
         if process_count > 0 || per_process_file_count > 0 || per_process_stream_count > 0 {
             p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
-                .with_mode(mode)
                 .with_enrolled_resources(
                     process_count,
                     per_process_file_count,
@@ -93,7 +87,6 @@ where
                 )
         } else {
             p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
-                .with_mode(mode)
         };
 
     let o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);

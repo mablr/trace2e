@@ -1,6 +1,5 @@
 use std::{
     collections::{HashMap, HashSet},
-    net::SocketAddr,
     pin::Pin,
     sync::Arc,
     task::Poll,
@@ -14,30 +13,21 @@ use tracing::{debug, info};
 use crate::traceability::{
     api::{ProvenanceRequest, ProvenanceResponse},
     error::TraceabilityError,
-    mode::Mode,
-    naming::{Fd, NodeId, Resource},
+    naming::{NodeId, Resource},
 };
 
 type ProvenanceMap = DashMap<Resource, HashMap<String, HashSet<Resource>>>;
-type PropagationMap = DashMap<Resource, HashSet<String>>;
 
 /// Provenance service for tracking resources provenance
 #[derive(Debug, Default, Clone)]
 pub struct ProvenanceService {
     node_id: String,
     provenance: Arc<ProvenanceMap>,
-    propagation: Arc<PropagationMap>,
-    mode: Mode,
 }
 
 impl ProvenanceService {
     pub fn new(node_id: String) -> Self {
-        Self {
-            node_id,
-            provenance: Arc::new(DashMap::new()),
-            propagation: Arc::new(DashMap::new()),
-            mode: Default::default(),
-        }
+        Self { node_id, provenance: Arc::new(DashMap::new()) }
     }
 
     fn init_provenance(&self, resource: &Resource) -> HashMap<String, HashSet<Resource>> {
@@ -46,10 +36,6 @@ impl ProvenanceService {
         } else {
             HashMap::new()
         }
-    }
-
-    pub fn with_mode(self, mode: Mode) -> Self {
-        Self { mode, ..self }
     }
 
     /// Get the provenance of a resource
@@ -78,33 +64,10 @@ impl ProvenanceService {
         source: &Resource,
         destination: &Resource,
     ) -> Result<ProvenanceResponse, TraceabilityError> {
-        let source_prov = self.get_prov(source).await;
         // Record the node IDs to which local resources propagate
-        if let Resource::Fd(Fd::Stream(stream)) = destination
-            && self.mode == Mode::Push
-        {
-            match stream.peer_socket.parse::<SocketAddr>() {
-                Ok(addr) => {
-                    if let Some(local_sources) = source_prov.get(&self.node_id) {
-                        for local_source in local_sources {
-                            if let Some(mut local_sources) = self.propagation.get_mut(local_source)
-                            {
-                                local_sources.insert(addr.ip().to_string());
-                            } else {
-                                self.propagation.insert(
-                                    local_source.to_owned(),
-                                    HashSet::from([addr.ip().to_string()]),
-                                );
-                            }
-                        }
-                    }
-                }
-                Err(_) => return Err(TraceabilityError::TransportFailedToEvaluateRemote),
-            }
-            Ok(ProvenanceResponse::ProvenanceUpdated)
-        } else if destination.is_stream().is_none() {
+        if destination.is_stream().is_none() {
             // Update the provenance of the destination with the source provenance
-            self.update_raw(source_prov, destination).await
+            self.update_raw(self.get_prov(source).await, destination).await
         } else {
             Ok(ProvenanceResponse::ProvenanceNotUpdated)
         }
@@ -262,23 +225,6 @@ mod tests {
                 ("10.0.0.1".to_string(), HashSet::from([process0.clone(), process1.clone()])),
                 ("10.0.0.2".to_string(), HashSet::from([file0, process0, process1]))
             ])
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_provenance_tracks_propagation_nodes_for_local_sources() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-        let mut provenance = ProvenanceService::default().with_mode(Mode::Push);
-        let process = Resource::new_process_mock(0);
-        let stream = Resource::new_stream("10.0.0.1:8080".to_string(), "10.0.0.2:8081".to_string());
-
-        // Process writes to a stream → record local node IP for the source
-        provenance.update(&process, &stream).await.unwrap();
-
-        assert_eq!(
-            provenance.propagation.get(&process).unwrap().to_owned(),
-            HashSet::from(["10.0.0.2".to_string()])
         );
     }
 

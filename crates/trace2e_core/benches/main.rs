@@ -4,11 +4,13 @@ use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use tower::Service;
 use trace2e_core::{
     traceability::{
-        api::{ComplianceRequest, P2mRequest, P2mResponse, ProvenanceRequest, SequencerRequest}, core::{
+        api::{ComplianceRequest, P2mRequest, P2mResponse, ProvenanceRequest, SequencerRequest},
+        core::{
             compliance::{ComplianceService, ConfidentialityPolicy, Policy},
             provenance::ProvenanceService,
             sequencer::SequencerService,
-        }, mode::Mode, naming::Resource
+        },
+        naming::Resource,
     },
     transport::loopback::spawn_loopback_middlewares_with_enrolled_resources,
 };
@@ -431,7 +433,6 @@ fn bench_provenance_stress_interference(c: &mut Criterion) {
                 // This initialization time is NOT measured
                 let mut p2m_services = spawn_loopback_middlewares_with_enrolled_resources(
                     vec!["127.0.0.1".to_string(), "127.0.0.2".to_string()],
-                    Mode::Pull,
                     processes_count,
                     files_per_process_count,
                     streams_per_process_count,
@@ -472,7 +473,6 @@ fn bench_provenance_stress_interference(c: &mut Criterion) {
         );
     });
 
-
     c.bench_function("provenance_stress_interference_push", |b| {
         b.to_async(tokio::runtime::Runtime::new().unwrap()).iter_batched(
             async || {
@@ -480,7 +480,6 @@ fn bench_provenance_stress_interference(c: &mut Criterion) {
                 // This initialization time is NOT measured
                 let mut p2m_services = spawn_loopback_middlewares_with_enrolled_resources(
                     vec!["127.0.0.1".to_string(), "127.0.0.2".to_string()],
-                    Mode::Push,
                     processes_count,
                     files_per_process_count,
                     streams_per_process_count,

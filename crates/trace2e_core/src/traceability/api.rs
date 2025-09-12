@@ -29,8 +29,6 @@ pub enum M2mRequest {
     GetSourceCompliance { authority_ip: String, resources: HashSet<Resource> },
     /// Update the provenance of a remote resource
     UpdateProvenance { source_prov: HashMap<String, HashSet<Resource>>, destination: Resource },
-    /// Update the policies of a remote resource
-    UpdatePolicies { policies: HashMap<String, HashMap<Resource, Policy>>, destination: Resource },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -105,18 +103,12 @@ pub enum ComplianceRequest {
         source_policies: HashMap<String, HashMap<Resource, Policy>>,
         destination_policy: Policy,
     },
-    /// Check Compliance of a flow from sources to destination
-    CheckCompliance { sources: HashMap<String, HashSet<Resource>>, destination: Resource },
     /// Get policy for a specific resource
     GetPolicy(Resource),
     /// Get policies for a specific set of resources
     GetPolicies(HashSet<Resource>),
-    /// Get local and cached policies for a specific set of resources
-    GetPoliciesBatch(HashMap<String, HashSet<Resource>>),
     /// Set policy for a specific resource
     SetPolicy { resource: Resource, policy: Policy },
-    /// Cache remote policies for a specific set of resources
-    SetPoliciesBatch(HashMap<String, HashMap<Resource, Policy>>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -127,8 +119,6 @@ pub enum ComplianceResponse {
     Policy(Policy),
     /// Policies for the requested resources
     Policies(HashMap<Resource, Policy>),
-    /// Policies for the requested resources
-    PoliciesBatch(HashMap<String, HashMap<Resource, Policy>>),
     /// Policy successfully set
     PolicyUpdated,
     /// Policy not updated

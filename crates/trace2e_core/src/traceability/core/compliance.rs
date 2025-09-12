@@ -42,10 +42,10 @@ struct PolicyMap {
 }
 
 impl PolicyMap {
-    /// Create a new empty PolicyMap in cache mode for testing purposes
+    /// Create a new PolicyMap in cache mode for testing purposes
     #[cfg(test)]
-    pub fn init_cache() -> Self {
-        Self::cache(Arc::new(DashMap::new()))
+    fn init_cache() -> Self {
+        Self { cache_mode: true, policies: Arc::new(DashMap::new()) }
     }
 
     /// Create a new PolicyMap in cache mode
@@ -146,60 +146,10 @@ fn eval_policies(
     Ok(ComplianceResponse::Grant)
 }
 
-#[derive(Default, Clone, Debug)]
-struct CachedPoliciesMap {
-    policies: Arc<DashMap<String, PolicyMap>>,
-}
-
-impl CachedPoliciesMap {
-    /// Cache a batch of policies for a specific node
-    fn cache_policies_batch(
-        &self,
-        resources: HashMap<String, HashMap<Resource, Policy>>,
-    ) -> Result<ComplianceResponse, TraceabilityError> {
-        for (node_id, policy_batch) in resources {
-            if let Some(policy_map) = self.policies.get(&node_id) {
-                for (resource, policy) in policy_batch {
-                    policy_map.set_policy(resource, policy)?;
-                }
-            } else {
-                self.policies.insert(node_id, PolicyMap::from(policy_batch));
-            }
-        }
-        Ok(ComplianceResponse::PolicyUpdated)
-    }
-
-    /// Get the policies for a specific node
-    fn get_cached_policies(
-        &self,
-        aggregated_resources: HashMap<String, HashSet<Resource>>,
-    ) -> HashMap<String, HashMap<Resource, Policy>> {
-        let mut policies = HashMap::new();
-        for (node_id, resources) in aggregated_resources {
-            if let Some(Ok(p)) = self.policies.get(&node_id).map(|p| p.get_policies(resources)) {
-                policies.insert(node_id, p);
-            }
-        }
-        policies
-    }
-}
-
 /// Compliance service for managing and checking policies
 #[derive(Default, Clone, Debug)]
 pub struct ComplianceService {
-    node_id: String,
     policies: PolicyMap,
-    cached_policies: CachedPoliciesMap,
-}
-
-impl ComplianceService {
-    pub fn new(node_id: String) -> Self {
-        Self {
-            node_id,
-            policies: PolicyMap::default(),
-            cached_policies: CachedPoliciesMap::default(),
-        }
-    }
 }
 
 impl Service<ComplianceRequest> for ComplianceService {
@@ -233,35 +183,10 @@ impl Service<ComplianceRequest> for ComplianceService {
                     info!("[compliance] GetPolicies: resources: {:?}", resources);
                     Ok(ComplianceResponse::Policies(this.policies.get_policies(resources)?))
                 }
-                ComplianceRequest::GetPoliciesBatch(resources) => {
-                    #[cfg(feature = "trace2e_tracing")]
-                    info!("[compliance] GetPoliciesBatch: resources: {:?}", resources);
-                    Ok(ComplianceResponse::PoliciesBatch(
-                        this.cached_policies.get_cached_policies(resources),
-                    ))
-                }
                 ComplianceRequest::SetPolicy { resource, policy } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance] SetPolicy: resource: {:?}, policy: {:?}", resource, policy);
                     this.policies.set_policy(resource, policy)
-                }
-                ComplianceRequest::SetPoliciesBatch(policies) => {
-                    #[cfg(feature = "trace2e_tracing")]
-                    info!("[compliance] SetPoliciesBatch: policies: {:?}", policies);
-                    this.cached_policies.cache_policies_batch(policies)
-                }
-                ComplianceRequest::CheckCompliance { mut sources, destination } => {
-                    #[cfg(feature = "trace2e_tracing")]
-                    info!(
-                        "[compliance] CheckCompliance: sources: {:?}, destination: {:?}",
-                        sources, destination
-                    );
-                    let local_source_policies = this
-                        .policies
-                        .get_policies(sources.remove(&this.node_id).unwrap_or_default())?;
-                    let mut source_policies = this.cached_policies.get_cached_policies(sources);
-                    source_policies.insert(this.node_id, local_source_policies);
-                    eval_policies(source_policies, this.policies.get_policy(&destination)?)
                 }
             }
         })
@@ -289,87 +214,6 @@ mod tests {
     fn init_tracing() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_check_compliance_with_cached_policies() {
-        init_tracing();
-        let mut compliance = ComplianceService::new("local_node".to_string());
-
-        // Set up test resources
-        let local_process = Resource::new_process_mock(1);
-        let local_file = Resource::new_file("/tmp/local.txt".to_string());
-        let destination = Resource::new_file("/tmp/dest.txt".to_string());
-
-        // Set up local policies
-        compliance.policies.set_policy(local_process.clone(), create_secret_policy(8)).unwrap();
-        compliance.policies.set_policy(local_file.clone(), create_public_policy(5)).unwrap();
-        compliance.policies.set_policy(destination.clone(), create_public_policy(3)).unwrap();
-
-        // Set up cached policies for remote nodes
-        let remote_node1 = "10.0.0.1".to_string();
-        let remote_node2 = "10.0.0.2".to_string();
-
-        let remote1_resources = HashMap::from([
-            (Resource::new_process_mock(10), create_public_policy(7)),
-            (Resource::new_file("/remote1/data.txt".to_string()), create_public_policy(4)),
-        ]);
-
-        let remote2_resources =
-            HashMap::from([(Resource::new_process_mock(20), create_public_policy(6))]);
-
-        // Cache the remote policies
-        let _ = compliance.cached_policies.cache_policies_batch(HashMap::from([
-            (remote_node1.clone(), remote1_resources.clone()),
-            (remote_node2.clone(), remote2_resources.clone()),
-        ]));
-
-        // Test 1: CheckCompliance with mixed local and cached policies - should pass
-        let sources = HashMap::from([
-            ("local_node".to_string(), HashSet::from([local_file.clone()])),
-            (remote_node1.clone(), remote1_resources.keys().cloned().collect()),
-            (remote_node2.clone(), remote2_resources.keys().cloned().collect()),
-        ]);
-
-        let request1 =
-            ComplianceRequest::CheckCompliance { sources, destination: destination.clone() };
-
-        assert_eq!(compliance.call(request1).await.unwrap(), ComplianceResponse::Grant);
-
-        // Test 2: CheckCompliance with confidentiality violation - should fail
-        // Create a public destination for the secret source to violate confidentiality
-        let public_dest = Resource::new_file("/tmp/public_dest.txt".to_string());
-        compliance.policies.set_policy(public_dest.clone(), create_public_policy(2)).unwrap();
-
-        let sources_secret_dest = HashMap::from([
-            ("local_node".to_string(), HashSet::from([local_process.clone()])), // Secret policy (integrity 8)
-        ]);
-
-        let request2 = ComplianceRequest::CheckCompliance {
-            sources: sources_secret_dest,
-            destination: public_dest, // Public destination - should violate confidentiality
-        };
-
-        assert_eq!(
-            compliance.call(request2).await.unwrap_err(),
-            TraceabilityError::DirectPolicyViolation
-        );
-
-        // Test 3: CheckCompliance with only cached policies
-        let dest_remote_only = Resource::new_file("/tmp/remote_dest.txt".to_string());
-        compliance.policies.set_policy(dest_remote_only.clone(), create_public_policy(2)).unwrap();
-
-        let sources_cached_only = HashMap::from([
-            (remote_node1, remote1_resources.keys().cloned().collect()),
-            (remote_node2, remote2_resources.keys().cloned().collect()),
-        ]);
-
-        let request3 = ComplianceRequest::CheckCompliance {
-            sources: sources_cached_only,
-            destination: dest_remote_only,
-        };
-
-        assert_eq!(compliance.call(request3).await.unwrap(), ComplianceResponse::Grant);
     }
 
     #[tokio::test]
@@ -436,14 +280,12 @@ mod tests {
             if should_pass {
                 assert!(
                     result.is_ok_and(|r| r == ComplianceResponse::Grant),
-                    "Test failed: {}",
-                    description
+                    "Test failed: {description}"
                 );
             } else {
                 assert!(
                     result.is_err_and(|e| e == TraceabilityError::DirectPolicyViolation),
-                    "Test failed: {}",
-                    description
+                    "Test failed: {description}"
                 );
             }
         }

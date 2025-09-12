@@ -13,7 +13,6 @@ use crate::traceability::{
         ProvenanceRequest, ProvenanceResponse, SequencerRequest, SequencerResponse,
     },
     error::TraceabilityError,
-    mode::Mode,
     naming::{NodeId, Resource},
 };
 
@@ -31,8 +30,6 @@ pub struct P2mApiService<S, P, C, M> {
     resource_map: Arc<ResourceMap>,
     /// Maps flow_id to (source_resource, destination_resource) pairs for active flows
     flow_map: Arc<FlowMap>,
-    /// Compliance propagation mode
-    mode: Mode,
     /// Service for managing flows sequencing
     sequencer: S,
     /// Service for tracking resources provenance
@@ -49,17 +46,11 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
         Self {
             resource_map: Arc::new(ResourceMap::new()),
             flow_map: Arc::new(FlowMap::new()),
-            mode: Default::default(),
             sequencer,
             provenance,
             compliance,
             m2m,
         }
-    }
-
-    /// Sets the compliance propagation mode
-    pub fn with_mode(self, mode: Mode) -> Self {
-        Self { mode, ..self }
     }
 
     /// Enrolls the given number of processes and files per process for testing/mocking purposes.
@@ -96,8 +87,8 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
                             (
                                 Resource::new_process_mock(process_id),
                                 Resource::new_stream(
-                                    format!("127.0.0.1:{}", stream_id),
-                                    format!("127.0.0.2:{}", stream_id),
+                                    format!("127.0.0.1:{stream_id}",),
+                                    format!("127.0.0.2:{stream_id}",),
                                 ),
                             ),
                         )
@@ -148,7 +139,6 @@ where
     fn call(&mut self, request: P2mRequest) -> Self::Future {
         let resource_map = self.resource_map.clone();
         let flow_map = self.flow_map.clone();
-        let mode = self.mode;
         let mut sequencer = self.sequencer.clone();
         let mut provenance = self.provenance.clone();
         let mut compliance = self.compliance.clone();
@@ -214,200 +204,138 @@ where
                             .await
                         {
                             Ok(SequencerResponse::FlowReserved) => {
-                                match mode {
-                                    Mode::Pull => {
-                                        // If destination is a stream, query remote policy via m2m
-                                        // else if query local destination policy
-                                        // else return error
-                                        let destination_policy = if let Some(remote_stream) =
-                                            destination.is_stream()
-                                            && mode == Mode::Pull
-                                        {
-                                            if let M2mResponse::DestinationCompliance(policy) = m2m
-                                                .ready()
-                                                .await?
-                                                .call(M2mRequest::GetDestinationCompliance {
-                                                    source: source.clone(),
-                                                    destination: remote_stream,
-                                                })
-                                                .await?
-                                            {
-                                                policy
-                                            } else {
-                                                return Err(
-                                                    TraceabilityError::InternalTrace2eError,
-                                                );
-                                            }
-                                        } else if let ComplianceResponse::Policy(policy) =
-                                            compliance
-                                                .call(ComplianceRequest::GetPolicy(
-                                                    destination.clone(),
-                                                ))
-                                                .await?
+                                // If destination is a stream, query remote policy via m2m
+                                // else if query local destination policy
+                                // else return error
+                                let destination_policy =
+                                    if let Some(remote_stream) = destination.is_stream() {
+                                        if let M2mResponse::DestinationCompliance(policy) = m2m
+                                            .ready()
+                                            .await?
+                                            .call(M2mRequest::GetDestinationCompliance {
+                                                source: source.clone(),
+                                                destination: remote_stream,
+                                            })
+                                            .await?
                                         {
                                             policy
                                         } else {
                                             return Err(TraceabilityError::InternalTrace2eError);
-                                        };
+                                        }
+                                    } else if let ComplianceResponse::Policy(policy) = compliance
+                                        .call(ComplianceRequest::GetPolicy(destination.clone()))
+                                        .await?
+                                    {
+                                        policy
+                                    } else {
+                                        return Err(TraceabilityError::InternalTrace2eError);
+                                    };
 
-                                        let source_policies = match provenance
-                                            .call(ProvenanceRequest::GetReferences(source.clone()))
-                                            .await?
+                                let source_policies = match provenance
+                                    .call(ProvenanceRequest::GetReferences(source.clone()))
+                                    .await?
+                                {
+                                    ProvenanceResponse::Provenance(mut references) => {
+                                        #[cfg(feature = "trace2e_tracing")]
+                                        debug!(
+                                            "[p2m-{}] Aggregated resources: {:?}",
+                                            provenance.node_id(),
+                                            references
+                                        );
+                                        // Get local source policies
+                                        let mut source_policies = if let Some(local_references) =
+                                            references.remove(&provenance.node_id())
                                         {
-                                            ProvenanceResponse::Provenance(mut references) => {
-                                                #[cfg(feature = "trace2e_tracing")]
-                                                debug!(
-                                                    "[p2m-{}] Aggregated resources: {:?}",
-                                                    provenance.node_id(),
-                                                    references
-                                                );
-                                                // Get local source policies
-                                                let mut source_policies = if let Some(
+                                            match compliance
+                                                .call(ComplianceRequest::GetPolicies(
                                                     local_references,
-                                                ) =
-                                                    references.remove(&provenance.node_id())
-                                                {
-                                                    match compliance
-                                                        .call(ComplianceRequest::GetPolicies(
-                                                            local_references,
-                                                        ))
-                                                        .await?
-                                                    {
-                                                        ComplianceResponse::Policies(policies) => {
-                                                            HashMap::from([(
-                                                                provenance.node_id(),
-                                                                policies,
-                                                            )])
-                                                        }
-                                                        _ => {
-                                                            return Err(
-                                                                TraceabilityError::InternalTrace2eError,
-                                                            );
-                                                        }
-                                                    }
-                                                } else {
-                                                    HashMap::new()
-                                                };
-                                                // Get remote source policies
-                                                // Collect all futures without awaiting them
-                                                let mut tasks = Vec::new();
-                                                for (node_id, resources) in references {
-                                                    let mut m2m_clone = m2m.clone();
-                                                    let node_id_clone = node_id.clone();
-                                                    let task = tokio::spawn(async move {
-                                                        let result =
-                                                            match m2m_clone.ready().await {
-                                                                Ok(ready_service) => ready_service
-                                                                    .call(M2mRequest::GetSourceCompliance {
-                                                                        authority_ip: node_id_clone.clone(),
-                                                                        resources,
-                                                                    })
-                                                                    .await,
-                                                                Err(e) => Err(e),
-                                                            };
-                                                        (node_id_clone, result)
-                                                    });
-                                                    tasks.push(task);
+                                                ))
+                                                .await?
+                                            {
+                                                ComplianceResponse::Policies(policies) => {
+                                                    HashMap::from([(
+                                                        provenance.node_id(),
+                                                        policies,
+                                                    )])
                                                 }
-
-                                                // Await all requests concurrently
-                                                for task in tasks {
-                                                    let (node_id, result) =
-                                                        task.await.map_err(|_| {
-                                                            TraceabilityError::InternalTrace2eError
-                                                        })?;
-                                                    match result? {
-                                                        M2mResponse::SourceCompliance(policies) => {
-                                                            source_policies
-                                                                .insert(node_id, policies);
-                                                        }
-                                                        _ => {
-                                                            return Err(
-                                                                TraceabilityError::InternalTrace2eError,
-                                                            );
-                                                        }
-                                                    }
+                                                _ => {
+                                                    return Err(
+                                                        TraceabilityError::InternalTrace2eError,
+                                                    );
                                                 }
-                                                source_policies
                                             }
-                                            _ => {
-                                                return Err(
-                                                    TraceabilityError::InternalTrace2eError,
-                                                );
-                                            }
+                                        } else {
+                                            HashMap::new()
                                         };
-                                        match compliance
-                                            .call(ComplianceRequest::EvalPolicies {
-                                                source_policies,
-                                                destination_policy,
-                                            })
-                                            .await
-                                        {
-                                            Ok(ComplianceResponse::Grant) => {
-                                                flow_map.insert(flow_id, (source, destination));
-                                                Ok(P2mResponse::Grant(flow_id))
-                                            }
-                                            Err(TraceabilityError::DirectPolicyViolation) => {
-                                                // Release the flow if the policy is violated
-                                                #[cfg(feature = "trace2e_tracing")]
-                                                info!(
-                                                    "[p2m-{}] Release flow: {:?} as it is not compliant",
-                                                    provenance.node_id(),
-                                                    flow_id
-                                                );
-                                                sequencer
-                                                    .call(SequencerRequest::ReleaseFlow {
-                                                        destination,
-                                                    })
-                                                    .await?;
-                                                Err(TraceabilityError::DirectPolicyViolation)
-                                            }
-                                            _ => Err(TraceabilityError::InternalTrace2eError),
-                                        }
-                                    }
-                                    Mode::Push => {
-                                        match provenance
-                                            .call(ProvenanceRequest::GetReferences(source.clone()))
-                                            .await?
-                                        {
-                                            ProvenanceResponse::Provenance(sources) => {
-                                                match compliance
-                                                    .call(ComplianceRequest::CheckCompliance {
-                                                        sources,
-                                                        destination: destination.clone(),
-                                                    })
-                                                    .await
-                                                {
-                                                    Ok(ComplianceResponse::Grant) => {
-                                                        flow_map
-                                                            .insert(flow_id, (source, destination));
-                                                        Ok(P2mResponse::Grant(flow_id))
-                                                    }
-                                                    Err(
-                                                        TraceabilityError::DirectPolicyViolation,
-                                                    ) => {
-                                                        // Release the flow if the policy is violated
-                                                        #[cfg(feature = "trace2e_tracing")]
-                                                        info!(
-                                                            "[p2m-{}] Release flow: {:?} as it is not compliant",
-                                                            provenance.node_id(),
-                                                            flow_id
-                                                        );
-                                                        sequencer
-                                                            .call(SequencerRequest::ReleaseFlow {
-                                                                destination,
+                                        // Get remote source policies
+                                        // Collect all futures without awaiting them
+                                        let mut tasks = Vec::new();
+                                        for (node_id, resources) in references {
+                                            let mut m2m_clone = m2m.clone();
+                                            let node_id_clone = node_id.clone();
+                                            let task = tokio::spawn(async move {
+                                                let result =
+                                                    match m2m_clone.ready().await {
+                                                        Ok(ready_service) => ready_service
+                                                            .call(M2mRequest::GetSourceCompliance {
+                                                                authority_ip: node_id_clone.clone(),
+                                                                resources,
                                                             })
-                                                            .await?;
-                                                        Err(TraceabilityError::DirectPolicyViolation)
-                                                    }
-                                                    _ => {
-                                                        Err(TraceabilityError::InternalTrace2eError)
-                                                    }
+                                                            .await,
+                                                        Err(e) => Err(e),
+                                                    };
+                                                (node_id_clone, result)
+                                            });
+                                            tasks.push(task);
+                                        }
+
+                                        // Await all requests concurrently
+                                        for task in tasks {
+                                            let (node_id, result) = task.await.map_err(|_| {
+                                                TraceabilityError::InternalTrace2eError
+                                            })?;
+                                            match result? {
+                                                M2mResponse::SourceCompliance(policies) => {
+                                                    source_policies.insert(node_id, policies);
+                                                }
+                                                _ => {
+                                                    return Err(
+                                                        TraceabilityError::InternalTrace2eError,
+                                                    );
                                                 }
                                             }
-                                            _ => Err(TraceabilityError::InternalTrace2eError),
                                         }
+                                        source_policies
                                     }
+                                    _ => {
+                                        return Err(TraceabilityError::InternalTrace2eError);
+                                    }
+                                };
+                                match compliance
+                                    .call(ComplianceRequest::EvalPolicies {
+                                        source_policies,
+                                        destination_policy,
+                                    })
+                                    .await
+                                {
+                                    Ok(ComplianceResponse::Grant) => {
+                                        flow_map.insert(flow_id, (source, destination));
+                                        Ok(P2mResponse::Grant(flow_id))
+                                    }
+                                    Err(TraceabilityError::DirectPolicyViolation) => {
+                                        // Release the flow if the policy is violated
+                                        #[cfg(feature = "trace2e_tracing")]
+                                        info!(
+                                            "[p2m-{}] Release flow: {:?} as it is not compliant",
+                                            provenance.node_id(),
+                                            flow_id
+                                        );
+                                        sequencer
+                                            .call(SequencerRequest::ReleaseFlow { destination })
+                                            .await?;
+                                        Err(TraceabilityError::DirectPolicyViolation)
+                                    }
+                                    _ => Err(TraceabilityError::InternalTrace2eError),
                                 }
                             }
                             _ => Err(TraceabilityError::InternalTrace2eError),
@@ -426,7 +354,7 @@ where
                             destination
                         );
                         if let Some(remote_stream) = destination.is_stream() {
-                            let references = match provenance
+                            match provenance
                                 .call(ProvenanceRequest::GetReferences(source.clone()))
                                 .await?
                             {
@@ -434,29 +362,13 @@ where
                                     m2m.ready()
                                         .await?
                                         .call(M2mRequest::UpdateProvenance {
-                                            source_prov: references.clone(),
-                                            destination: remote_stream.clone(),
-                                        })
-                                        .await?;
-                                    references
-                                }
-                                _ => return Err(TraceabilityError::InternalTrace2eError),
-                            };
-                            match compliance
-                                .call(ComplianceRequest::GetPoliciesBatch(references))
-                                .await?
-                            {
-                                ComplianceResponse::PoliciesBatch(policies) => {
-                                    m2m.ready()
-                                        .await?
-                                        .call(M2mRequest::UpdatePolicies {
-                                            policies,
+                                            source_prov: references,
                                             destination: remote_stream,
                                         })
                                         .await?;
                                 }
                                 _ => return Err(TraceabilityError::InternalTrace2eError),
-                            }
+                            };
                         }
 
                         provenance
