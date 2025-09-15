@@ -25,6 +25,49 @@ pub enum ConfidentialityPolicy {
     Public,
 }
 
+/// Deletion policy defines the deletion status of a resource
+#[derive(Default, PartialEq, Debug, Clone, Eq, Hash, Copy)]
+pub enum DeletionPolicy {
+    #[default]
+    NotDeleted,
+    Pending,
+    Deleted,
+}
+
+impl DeletionPolicy {
+    pub fn is_deleted(&self) -> bool {
+        matches!(self, DeletionPolicy::Deleted | DeletionPolicy::Pending)
+    }
+
+    pub fn is_pending(&self) -> bool {
+        matches!(self, DeletionPolicy::Pending)
+    }
+
+    pub fn deletion_request(&mut self) {
+        if matches!(self, DeletionPolicy::NotDeleted) {
+            *self = DeletionPolicy::Pending;
+        }
+    }
+
+    pub fn deletion_applied(&mut self) {
+        if matches!(self, DeletionPolicy::Pending) {
+            *self = DeletionPolicy::Deleted;
+        }
+    }
+}
+
+impl From<DeletionPolicy> for bool {
+    fn from(deletion_policy: DeletionPolicy) -> Self {
+        deletion_policy.is_deleted()
+    }
+}
+
+impl From<bool> for DeletionPolicy {
+    fn from(deleted: bool) -> Self {
+        if deleted { DeletionPolicy::Deleted } else { DeletionPolicy::NotDeleted }
+    }
+}
+
 /// Policy for a resource
 ///
 /// This policy is used to check the compliance of input/output flows of the associated resource.
@@ -32,7 +75,7 @@ pub enum ConfidentialityPolicy {
 pub struct Policy {
     pub confidentiality: ConfidentialityPolicy,
     pub integrity: u32,
-    pub deleted: bool,
+    pub deleted: DeletionPolicy,
 }
 
 #[derive(Default, Clone, Debug)]
@@ -98,7 +141,7 @@ impl PolicyMap {
         policy: Policy,
     ) -> Result<ComplianceResponse, TraceabilityError> {
         // Enforce deleted policy
-        if self.policies.get(&resource).is_some_and(|p| p.deleted) {
+        if self.policies.get(&resource).is_some_and(|p| p.deleted.into()) {
             return Ok(ComplianceResponse::PolicyNotUpdated);
         }
         self.policies.insert(resource, policy);
@@ -124,7 +167,7 @@ fn eval_policies(
     for source_policy_batch in source_policies.values() {
         for source_policy in source_policy_batch.values() {
             // If the source or destination policy is deleted, the flow is not compliant
-            if source_policy.deleted || destination_policy.deleted {
+            if source_policy.deleted.into() || destination_policy.deleted.into() {
                 return Err(TraceabilityError::DirectPolicyViolation);
             }
 
@@ -200,15 +243,27 @@ mod tests {
 
     // Helper functions to reduce test code duplication
     fn create_public_policy(integrity: u32) -> Policy {
-        Policy { confidentiality: ConfidentialityPolicy::Public, integrity, deleted: false }
+        Policy {
+            confidentiality: ConfidentialityPolicy::Public,
+            integrity,
+            deleted: DeletionPolicy::NotDeleted,
+        }
     }
 
     fn create_secret_policy(integrity: u32) -> Policy {
-        Policy { confidentiality: ConfidentialityPolicy::Secret, integrity, deleted: false }
+        Policy {
+            confidentiality: ConfidentialityPolicy::Secret,
+            integrity,
+            deleted: DeletionPolicy::NotDeleted,
+        }
     }
 
     fn create_deleted_policy(integrity: u32) -> Policy {
-        Policy { confidentiality: ConfidentialityPolicy::Public, integrity, deleted: true }
+        Policy {
+            confidentiality: ConfidentialityPolicy::Public,
+            integrity,
+            deleted: DeletionPolicy::Pending,
+        }
     }
 
     fn init_tracing() {
@@ -603,8 +658,11 @@ mod tests {
         let cache_policy_map = PolicyMap::init_cache();
         let process = Resource::new_process_mock(0);
 
-        let policy =
-            Policy { confidentiality: ConfidentialityPolicy::Secret, integrity: 7, deleted: false };
+        let policy = Policy {
+            confidentiality: ConfidentialityPolicy::Secret,
+            integrity: 7,
+            deleted: DeletionPolicy::NotDeleted,
+        };
 
         // Set policy first
         cache_policy_map.set_policy(process.clone(), policy.clone()).unwrap();
@@ -625,8 +683,11 @@ mod tests {
         let process1 = Resource::new_process_mock(1);
         let process2 = Resource::new_process_mock(2);
 
-        let policy1 =
-            Policy { confidentiality: ConfidentialityPolicy::Public, integrity: 3, deleted: false };
+        let policy1 = Policy {
+            confidentiality: ConfidentialityPolicy::Public,
+            integrity: 3,
+            deleted: DeletionPolicy::NotDeleted,
+        };
 
         // Set policy only for process1
         cache_policy_map.set_policy(process1.clone(), policy1).unwrap();
@@ -648,5 +709,183 @@ mod tests {
 
         // Empty request should work the same in both modes
         assert_eq!(cache_policy_map.get_policies(HashSet::new()).unwrap(), HashMap::new());
+    }
+
+    #[tokio::test]
+    async fn unit_deletion_policy_state_transitions() {
+        init_tracing();
+
+        // Test 1: Initial state and is_deleted/is_pending methods
+        let mut policy = DeletionPolicy::NotDeleted;
+        assert!(!policy.is_deleted());
+        assert!(!policy.is_pending());
+        assert_eq!(policy, DeletionPolicy::NotDeleted);
+
+        // Test 2: Transition from NotDeleted to Pending via deletion_request
+        policy.deletion_request();
+        assert!(policy.is_deleted()); // Pending counts as deleted
+        assert!(policy.is_pending());
+        assert_eq!(policy, DeletionPolicy::Pending);
+
+        // Test 3: Multiple calls to deletion_request on Pending should not change state
+        policy.deletion_request();
+        assert!(policy.is_deleted());
+        assert!(policy.is_pending());
+        assert_eq!(policy, DeletionPolicy::Pending);
+
+        // Test 4: Transition from Pending to Deleted via deletion_applied
+        policy.deletion_applied();
+        assert!(policy.is_deleted());
+        assert!(!policy.is_pending());
+        assert_eq!(policy, DeletionPolicy::Deleted);
+
+        // Test 5: Multiple calls to deletion_applied on Deleted should not change state
+        policy.deletion_applied();
+        assert!(policy.is_deleted());
+        assert!(!policy.is_pending());
+        assert_eq!(policy, DeletionPolicy::Deleted);
+
+        // Test 6: Test From<bool> and Into<bool> conversions
+        let deleted_policy: DeletionPolicy = true.into();
+        assert_eq!(deleted_policy, DeletionPolicy::Deleted);
+        assert!(bool::from(deleted_policy));
+
+        let not_deleted_policy: DeletionPolicy = false.into();
+        assert_eq!(not_deleted_policy, DeletionPolicy::NotDeleted);
+        assert!(!bool::from(not_deleted_policy));
+
+        // Test 7: Test Copy trait
+        let original = DeletionPolicy::Pending;
+        let copied = original; // This should compile due to Copy
+        assert_eq!(original, copied);
+        assert!(original.is_pending());
+        assert!(copied.is_pending());
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_service_deletion_policy_workflow() {
+        init_tracing();
+        let mut compliance = ComplianceService::default();
+
+        let process = Resource::new_process_mock(0);
+        let file = Resource::new_file("/tmp/sensitive.txt".to_string());
+
+        // Test 1: Set initial policies for resources
+        let process_policy = create_secret_policy(5);
+        let file_policy = create_public_policy(3);
+
+        let set_process_request = ComplianceRequest::SetPolicy {
+            resource: process.clone(),
+            policy: process_policy.clone(),
+        };
+        assert_eq!(
+            compliance.call(set_process_request).await.unwrap(),
+            ComplianceResponse::PolicyUpdated
+        );
+
+        let set_file_request =
+            ComplianceRequest::SetPolicy { resource: file.clone(), policy: file_policy.clone() };
+        assert_eq!(
+            compliance.call(set_file_request).await.unwrap(),
+            ComplianceResponse::PolicyUpdated
+        );
+
+        // Test 2: Verify policies are set correctly
+        let get_process_request = ComplianceRequest::GetPolicy(process.clone());
+        if let ComplianceResponse::Policy(retrieved_policy) =
+            compliance.call(get_process_request).await.unwrap()
+        {
+            assert_eq!(retrieved_policy, process_policy);
+            assert!(!retrieved_policy.deleted.is_deleted());
+        } else {
+            panic!("Expected Policy response");
+        }
+
+        // Test 3: Create a policy with pending deletion status
+        let mut pending_deletion_policy = create_secret_policy(7);
+        pending_deletion_policy.deleted.deletion_request();
+        assert!(pending_deletion_policy.deleted.is_pending());
+
+        let set_pending_request = ComplianceRequest::SetPolicy {
+            resource: file.clone(),
+            policy: pending_deletion_policy.clone(),
+        };
+        assert_eq!(
+            compliance.call(set_pending_request).await.unwrap(),
+            ComplianceResponse::PolicyUpdated
+        );
+
+        // Test 4: Verify pending deletion policy is set
+        let get_file_request = ComplianceRequest::GetPolicy(file.clone());
+        if let ComplianceResponse::Policy(retrieved_policy) =
+            compliance.call(get_file_request).await.unwrap()
+        {
+            assert_eq!(retrieved_policy, pending_deletion_policy);
+            assert!(retrieved_policy.deleted.is_pending());
+            assert!(retrieved_policy.deleted.is_deleted());
+        } else {
+            panic!("Expected Policy response");
+        }
+
+        // Test 5: Try to update policy on resource with pending deletion - should fail
+        let new_policy = create_public_policy(1);
+        let update_pending_request =
+            ComplianceRequest::SetPolicy { resource: file.clone(), policy: new_policy };
+        assert_eq!(
+            compliance.call(update_pending_request).await.unwrap(),
+            ComplianceResponse::PolicyNotUpdated
+        );
+
+        // Test 6: Create fully deleted policy and test it
+        let mut deleted_policy = create_public_policy(2);
+        deleted_policy.deleted.deletion_request();
+        deleted_policy.deleted.deletion_applied();
+        assert!(deleted_policy.deleted.is_deleted());
+        assert!(!deleted_policy.deleted.is_pending());
+
+        let new_resource = Resource::new_process_mock(1);
+        let set_deleted_request = ComplianceRequest::SetPolicy {
+            resource: new_resource.clone(),
+            policy: deleted_policy.clone(),
+        };
+        assert_eq!(
+            compliance.call(set_deleted_request).await.unwrap(),
+            ComplianceResponse::PolicyUpdated
+        );
+
+        // Test 7: Verify deleted policy blocks updates
+        let another_policy = create_secret_policy(10);
+        let update_deleted_request =
+            ComplianceRequest::SetPolicy { resource: new_resource.clone(), policy: another_policy };
+        assert_eq!(
+            compliance.call(update_deleted_request).await.unwrap(),
+            ComplianceResponse::PolicyNotUpdated
+        );
+
+        // Test 8: Test policy evaluation with deleted resources - should fail
+        let eval_with_deleted_source = ComplianceRequest::EvalPolicies {
+            source_policies: HashMap::from([(
+                String::new(),
+                HashMap::from([(new_resource, deleted_policy)]),
+            )]),
+            destination_policy: create_public_policy(1),
+        };
+        assert_eq!(
+            compliance.call(eval_with_deleted_source).await.unwrap_err(),
+            TraceabilityError::DirectPolicyViolation
+        );
+
+        // Test 9: Test policy evaluation with deleted destination - should fail
+        let eval_with_deleted_dest = ComplianceRequest::EvalPolicies {
+            source_policies: HashMap::from([(
+                String::new(),
+                HashMap::from([(process, process_policy)]),
+            )]),
+            destination_policy: pending_deletion_policy,
+        };
+        assert_eq!(
+            compliance.call(eval_with_deleted_dest).await.unwrap_err(),
+            TraceabilityError::DirectPolicyViolation
+        );
     }
 }

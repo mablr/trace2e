@@ -466,7 +466,7 @@ impl From<Policy> for proto::Policy {
                 ConfidentialityPolicy::Secret => proto::Confidentiality::Secret as i32,
             },
             integrity: policy.integrity,
-            deleted: policy.deleted,
+            deleted: policy.deleted.into(),
         }
     }
 }
@@ -479,7 +479,7 @@ impl From<proto::Policy> for Policy {
                 _ => ConfidentialityPolicy::Public,
             },
             integrity: proto_policy.integrity,
-            deleted: proto_policy.deleted,
+            deleted: proto_policy.deleted.into(),
         }
     }
 }

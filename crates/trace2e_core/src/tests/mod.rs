@@ -12,7 +12,7 @@ use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 use crate::{
     traceability::{
         api::{O2mRequest, O2mResponse, P2mRequest, P2mResponse},
-        core::compliance::{ConfidentialityPolicy, Policy},
+        core::compliance::{ConfidentialityPolicy, DeletionPolicy, Policy},
         init_middleware,
     },
     transport::{
@@ -422,7 +422,7 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
         Policy {
             confidentiality: ConfidentialityPolicy::Secret,
             integrity: Default::default(),
-            deleted: false,
+            deleted: DeletionPolicy::NotDeleted,
         }
     );
     assert_policies!(
@@ -433,7 +433,7 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
             Policy {
                 confidentiality: ConfidentialityPolicy::Secret,
                 integrity: Default::default(),
-                deleted: false,
+                deleted: DeletionPolicy::NotDeleted,
             }
         )])
     );
@@ -493,7 +493,11 @@ async fn integration_o2m_remote_integrity_enforcement() {
     set_policy!(
         o2m_3,
         fd3_3_2.file(),
-        Policy { confidentiality: Default::default(), integrity: 5, deleted: false }
+        Policy {
+            confidentiality: Default::default(),
+            integrity: 5,
+            deleted: DeletionPolicy::NotDeleted
+        }
     );
 
     local_enroll!(p2m_1, fd1_1_1);
@@ -593,7 +597,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
         Policy {
             confidentiality: Default::default(),
             integrity: Default::default(),
-            deleted: true,
+            deleted: DeletionPolicy::Pending,
         }
     );
 
@@ -606,7 +610,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
             Policy {
                 confidentiality: Default::default(),
                 integrity: Default::default(),
-                deleted: true,
+                deleted: DeletionPolicy::Pending,
             }
         )])
     );
@@ -635,7 +639,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
             Policy {
                 confidentiality: Default::default(),
                 integrity: Default::default(),
-                deleted: true,
+                deleted: DeletionPolicy::Pending,
             }
         )])
     );

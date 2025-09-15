@@ -6,7 +6,7 @@ use trace2e_core::{
     traceability::{
         api::{ComplianceRequest, P2mRequest, P2mResponse, ProvenanceRequest, SequencerRequest},
         core::{
-            compliance::{ComplianceService, ConfidentialityPolicy, Policy},
+            compliance::{ComplianceService, ConfidentialityPolicy, DeletionPolicy, Policy},
             provenance::ProvenanceService,
             sequencer::SequencerService,
         },
@@ -31,7 +31,7 @@ fn create_test_stream(local: &str, peer: &str) -> Resource {
 fn create_test_policy(
     confidentiality: ConfidentialityPolicy,
     integrity: u32,
-    deleted: bool,
+    deleted: DeletionPolicy,
 ) -> Policy {
     Policy { confidentiality, integrity, deleted }
 }
@@ -42,7 +42,8 @@ fn bench_compliance_set_policy(c: &mut Criterion) {
         b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
             let mut compliance = ComplianceService::default();
             let process = create_test_process(0);
-            let policy = create_test_policy(ConfidentialityPolicy::Secret, 5, false);
+            let policy =
+                create_test_policy(ConfidentialityPolicy::Secret, 5, DeletionPolicy::NotDeleted);
 
             let _ = black_box(
                 compliance.call(ComplianceRequest::SetPolicy { resource: process, policy }).await,
@@ -84,8 +85,10 @@ fn bench_compliance_check_pass(c: &mut Criterion) {
     c.bench_function("compliance_check_pass", |b| {
         b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
             let mut compliance = ComplianceService::default();
-            let source_policy = create_test_policy(ConfidentialityPolicy::Public, 5, false);
-            let dest_policy = create_test_policy(ConfidentialityPolicy::Public, 3, false);
+            let source_policy =
+                create_test_policy(ConfidentialityPolicy::Public, 5, DeletionPolicy::NotDeleted);
+            let dest_policy =
+                create_test_policy(ConfidentialityPolicy::Public, 3, DeletionPolicy::NotDeleted);
             let source_policies = HashMap::from([(
                 String::new(),
                 HashMap::from([(Resource::new_process_mock(0), source_policy)]),
@@ -107,8 +110,10 @@ fn bench_compliance_check_fail(c: &mut Criterion) {
     c.bench_function("compliance_check_fail", |b| {
         b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
             let mut compliance = ComplianceService::default();
-            let source_policy = create_test_policy(ConfidentialityPolicy::Secret, 5, false);
-            let dest_policy = create_test_policy(ConfidentialityPolicy::Public, 3, false);
+            let source_policy =
+                create_test_policy(ConfidentialityPolicy::Secret, 5, DeletionPolicy::NotDeleted);
+            let dest_policy =
+                create_test_policy(ConfidentialityPolicy::Public, 3, DeletionPolicy::NotDeleted);
             let source_policies = HashMap::from([(
                 String::new(),
                 HashMap::from([(Resource::new_process_mock(0), source_policy)]),
@@ -130,9 +135,12 @@ fn bench_compliance_check_complex(c: &mut Criterion) {
     c.bench_function("compliance_check_complex", |b| {
         b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
             let mut compliance = ComplianceService::default();
-            let high_policy = create_test_policy(ConfidentialityPolicy::Secret, 10, false);
-            let medium_policy = create_test_policy(ConfidentialityPolicy::Public, 5, false);
-            let low_policy = create_test_policy(ConfidentialityPolicy::Public, 1, false);
+            let high_policy =
+                create_test_policy(ConfidentialityPolicy::Secret, 10, DeletionPolicy::NotDeleted);
+            let medium_policy =
+                create_test_policy(ConfidentialityPolicy::Public, 5, DeletionPolicy::NotDeleted);
+            let low_policy =
+                create_test_policy(ConfidentialityPolicy::Public, 1, DeletionPolicy::NotDeleted);
 
             let source_policies = HashMap::from([
                 (
@@ -151,7 +159,8 @@ fn bench_compliance_check_complex(c: &mut Criterion) {
                     HashMap::from([(Resource::new_process_mock(0), low_policy)]),
                 ),
             ]);
-            let dest_policy = create_test_policy(ConfidentialityPolicy::Public, 3, false);
+            let dest_policy =
+                create_test_policy(ConfidentialityPolicy::Public, 3, DeletionPolicy::NotDeleted);
 
             let _ = black_box(
                 compliance
