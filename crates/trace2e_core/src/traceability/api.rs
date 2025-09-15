@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use super::core::compliance::Policy;
+use super::core::compliance::{ConfidentialityPolicy, Policy};
 use crate::traceability::naming::Resource;
 
 #[derive(Debug, Clone)]
@@ -43,6 +43,12 @@ pub enum O2mRequest {
     GetPolicies(HashSet<Resource>),
     /// Set policy for a specific resource
     SetPolicy { resource: Resource, policy: Policy },
+    /// Set confidentiality policy for a specific resource
+    SetConfidentiality { resource: Resource, confidentiality: ConfidentialityPolicy },
+    /// Set integrity policy for a specific resource
+    SetIntegrity { resource: Resource, integrity: u32 },
+    /// Set deletion policy for a specific resource
+    SetDeleted(Resource),
     /// Get the complete provenance (lineage) of a resource
     GetReferences(Resource),
 }
@@ -109,6 +115,12 @@ pub enum ComplianceRequest {
     GetPolicies(HashSet<Resource>),
     /// Set policy for a specific resource
     SetPolicy { resource: Resource, policy: Policy },
+    /// Set confidentiality policy for a specific resource
+    SetConfidentiality { resource: Resource, confidentiality: ConfidentialityPolicy },
+    /// Set integrity policy for a specific resource
+    SetIntegrity { resource: Resource, integrity: u32 },
+    /// Set deletion policy for a specific resource
+    SetDeleted(Resource),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

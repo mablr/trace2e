@@ -461,25 +461,25 @@ impl From<Process> for proto::Process {
 impl From<Policy> for proto::Policy {
     fn from(policy: Policy) -> Self {
         proto::Policy {
-            confidentiality: match policy.confidentiality {
-                ConfidentialityPolicy::Public => proto::Confidentiality::Public as i32,
-                ConfidentialityPolicy::Secret => proto::Confidentiality::Secret as i32,
+            confidentiality: match policy.is_confidential() {
+                false => proto::Confidentiality::Public as i32,
+                true => proto::Confidentiality::Secret as i32,
             },
-            integrity: policy.integrity,
-            deleted: policy.deleted.into(),
+            integrity: policy.get_integrity(),
+            deleted: policy.is_deleted(),
         }
     }
 }
 
 impl From<proto::Policy> for Policy {
     fn from(proto_policy: proto::Policy) -> Self {
-        Policy {
-            confidentiality: match proto_policy.confidentiality {
+        Policy::new(
+            match proto_policy.confidentiality {
                 x if x == proto::Confidentiality::Secret as i32 => ConfidentialityPolicy::Secret,
                 _ => ConfidentialityPolicy::Public,
             },
-            integrity: proto_policy.integrity,
-            deleted: proto_policy.deleted.into(),
-        }
+            proto_policy.integrity,
+            proto_policy.deleted.into(),
+        )
     }
 }

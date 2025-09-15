@@ -416,25 +416,17 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
         HashSet::from([fd1_1_1.file()]),
         HashMap::from([(fd1_1_1.file(), Policy::default())])
     );
-    set_policy!(
-        o2m_1,
-        fd1_1_1.file(),
-        Policy {
-            confidentiality: ConfidentialityPolicy::Secret,
-            integrity: Default::default(),
-            deleted: DeletionPolicy::NotDeleted,
-        }
-    );
+    set_confidentiality!(o2m_1, fd1_1_1.file(), ConfidentialityPolicy::Secret);
     assert_policies!(
         o2m_1,
         HashSet::from([fd1_1_1.file()]),
         HashMap::from([(
             fd1_1_1.file(),
-            Policy {
-                confidentiality: ConfidentialityPolicy::Secret,
-                integrity: Default::default(),
-                deleted: DeletionPolicy::NotDeleted,
-            }
+            Policy::new(
+                ConfidentialityPolicy::Secret,
+                Default::default(),
+                DeletionPolicy::NotDeleted
+            )
         )])
     );
 
@@ -442,7 +434,7 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
     assert_eq!(write_request!(p2m_3, fd3_3_2), u128::MAX);
 
     // Set the policy for the file1 to make it public again
-    set_policy!(o2m_1, fd1_1_1.file(), Policy::default());
+    set_confidentiality!(o2m_1, fd1_1_1.file(), ConfidentialityPolicy::Public);
 
     // This must be granted because the file1 is now public
     // assert_eq!(write_request!(p2m_3, fd3_3_2), 0);
@@ -490,15 +482,7 @@ async fn integration_o2m_remote_integrity_enforcement() {
     let fd3_3_2 = FileMapping::new(3, 4, "/tmp/test2.txt");
 
     // Set the destination's integrity requirement to 5
-    set_policy!(
-        o2m_3,
-        fd3_3_2.file(),
-        Policy {
-            confidentiality: Default::default(),
-            integrity: 5,
-            deleted: DeletionPolicy::NotDeleted
-        }
-    );
+    set_integrity!(o2m_3, fd3_3_2.file(), 5);
 
     local_enroll!(p2m_1, fd1_1_1);
     local_enroll!(p2m_3, fd3_3_2);
@@ -523,7 +507,7 @@ async fn integration_o2m_remote_integrity_enforcement() {
     assert_eq!(write_request!(p2m_3, fd3_3_2), u128::MAX);
 
     // Lower the destination's integrity requirement to allow the write
-    set_policy!(o2m_3, fd3_3_2.file(), Policy::default());
+    set_integrity!(o2m_3, fd3_3_2.file(), 0);
 
     // This must be granted because the destination now accepts any integrity level
     write!(p2m_3, fd3_3_2);
@@ -591,15 +575,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
     );
 
     // Mark the source file as deleted
-    set_policy!(
-        o2m_1,
-        fd1_1_1.file(),
-        Policy {
-            confidentiality: Default::default(),
-            integrity: Default::default(),
-            deleted: DeletionPolicy::Pending,
-        }
-    );
+    set_deletion!(o2m_1, fd1_1_1.file(), DeletionPolicy::Pending);
 
     // Verify the source file is now marked as deleted
     assert_policies!(
@@ -607,11 +583,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
         HashSet::from([fd1_1_1.file()]),
         HashMap::from([(
             fd1_1_1.file(),
-            Policy {
-                confidentiality: Default::default(),
-                integrity: Default::default(),
-                deleted: DeletionPolicy::Pending,
-            }
+            Policy::new(Default::default(), Default::default(), DeletionPolicy::Pending)
         )])
     );
 
@@ -636,11 +608,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
         HashSet::from([fd1_1_1.file()]),
         HashMap::from([(
             fd1_1_1.file(),
-            Policy {
-                confidentiality: Default::default(),
-                integrity: Default::default(),
-                deleted: DeletionPolicy::Pending,
-            }
+            Policy::new(Default::default(), Default::default(), DeletionPolicy::Pending)
         )])
     );
 }

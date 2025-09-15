@@ -184,13 +184,33 @@ macro_rules! assert_policies {
     };
 }
 
-macro_rules! set_policy {
-    ($o2m:expr, $resource:expr, $policy:expr) => {
+macro_rules! set_confidentiality {
+    ($o2m:expr, $resource:expr, $confidentiality:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::SetPolicy { resource: $resource, policy: $policy })
+            $o2m.call(O2mRequest::SetConfidentiality {
+                resource: $resource,
+                confidentiality: $confidentiality,
+            })
+            .await
+            .unwrap(),
+            O2mResponse::Ack
+        )
+    };
+}
+
+macro_rules! set_integrity {
+    ($o2m:expr, $resource:expr, $integrity:expr) => {
+        assert_eq!(
+            $o2m.call(O2mRequest::SetIntegrity { resource: $resource, integrity: $integrity })
                 .await
                 .unwrap(),
             O2mResponse::Ack
         )
+    };
+}
+
+macro_rules! set_deletion {
+    ($o2m:expr, $resource:expr, $deleted:expr) => {
+        assert_eq!($o2m.call(O2mRequest::SetDeleted($resource)).await.unwrap(), O2mResponse::Ack)
     };
 }

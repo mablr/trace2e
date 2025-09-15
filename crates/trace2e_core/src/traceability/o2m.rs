@@ -84,6 +84,46 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
+                O2mRequest::SetConfidentiality { resource, confidentiality } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[o2m-{}] SetConfidentiality: resource: {:?}, confidentiality: {:?}",
+                        provenance.node_id(),
+                        resource,
+                        confidentiality
+                    );
+                    match compliance
+                        .call(ComplianceRequest::SetConfidentiality { resource, confidentiality })
+                        .await?
+                    {
+                        ComplianceResponse::PolicyUpdated => Ok(O2mResponse::Ack),
+                        _ => Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
+                O2mRequest::SetIntegrity { resource, integrity } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[o2m-{}] SetIntegrity: resource: {:?}, integrity: {:?}",
+                        provenance.node_id(),
+                        resource,
+                        integrity
+                    );
+                    match compliance
+                        .call(ComplianceRequest::SetIntegrity { resource, integrity })
+                        .await?
+                    {
+                        ComplianceResponse::PolicyUpdated => Ok(O2mResponse::Ack),
+                        _ => Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
+                O2mRequest::SetDeleted(resource) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[o2m-{}] SetDeleted: resource: {:?}", provenance.node_id(), resource,);
+                    match compliance.call(ComplianceRequest::SetDeleted(resource)).await? {
+                        ComplianceResponse::PolicyUpdated => Ok(O2mResponse::Ack),
+                        _ => Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
                 O2mRequest::GetReferences(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[o2m-{}] GetReferences: resource: {:?}", provenance.node_id(), resource);
