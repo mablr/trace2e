@@ -168,6 +168,22 @@ fn eval_policies(
         for source_policy in source_policy_batch.values() {
             // If the source or destination policy is deleted, the flow is not compliant
             if source_policy.deleted.into() || destination_policy.deleted.into() {
+                #[cfg(feature = "trace2e_tracing")]
+                info!(
+                    "[compliance] EvalPolicies: source_policy.deleted: {:?}, destination_policy.deleted: {:?}",
+                    source_policy.deleted, destination_policy.deleted
+                );
+                #[cfg(feature = "enforcement_mocking")]
+                if source_policy.deleted.is_pending() {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[compliance] Enforcing deletion policy for source");
+                }
+                #[cfg(feature = "enforcement_mocking")]
+                if destination_policy.deleted.is_pending() {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[compliance] Enforcing deletion policy for destination");
+                }
+
                 return Err(TraceabilityError::DirectPolicyViolation);
             }
 

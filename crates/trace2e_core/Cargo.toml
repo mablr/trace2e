@@ -25,6 +25,7 @@ criterion = { workspace = true, features = ["async_tokio"] }
 
 [features]
 trace2e_tracing = ["tracing", "tracing-subscriber"]
+enforcement_mocking = []
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
