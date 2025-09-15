@@ -34,6 +34,12 @@ pub enum DeletionPolicy {
     Deleted,
 }
 
+impl From<bool> for DeletionPolicy {
+    fn from(deleted: bool) -> Self {
+        if deleted { DeletionPolicy::Deleted } else { DeletionPolicy::NotDeleted }
+    }
+}
+
 /// Policy for a resource
 ///
 /// This policy is used to check the compliance of input/output flows of the associated resource.
@@ -42,12 +48,6 @@ pub struct Policy {
     confidentiality: ConfidentialityPolicy,
     integrity: u32,
     deleted: DeletionPolicy,
-}
-
-impl From<bool> for DeletionPolicy {
-    fn from(deleted: bool) -> Self {
-        if deleted { DeletionPolicy::Deleted } else { DeletionPolicy::NotDeleted }
-    }
 }
 
 impl Policy {
