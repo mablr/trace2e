@@ -18,7 +18,7 @@ use crate::traceability::{
 };
 
 /// Confidentiality policy defines the level of confidentiality of a resource
-#[derive(Default, PartialEq, Debug, Clone, Copy, Eq, Hash)]
+#[derive(Default, PartialEq, Debug, Clone, Copy, Eq)]
 pub enum ConfidentialityPolicy {
     Secret,
     #[default]
@@ -26,7 +26,7 @@ pub enum ConfidentialityPolicy {
 }
 
 /// Deletion policy defines the deletion status of a resource
-#[derive(Default, PartialEq, Debug, Clone, Eq, Hash, Copy)]
+#[derive(Default, PartialEq, Debug, Clone, Eq, Copy)]
 pub enum DeletionPolicy {
     #[default]
     NotDeleted,
@@ -43,7 +43,7 @@ impl From<bool> for DeletionPolicy {
 /// Policy for a resource
 ///
 /// This policy is used to check the compliance of input/output flows of the associated resource.
-#[derive(Default, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Default, Clone, Debug, Eq, PartialEq)]
 pub struct Policy {
     confidentiality: ConfidentialityPolicy,
     integrity: u32,
