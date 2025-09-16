@@ -124,6 +124,17 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
+                O2mRequest::SetConsent(resource) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[o2m-{}] SetConsent: resource: {:?}", provenance.node_id(), resource);
+                    match compliance
+                        .call(ComplianceRequest::SetConsent { resource, consent: true })
+                        .await?
+                    {
+                        ComplianceResponse::PolicyUpdated => Ok(O2mResponse::Ack),
+                        _ => Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
                 O2mRequest::GetReferences(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[o2m-{}] GetReferences: resource: {:?}", provenance.node_id(), resource);

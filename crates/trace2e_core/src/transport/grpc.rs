@@ -467,6 +467,7 @@ impl From<Policy> for proto::Policy {
             },
             integrity: policy.get_integrity(),
             deleted: policy.is_deleted(),
+            consent: policy.get_consent(),
         }
     }
 }
@@ -480,6 +481,7 @@ impl From<proto::Policy> for Policy {
             },
             proto_policy.integrity,
             proto_policy.deleted.into(),
+            proto_policy.consent,
         )
     }
 }

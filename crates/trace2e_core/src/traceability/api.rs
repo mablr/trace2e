@@ -49,6 +49,8 @@ pub enum O2mRequest {
     SetIntegrity { resource: Resource, integrity: u32 },
     /// Set deletion policy for a specific resource
     SetDeleted(Resource),
+    /// Set consent flag for a specific resource
+    SetConsent(Resource),
     /// Get the complete provenance (lineage) of a resource
     GetReferences(Resource),
 }
@@ -121,6 +123,8 @@ pub enum ComplianceRequest {
     SetIntegrity { resource: Resource, integrity: u32 },
     /// Set deletion policy for a specific resource
     SetDeleted(Resource),
+    /// Set consent flag for a specific resource
+    SetConsent { resource: Resource, consent: bool },
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]

@@ -43,11 +43,25 @@ impl From<bool> for DeletionPolicy {
 /// Policy for a resource
 ///
 /// This policy is used to check the compliance of input/output flows of the associated resource.
-#[derive(Default, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Policy {
     confidentiality: ConfidentialityPolicy,
     integrity: u32,
     deleted: DeletionPolicy,
+    // Whether the owner has given consent for flows involving this resource.
+    // Default: true (consent given). When false, flows should be denied.
+    consent: bool,
+}
+
+impl Default for Policy {
+    fn default() -> Self {
+        Policy {
+            confidentiality: ConfidentialityPolicy::Public,
+            integrity: 0,
+            deleted: DeletionPolicy::NotDeleted,
+            consent: true,
+        }
+    }
 }
 
 impl Policy {
@@ -55,8 +69,9 @@ impl Policy {
         confidentiality: ConfidentialityPolicy,
         integrity: u32,
         deleted: DeletionPolicy,
+        consent: bool,
     ) -> Self {
-        Self { confidentiality, integrity, deleted }
+        Self { confidentiality, integrity, deleted, consent }
     }
 
     /// Returns the confidentiality policy
@@ -78,6 +93,20 @@ impl Policy {
     /// Returns true if the resource is pending deletion
     pub fn get_integrity(&self) -> u32 {
         self.integrity
+    }
+
+    /// Returns true if owner has given consent for flows involving this resource
+    pub fn get_consent(&self) -> bool {
+        self.consent
+    }
+
+    pub fn with_consent(&mut self, consent: bool) -> ComplianceResponse {
+        if !self.is_deleted() {
+            self.consent = consent;
+            ComplianceResponse::PolicyUpdated
+        } else {
+            ComplianceResponse::PolicyNotUpdated
+        }
     }
     pub fn with_integrity(&mut self, integrity: u32) -> ComplianceResponse {
         if !self.is_deleted() {
@@ -237,6 +266,22 @@ impl PolicyMap {
             });
         response
     }
+
+    /// Set consent flag for a specific resource
+    fn set_consent(&self, resource: Resource, consent: bool) -> ComplianceResponse {
+        let mut response = ComplianceResponse::PolicyNotUpdated;
+        self.policies
+            .entry(resource)
+            .and_modify(|policy| {
+                response = policy.with_consent(consent);
+            })
+            .or_insert_with(|| {
+                let mut policy = Policy::default();
+                response = policy.with_consent(consent);
+                policy
+            });
+        response
+    }
 }
 
 impl From<HashMap<Resource, Policy>> for PolicyMap {
@@ -359,6 +404,14 @@ impl Service<ComplianceRequest> for ComplianceService {
                     info!("[compliance] SetDeleted: resource: {:?}", resource);
                     Ok(this.policies.set_deleted(resource))
                 }
+                ComplianceRequest::SetConsent { resource, consent } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[compliance] SetConsent: resource: {:?}, consent: {:?}",
+                        resource, consent
+                    );
+                    Ok(this.policies.set_consent(resource, consent))
+                }
             }
         })
     }
@@ -371,15 +424,15 @@ mod tests {
 
     // Helper functions to reduce test code duplication
     fn create_public_policy(integrity: u32) -> Policy {
-        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::NotDeleted)
+        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::NotDeleted, true)
     }
 
     fn create_secret_policy(integrity: u32) -> Policy {
-        Policy::new(ConfidentialityPolicy::Secret, integrity, DeletionPolicy::NotDeleted)
+        Policy::new(ConfidentialityPolicy::Secret, integrity, DeletionPolicy::NotDeleted, true)
     }
 
     fn create_deleted_policy(integrity: u32) -> Policy {
-        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::Pending)
+        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::Pending, true)
     }
 
     fn init_tracing() {
@@ -774,11 +827,8 @@ mod tests {
         let cache_policy_map = PolicyMap::init_cache();
         let process = Resource::new_process_mock(0);
 
-        let policy = Policy {
-            confidentiality: ConfidentialityPolicy::Secret,
-            integrity: 7,
-            deleted: DeletionPolicy::NotDeleted,
-        };
+        let policy =
+            Policy::new(ConfidentialityPolicy::Secret, 7, DeletionPolicy::NotDeleted, true);
 
         // Set policy first
         cache_policy_map.set_policy(process.clone(), policy.clone());
@@ -803,6 +853,7 @@ mod tests {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 3,
             deleted: DeletionPolicy::NotDeleted,
+            consent: true,
         };
 
         // Set policy only for process1

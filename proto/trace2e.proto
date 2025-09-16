@@ -104,6 +104,7 @@ message Policy {
     Confidentiality confidentiality = 1;
     uint32 integrity = 2;
     bool deleted = 3;
+    bool consent = 4;
 }
 
 message DestinationCompliance {
