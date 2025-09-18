@@ -1,4 +1,4 @@
-//! Comprehensive traceability and data provenance tracking system.
+//! Traceability module.
 //!
 //! This module provides a complete traceability solution for distributed systems,
 //! enabling comprehensive data provenance tracking, policy enforcement, and compliance
@@ -45,8 +45,6 @@
 //! The module provides helper functions for initializing complete middleware stacks:
 //! - `init_middleware()`: Initialize production middleware with specified M2M client
 //! - `init_middleware_with_enrolled_resources()`: Initialize with pre-enrolled test resources
-
-//! Traceability module.
 pub mod api;
 pub mod core;
 pub mod error;

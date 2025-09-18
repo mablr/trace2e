@@ -15,7 +15,7 @@
 //!
 //! - **gRPC Transport**: Production-ready implementation using Protocol Buffers and gRPC
 //! - **Loopback Transport**: Local testing implementation that routes calls internally
-//! between mock middleware instances
+//!   between mock middleware instances
 //! - **No-op Transport**: Stub implementation that performs no actual communication
 //!
 //! ## Remote IP Evaluation
