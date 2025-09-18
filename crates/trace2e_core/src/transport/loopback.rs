@@ -123,7 +123,7 @@ pub async fn spawn_loopback_middlewares_with_entropy(
             ip.clone(),
             None,
             m2m_loopback.clone(),
-            false,  // Disable validation for loopback tests
+            false, // Disable resource validation for loopback tests
             process_count,
             per_process_file_count,
             per_process_stream_count,

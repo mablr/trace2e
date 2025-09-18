@@ -47,6 +47,7 @@ use crate::traceability::{
     },
     error::TraceabilityError,
     naming::{NodeId, Resource},
+    validation::ResourceValidator,
 };
 
 /// Maps (process_id, file_descriptor) to (source_resource, destination_resource) pairs
@@ -196,7 +197,7 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
     /// When validation is enabled, all incoming requests are validated for:
     /// - Valid process IDs (must correspond to running processes)
     /// - Valid stream addresses (must be well-formed and compatible)
-    /// 
+    ///
     /// This method uses the same ResourceValidator logic as the Tower filter
     /// but integrates it directly into the service to avoid complex Send/Sync
     /// constraints with async runtimes.
@@ -227,31 +228,31 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
     /// # Errors
     /// - `InvalidProcess`: When the process ID is not found or accessible
     /// - `InvalidStream`: When socket addresses are malformed or incompatible
-    fn validate_request(request: &P2mRequest) -> Result<(), TraceabilityError> {
-        use crate::traceability::validation::ResourceValidator;
-        let validator = ResourceValidator::default();
-        
+    fn validate_request(request: &P2mRequest) -> Result<&P2mRequest, TraceabilityError> {
         // Use the same validation logic as the ResourceValidator
-        match request.clone() {
+        match request {
             P2mRequest::RemoteEnroll { pid, local_socket, peer_socket, .. } => {
-                if validator.is_valid_process(pid) {
-                    if validator.is_valid_stream(&local_socket, &peer_socket) {
-                        Ok(())
+                if ResourceValidator.is_valid_process(*pid) {
+                    if ResourceValidator.is_valid_stream(local_socket, peer_socket) {
+                        Ok(request)
                     } else {
-                        Err(TraceabilityError::InvalidStream(local_socket, peer_socket))
+                        Err(TraceabilityError::InvalidStream(
+                            local_socket.clone(),
+                            peer_socket.clone(),
+                        ))
                     }
                 } else {
-                    Err(TraceabilityError::InvalidProcess(pid))
+                    Err(TraceabilityError::InvalidProcess(*pid))
                 }
             }
             P2mRequest::LocalEnroll { pid, .. } | P2mRequest::IoRequest { pid, .. } => {
-                if validator.is_valid_process(pid) {
-                    Ok(())
+                if ResourceValidator.is_valid_process(*pid) {
+                    Ok(request)
                 } else {
-                    Err(TraceabilityError::InvalidProcess(pid))
+                    Err(TraceabilityError::InvalidProcess(*pid))
                 }
             }
-            P2mRequest::IoReport { .. } => Ok(()),
+            P2mRequest::IoReport { .. } => Ok(request),
         }
     }
 }
@@ -296,15 +297,13 @@ where
         let mut compliance = self.compliance.clone();
         let mut m2m = self.m2m.clone();
         let enable_validation = self.enable_resource_validation;
-        
+
         Box::pin(async move {
             // Perform resource validation if enabled
             if enable_validation {
-                if let Err(e) = Self::validate_request(&request) {
-                    return Err(e);
-                }
+                Self::validate_request(&request)?;
             }
-            
+
             match request {
                 P2mRequest::LocalEnroll { pid, fd, path } => {
                     #[cfg(feature = "trace2e_tracing")]
@@ -556,11 +555,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        traceability::{
-            core::{
-                compliance::ComplianceService, provenance::ProvenanceService,
-                sequencer::SequencerService,
-            },
+        traceability::core::{
+            compliance::ComplianceService, provenance::ProvenanceService,
+            sequencer::SequencerService,
         },
         transport::nop::M2mNop,
     };
@@ -632,7 +629,8 @@ mod tests {
             ProvenanceService::default(),
             ComplianceService::default(),
             M2mNop,
-        ).with_resource_validation(true);
+        )
+        .with_resource_validation(true);
 
         // Test with invalid process
         // This request is supposed to be filtered out by the validator
@@ -668,7 +666,8 @@ mod tests {
             ProvenanceService::default(),
             ComplianceService::default(),
             M2mNop,
-        ).with_resource_validation(true);
+        )
+        .with_resource_validation(true);
 
         // Neither process nor fd are enrolled
         assert_eq!(
@@ -715,7 +714,8 @@ mod tests {
             ProvenanceService::default(),
             ComplianceService::default(),
             M2mNop,
-        ).with_resource_validation(true);
+        )
+        .with_resource_validation(true);
 
         // Invalid grant id
         assert_eq!(
@@ -732,22 +732,24 @@ mod tests {
     async fn unit_trace2e_service_integrated_validation() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
-        
+
         // Test P2M service with integrated validation enabled
         let mut p2m_service_with_validation = P2mApiService::new(
             SequencerService::default(),
             ProvenanceService::default(),
             ComplianceService::default(),
             M2mNop,
-        ).with_resource_validation(true);
+        )
+        .with_resource_validation(true);
 
-        // Test P2M service with validation disabled  
+        // Test P2M service with validation disabled
         let mut p2m_service_without_validation = P2mApiService::new(
             SequencerService::default(),
             ProvenanceService::default(),
             ComplianceService::default(),
             M2mNop,
-        ).with_resource_validation(false);
+        )
+        .with_resource_validation(false);
 
         // Test invalid process - should fail with validation enabled
         assert_eq!(

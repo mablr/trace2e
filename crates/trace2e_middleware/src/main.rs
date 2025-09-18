@@ -41,10 +41,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let address = format!("{}:{}", args.address, args.port).parse().unwrap();
 
     let (m2m_service, p2m_service, _) = init_middleware(
-        args.address.clone(), 
-        None, 
+        args.address.clone(),
+        None,
         M2mGrpc::default(),
-        !args.disable_resource_validation  // Enable validation unless disabled
+        !args.disable_resource_validation, // Enable validation unless disabled
     );
 
     let mut server_builder = Server::builder()

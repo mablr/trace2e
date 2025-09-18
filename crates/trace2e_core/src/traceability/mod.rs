@@ -118,7 +118,15 @@ where
         + 'static,
     M::Future: Send,
 {
-    init_middleware_with_enrolled_resources(node_id, max_retries, m2m_client, enable_resource_validation, 0, 0, 0)
+    init_middleware_with_enrolled_resources(
+        node_id,
+        max_retries,
+        m2m_client,
+        enable_resource_validation,
+        0,
+        0,
+        0,
+    )
 }
 
 /// Initialize a middleware stack with pre-enrolled resources for testing.
@@ -171,7 +179,7 @@ where
 
     let m2m_service: M2mApiDefaultStack =
         m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
-    
+
     #[cfg(test)]
     let p2m_service: P2mApiDefaultStack<M> =
         p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)

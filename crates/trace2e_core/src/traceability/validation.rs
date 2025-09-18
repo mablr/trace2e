@@ -16,7 +16,7 @@
 //! ## Integration
 //!
 //! The validator is designed to work with the P2M service through the embedded validation
-//! feature. Invalid requests are rejected early with descriptive error messages before 
+//! feature. Invalid requests are rejected early with descriptive error messages before
 //! consuming system resources.
 
 use std::net::SocketAddr;
@@ -37,9 +37,9 @@ use sysinfo::{Pid, System};
 ///
 /// ## Usage
 ///
-/// The validator methods are called by the P2M service when resource validation 
+/// The validator methods are called by the P2M service when resource validation
 /// is enabled through the `with_resource_validation(true)` builder method.
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct ResourceValidator;
 
 impl ResourceValidator {
@@ -106,7 +106,8 @@ mod tests {
             ProvenanceService::default(),
             ComplianceService::default(),
             M2mNop,
-        ).with_resource_validation(true);
+        )
+        .with_resource_validation(true);
 
         assert_eq!(
             p2m_service
