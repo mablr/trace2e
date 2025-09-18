@@ -2,7 +2,7 @@
 
 # Format code
 fmt:
-	cargo fmt
+	cargo fmt --all
 
 # Run clippy
 clippy:
@@ -12,7 +12,7 @@ clippy:
 test: test-middleware test-lib
 
 test-middleware:
-	cargo test -p trace2e_core
+	cargo test -p trace2e_core --all-features --all
 test-lib:
 	./test-lib.sh
 
