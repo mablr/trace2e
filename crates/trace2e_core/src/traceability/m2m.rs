@@ -1,3 +1,34 @@
+//! Middleware-to-Middleware (M2M) API service implementation.
+//!
+//! This module provides the service implementation for communication between distributed
+//! middleware instances in the traceability network. The M2M API enables consistent
+//! compliance checking, flow coordination, and provenance synchronization across
+//! multiple nodes in geographically distributed deployments.
+//!
+//! ## Service Architecture
+//!
+//! The `M2mApiService` coordinates between three core services:
+//! - **Sequencer Service**: For flow reservation and coordination across nodes
+//! - **Provenance Service**: For provenance tracking and ancestry synchronization
+//! - **Compliance Service**: For distributed policy evaluation and enforcement
+//!
+//! ## Distributed Operations
+//!
+//! **Cross-Node Compliance**: Query and evaluate policies across middleware boundaries
+//! to ensure consistent enforcement of organizational and regulatory requirements.
+//!
+//! **Flow Coordination**: Reserve and release distributed flows to prevent race
+//! conditions and ensure atomic operations across the network.
+//!
+//! **Provenance Synchronization**: Transfer provenance data between nodes to maintain
+//! complete audit trails for cross-boundary data flows.
+//!
+//! ## Network Considerations
+//!
+//! M2M operations involve network communication and may experience latency or failures.
+//! The service handles these conditions gracefully and provides appropriate error
+//! responses for downstream handling.
+
 use std::{future::Future, pin::Pin, task::Poll};
 
 use tower::Service;

@@ -1,3 +1,36 @@
+//! Process-to-Middleware (P2M) API service implementation.
+//!
+//! This module provides the core service implementation for handling requests from application
+//! processes that need traceability tracking for their I/O operations. The P2M API is the
+//! primary interface through which applications integrate with the trace2e system.
+//!
+//! ## Service Architecture
+//!
+//! The `P2mApiService` acts as the central coordinator between four key services:
+//! - **Sequencer Service**: Manages flow ordering and resource reservations
+//! - **Provenance Service**: Tracks data provenance  
+//! - **Compliance Service**: Enforces policies and authorization decisions
+//! - **M2M Client**: Communicates with remote middleware for distributed flows
+//!
+//! ## Resource Management
+//!
+//! The service maintains two primary data structures:
+//! - **Resource Map**: Associates process/file descriptor pairs with source/destination resources
+//! - **Flow Map**: Tracks active flows by grant ID for operation completion reporting
+//!
+//! ## Operation Workflow
+//!
+//! 1. **Enrollment**: Processes register their files and streams before use
+//! 2. **Authorization**: Processes request permission for specific I/O operations
+//! 3. **Execution**: Middleware evaluates policies and grants/denies access
+//! 4. **Reporting**: Processes report completion status for audit trails
+//!
+//! ## Cross-Node Coordination
+//!
+//! For distributed flows involving remote resources, the service coordinates with
+//! remote middleware instances via the M2M API to ensure consistent policy
+//! enforcement and provenance tracking across the network.
+
 use std::{
     collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll, time::SystemTime,
 };
@@ -16,14 +49,43 @@ use crate::traceability::{
     naming::{NodeId, Resource},
 };
 
+/// Maps (process_id, file_descriptor) to (source_resource, destination_resource) pairs
 type ResourceMap = DashMap<(i32, i32), (Resource, Resource)>;
+/// Maps flow_id to (source_resource, destination_resource) pairs for active flows
 type FlowMap = DashMap<u128, (Resource, Resource)>;
 
-/// P2M (Process-to-Middleware) API Service
+/// P2M (Process-to-Middleware) API Service.
 ///
-/// This service handles traceability requests from processes, managing resource enrollment,
-/// I/O flow authorization, and provenance tracking. It coordinates between sequencer,
-/// provenance, compliance, and Middleware-to-Middleware communication services.
+/// Central orchestrator for process-initiated traceability operations. This service
+/// manages the complete lifecycle of tracked I/O operations from initial resource
+/// enrollment through final completion reporting.
+///
+/// ## Core Responsibilities
+///
+/// **Resource Enrollment**: Maintains registry of process file descriptors and their
+/// associated resources (files or network streams) for traceability tracking.
+///
+/// **Flow Authorization**: Coordinates with compliance and sequencer services to
+/// evaluate whether requested I/O operations should be permitted based on current policies.
+///
+/// **Distributed Coordination**: Communicates with remote middleware instances for
+/// cross-node flows, ensuring consistent policy enforcement across the network.
+///
+/// **Provenance Tracking**: Updates provenance records following successful operations
+/// to maintain complete audit trails for compliance and governance.
+///
+/// ## Concurrency and State Management
+///
+/// Uses concurrent data structures (`DashMap`) to handle multiple simultaneous requests
+/// from different processes while maintaining consistency. Resource and flow maps are
+/// shared across service instances using `Arc` for efficient cloning.
+///
+/// ## Generic Type Parameters
+///
+/// - `S`: Sequencer service for flow coordination and resource reservations
+/// - `P`: Provenance service for provenance tracking
+/// - `C`: Compliance service for policy evaluation and authorization decisions  
+/// - `M`: M2M client service for communication with remote middleware instances
 #[derive(Debug, Clone)]
 pub struct P2mApiService<S, P, C, M> {
     /// Maps (process_id, file_descriptor) to (source_resource, destination_resource) pairs
@@ -41,7 +103,17 @@ pub struct P2mApiService<S, P, C, M> {
 }
 
 impl<S, P, C, M> P2mApiService<S, P, C, M> {
-    /// Creates a new P2M API service with the provided component services
+    /// Creates a new P2M API service with the provided component services.
+    ///
+    /// Initializes empty resource and flow maps and stores references to the
+    /// core services needed for traceability operations. The service is ready
+    /// to handle process requests immediately after construction.
+    ///
+    /// # Arguments
+    /// * `sequencer` - Service for flow coordination and resource reservations
+    /// * `provenance` - Service for provenance tracking
+    /// * `compliance` - Service for policy evaluation and authorization decisions
+    /// * `m2m` - Client for communication with remote middleware instances
     pub fn new(sequencer: S, provenance: P, compliance: C, m2m: M) -> Self {
         Self {
             resource_map: Arc::new(ResourceMap::new()),
@@ -53,7 +125,19 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
         }
     }
 
-    /// Enrolls the given number of processes and files per process for testing/mocking purposes.
+    /// Pre-enrolls resources for testing and simulation purposes.
+    ///
+    /// Creates mock enrollments for the specified number of processes, files, and streams
+    /// to support testing scenarios without requiring actual process interactions.
+    /// Should only be used in test environments or for system benchmarking.
+    ///
+    /// # Arguments
+    /// * `process_count` - Number of mock processes to enroll
+    /// * `per_process_file_count` - Number of files to enroll per process
+    /// * `per_process_stream_count` - Number of streams to enroll per process
+    ///
+    /// # Returns
+    /// The service instance with pre-enrolled mock resources
     pub fn with_enrolled_resources(
         self,
         process_count: u32,

@@ -1,3 +1,24 @@
+//! Request validation and filtering for traceability operations.
+//!
+//! This module provides validation mechanisms to ensure that incoming requests
+//! contain valid, accessible resources before they are processed by the core
+//! traceability services. It acts as a gatekeeper to prevent invalid operations
+//! from reaching the business logic layer.
+//!
+//! ## Validation Categories
+//!
+//! **Process Validation**: Verifies that process IDs refer to actual running processes
+//! by querying the system process table.
+//!
+//! **Stream Validation**: Ensures that socket addresses are well-formed and compatible
+//! (e.g., both IPv4 or both IPv6) for network stream operations.
+//!
+//! ## Integration
+//!
+//! The validator is designed to work as a Tower middleware layer, allowing it to be
+//! easily integrated into service stacks using the `FilterLayer`. Invalid requests
+//! are rejected early with descriptive error messages before consuming system resources.
+
 use std::net::SocketAddr;
 
 use sysinfo::{Pid, System};
@@ -5,16 +26,55 @@ use tower::{BoxError, filter::Predicate};
 
 use crate::traceability::{api::P2mRequest, error::TraceabilityError};
 
+/// Resource validator for P2M requests.
+///
+/// This validator ensures that incoming Process-to-Middleware requests reference
+/// valid, accessible system resources before they are processed by the core services.
+/// It performs system-level validation that cannot be done at the type level.
+///
+/// ## Validation Rules
+///
+/// - **Process IDs**: Must correspond to currently running processes
+/// - **Socket Addresses**: Must be parseable and use compatible address families
+/// - **File Descriptors**: Accepted without validation (OS handles validity)
+///
+/// ## Usage
+///
+/// The validator implements the `Predicate` trait and can be used with Tower's
+/// `FilterLayer` to automatically validate requests in a service stack.
 #[derive(Default, Debug, Clone)]
 pub struct ResourceValidator;
 
 impl ResourceValidator {
+    /// Validates that a process ID corresponds to a currently running process.
+    ///
+    /// Queries the system process table to verify that the specified PID
+    /// is associated with an active process. This prevents operations on
+    /// stale or invalid process identifiers.
+    ///
+    /// # Arguments
+    /// * `pid` - Process identifier to validate
+    ///
+    /// # Returns
+    /// `true` if the process exists and is accessible, `false` otherwise
     fn is_valid_process(&self, pid: i32) -> bool {
         let mut system = System::new();
         system.refresh_all();
         system.process(Pid::from(pid as usize)).is_some()
     }
 
+    /// Validates that socket addresses are well-formed and compatible.
+    ///
+    /// Ensures that both local and peer socket addresses can be parsed
+    /// and use compatible address families (both IPv4 or both IPv6).
+    /// This prevents network operations with mismatched or invalid addresses.
+    ///
+    /// # Arguments
+    /// * `local_socket` - Local socket address string
+    /// * `peer_socket` - Peer socket address string
+    ///
+    /// # Returns
+    /// `true` if both addresses are valid and compatible, `false` otherwise
     fn is_valid_stream(&self, local_socket: &str, peer_socket: &str) -> bool {
         match (local_socket.parse::<SocketAddr>(), peer_socket.parse::<SocketAddr>()) {
             (Ok(local_socket), Ok(peer_socket)) => {
@@ -29,6 +89,22 @@ impl ResourceValidator {
 impl Predicate<P2mRequest> for ResourceValidator {
     type Request = P2mRequest;
 
+    /// Validates P2M requests according to their type and resource requirements.
+    ///
+    /// Applies appropriate validation rules based on the request type:
+    /// - `RemoteEnroll`: Validates both process and stream resources
+    /// - `LocalEnroll`, `IoRequest`: Validates process resources only  
+    /// - `IoReport`: Passes through without validation (grant ID is validated later)
+    ///
+    /// # Arguments
+    /// * `request` - The P2M request to validate
+    ///
+    /// # Returns
+    /// `Ok(request)` if validation passes, `Err(TraceabilityError)` if validation fails
+    ///
+    /// # Errors
+    /// - `InvalidProcess`: When the process ID is not found or accessible
+    /// - `InvalidStream`: When socket addresses are malformed or incompatible
     fn check(&mut self, request: Self::Request) -> Result<Self::Request, BoxError> {
         match request.clone() {
             P2mRequest::RemoteEnroll { pid, local_socket, peer_socket, .. } => {

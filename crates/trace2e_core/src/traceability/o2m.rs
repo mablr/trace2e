@@ -1,3 +1,29 @@
+//! Operator-to-Middleware (O2M) API service implementation.
+//!
+//! This module provides the service implementation for handling administrative requests
+//! from external operators, compliance officers, and organizations. The O2M API enables
+//! governance operations including policy management, compliance configuration, and
+//! provenance analysis across the traceability system.
+//!
+//! ## Service Architecture
+//!
+//! The `O2mApiService` coordinates between two core services:
+//! - **Provenance Service**: For querying resource lineage and ancestry data
+//! - **Compliance Service**: For policy management and configuration updates
+//!
+//! ## Supported Operations
+//!
+//! **Policy Management**: Set and retrieve compliance policies for resources including
+//! confidentiality, integrity, consent, and deletion status.
+//!
+//! **Provenance Analysis**: Query complete resource lineage to understand data flows
+//! and dependencies for audit and compliance purposes.
+//!
+//! ## Administrative Privileges
+//!
+//! O2M operations typically require elevated privileges and are intended for use by
+//! authorized personnel responsible for data governance and regulatory compliance.
+
 use std::{future::Future, pin::Pin, task::Poll};
 
 use tower::Service;
