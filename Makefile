@@ -12,7 +12,7 @@ clippy:
 test: test-middleware test-lib
 
 test-middleware:
-	cargo test -p trace2e_core --all-features --all
+	cargo test -p trace2e_core --all-features
 test-lib:
 	./test-lib.sh
 
