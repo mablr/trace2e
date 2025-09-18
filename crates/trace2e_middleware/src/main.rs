@@ -2,7 +2,7 @@ use clap::Parser;
 use tonic::transport::Server;
 use tonic_reflection::server::Builder;
 use trace2e_core::{
-    traceability::{init_middleware, init_middleware_with_validation},
+    traceability::init_middleware,
     transport::grpc::{
         DEFAULT_GRPC_PORT, M2mGrpc, Trace2eRouter,
         proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_grpc_server::Trace2eGrpcServer},
@@ -40,15 +40,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let address = format!("{}:{}", args.address, args.port).parse().unwrap();
 
-    let mut server_builder = if args.disable_resource_validation {
-        let (m2m_service, p2m_service, _) = init_middleware(args.address.clone(), None, M2mGrpc::default());
-        Server::builder()
-            .add_service(Trace2eGrpcServer::new(Trace2eRouter::new(p2m_service, m2m_service)))
-    } else {
-        let (m2m_service, p2m_service, _) = init_middleware_with_validation(args.address.clone(), None, M2mGrpc::default());
-        Server::builder()
-            .add_service(Trace2eGrpcServer::new(Trace2eRouter::new(p2m_service, m2m_service)))
-    };
+    let (m2m_service, p2m_service, _) = init_middleware(
+        args.address.clone(), 
+        None, 
+        M2mGrpc::default(),
+        !args.disable_resource_validation  // Enable validation unless disabled
+    );
+
+    let mut server_builder = Server::builder()
+        .add_service(Trace2eGrpcServer::new(Trace2eRouter::new(p2m_service, m2m_service)));
 
     if args.reflection {
         let reflection_service = Builder::configure()
