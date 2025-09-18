@@ -47,7 +47,9 @@
 //! - `init_middleware_with_enrolled_resources()`: Initialize with pre-enrolled test resources
 //! - `init_middleware_with_validation()`: Initialize with optional resource validation layer
 
-//! Traceability module.
+use std::{future::Future, pin::Pin};
+
+/// Traceability module.
 pub mod api;
 pub mod core;
 pub mod error;
@@ -210,11 +212,11 @@ pub fn init_middleware_with_validation<M>(
     m2m_client: M,
 ) -> (
     M2mApiDefaultStack,
-    impl tower::Service<
+    tower::util::BoxCloneService<
         api::P2mRequest,
-        Response = api::P2mResponse,
-        Error = error::TraceabilityError,
-    > + Clone + Send,
+        api::P2mResponse,
+        error::TraceabilityError,
+    >,
     O2mApiDefaultStack,
 )
 where
@@ -224,6 +226,7 @@ where
             Error = error::TraceabilityError,
         > + Clone
         + Send
+        + Sync
         + 'static,
     M::Future: Send,
 {
@@ -247,12 +250,16 @@ where
 
     let base_p2m_service = p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client);
 
-    let p2m_service = tower::ServiceBuilder::new()
+    // Create validated service with explicit Send future requirement
+    let validated_service = tower::ServiceBuilder::new()
         .map_err(convert_validation_error)
         .layer(tower::filter::FilterLayer::new(validation::ResourceValidator))
         .service(base_p2m_service);
 
+    // Box the service to ensure Send + Sync + Clone requirements
+    let boxed_service = tower::util::BoxCloneService::new(validated_service);
+
     let o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
 
-    (m2m_service, p2m_service, o2m_service)
+    (m2m_service, boxed_service, o2m_service)
 }
