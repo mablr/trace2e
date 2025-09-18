@@ -57,7 +57,7 @@ impl ResourceValidator {
     ///
     /// # Returns
     /// `true` if the process exists and is accessible, `false` otherwise
-    fn is_valid_process(&self, pid: i32) -> bool {
+    pub fn is_valid_process(&self, pid: i32) -> bool {
         let mut system = System::new();
         system.refresh_all();
         system.process(Pid::from(pid as usize)).is_some()
@@ -75,7 +75,7 @@ impl ResourceValidator {
     ///
     /// # Returns
     /// `true` if both addresses are valid and compatible, `false` otherwise
-    fn is_valid_stream(&self, local_socket: &str, peer_socket: &str) -> bool {
+    pub fn is_valid_stream(&self, local_socket: &str, peer_socket: &str) -> bool {
         match (local_socket.parse::<SocketAddr>(), peer_socket.parse::<SocketAddr>()) {
             (Ok(local_socket), Ok(peer_socket)) => {
                 (local_socket.is_ipv4() && peer_socket.is_ipv4())

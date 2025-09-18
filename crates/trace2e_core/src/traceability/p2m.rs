@@ -100,6 +100,8 @@ pub struct P2mApiService<S, P, C, M> {
     compliance: C,
     /// Client service for Middleware-to-Middleware communication
     m2m: M,
+    /// Whether to perform resource validation on incoming requests
+    enable_resource_validation: bool,
 }
 
 impl<S, P, C, M> P2mApiService<S, P, C, M> {
@@ -122,6 +124,7 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
             provenance,
             compliance,
             m2m,
+            enable_resource_validation: false,
         }
     }
 
@@ -186,6 +189,70 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
         }
         self
     }
+
+    /// Enables or disables resource validation for incoming P2M requests.
+    ///
+    /// When validation is enabled, all incoming requests are validated for:
+    /// - Valid process IDs (must correspond to running processes)
+    /// - Valid stream addresses (must be well-formed and compatible)
+    /// 
+    /// This method uses the same ResourceValidator logic as the Tower filter
+    /// but integrates it directly into the service to avoid complex Send/Sync
+    /// constraints with async runtimes.
+    ///
+    /// # Arguments
+    /// * `enable` - Whether to enable resource validation
+    ///
+    /// # Returns
+    /// Self with validation setting applied
+    pub fn with_resource_validation(mut self, enable: bool) -> Self {
+        self.enable_resource_validation = enable;
+        self
+    }
+
+    /// Validates a P2M request according to resource requirements.
+    ///
+    /// Applies the same validation rules as the ResourceValidator:
+    /// - `RemoteEnroll`: Validates both process and stream resources
+    /// - `LocalEnroll`, `IoRequest`: Validates process resources only  
+    /// - `IoReport`: Passes through without validation (grant ID is validated later)
+    ///
+    /// # Arguments
+    /// * `request` - The P2M request to validate
+    ///
+    /// # Returns
+    /// `Ok(())` if validation passes, `Err(TraceabilityError)` if validation fails
+    ///
+    /// # Errors
+    /// - `InvalidProcess`: When the process ID is not found or accessible
+    /// - `InvalidStream`: When socket addresses are malformed or incompatible
+    fn validate_request(request: &P2mRequest) -> Result<(), TraceabilityError> {
+        use crate::traceability::validation::ResourceValidator;
+        let validator = ResourceValidator::default();
+        
+        // Use the same validation logic as the ResourceValidator
+        match request.clone() {
+            P2mRequest::RemoteEnroll { pid, local_socket, peer_socket, .. } => {
+                if validator.is_valid_process(pid) {
+                    if validator.is_valid_stream(&local_socket, &peer_socket) {
+                        Ok(())
+                    } else {
+                        Err(TraceabilityError::InvalidStream(local_socket, peer_socket))
+                    }
+                } else {
+                    Err(TraceabilityError::InvalidProcess(pid))
+                }
+            }
+            P2mRequest::LocalEnroll { pid, .. } | P2mRequest::IoRequest { pid, .. } => {
+                if validator.is_valid_process(pid) {
+                    Ok(())
+                } else {
+                    Err(TraceabilityError::InvalidProcess(pid))
+                }
+            }
+            P2mRequest::IoReport { .. } => Ok(()),
+        }
+    }
 }
 
 impl<S, P, C, M> Service<P2mRequest> for P2mApiService<S, P, C, M>
@@ -227,7 +294,16 @@ where
         let mut provenance = self.provenance.clone();
         let mut compliance = self.compliance.clone();
         let mut m2m = self.m2m.clone();
+        let enable_validation = self.enable_resource_validation;
+        
         Box::pin(async move {
+            // Perform resource validation if enabled
+            if enable_validation {
+                if let Err(e) = Self::validate_request(&request) {
+                    return Err(e);
+                }
+            }
+            
             match request {
                 P2mRequest::LocalEnroll { pid, fd, path } => {
                     #[cfg(feature = "trace2e_tracing")]
@@ -655,6 +731,73 @@ mod tests {
                 .unwrap_err()
                 .to_string(),
             "Traceability error, flow not found (id: 0)"
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_trace2e_service_integrated_validation() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
+        
+        // Test P2M service with integrated validation enabled
+        let mut p2m_service_with_validation = P2mApiService::new(
+            SequencerService::default(),
+            ProvenanceService::default(),
+            ComplianceService::default(),
+            M2mNop,
+        ).with_resource_validation(true);
+
+        // Test P2M service with validation disabled  
+        let mut p2m_service_without_validation = P2mApiService::new(
+            SequencerService::default(),
+            ProvenanceService::default(),
+            ComplianceService::default(),
+            M2mNop,
+        ).with_resource_validation(false);
+
+        // Test invalid process - should fail with validation enabled
+        assert_eq!(
+            p2m_service_with_validation
+                .call(P2mRequest::LocalEnroll { pid: 0, fd: 3, path: "/tmp/test.txt".to_string() })
+                .await
+                .unwrap_err()
+                .to_string(),
+            "Traceability error, process not found (pid: 0)"
+        );
+
+        // Test invalid process - should succeed with validation disabled
+        assert_eq!(
+            p2m_service_without_validation
+                .call(P2mRequest::LocalEnroll { pid: 0, fd: 3, path: "/tmp/test.txt".to_string() })
+                .await
+                .unwrap(),
+            P2mResponse::Ack
+        );
+
+        // Test valid process - should succeed with validation enabled
+        assert_eq!(
+            p2m_service_with_validation
+                .call(P2mRequest::LocalEnroll {
+                    pid: std::process::id() as i32,
+                    fd: 3,
+                    path: "/tmp/test.txt".to_string()
+                })
+                .await
+                .unwrap(),
+            P2mResponse::Ack
+        );
+
+        // Test valid process - should succeed with validation disabled
+        assert_eq!(
+            p2m_service_without_validation
+                .call(P2mRequest::LocalEnroll {
+                    pid: std::process::id() as i32,
+                    fd: 3,
+                    path: "/tmp/test.txt".to_string()
+                })
+                .await
+                .unwrap(),
+            P2mResponse::Ack
         );
     }
 }

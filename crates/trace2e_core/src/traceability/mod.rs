@@ -47,8 +47,6 @@
 //! - `init_middleware_with_enrolled_resources()`: Initialize with pre-enrolled test resources
 //! - `init_middleware_with_validation()`: Initialize with optional resource validation layer
 
-use std::{future::Future, pin::Pin};
-
 /// Traceability module.
 pub mod api;
 pub mod core;
@@ -196,6 +194,9 @@ where
 /// with resource validation enabled for the P2M service. All P2M requests are
 /// validated for valid processes and streams before processing.
 ///
+/// This approach embeds validation directly in the P2M service rather than using
+/// Tower layers to avoid complex Send/Sync constraints with the gRPC server.
+///
 /// # Arguments
 /// * `node_id` - Unique identifier for this middleware node in the distributed system
 /// * `max_retries` - Maximum retry attempts for the waiting queue (None for unlimited)
@@ -212,11 +213,7 @@ pub fn init_middleware_with_validation<M>(
     m2m_client: M,
 ) -> (
     M2mApiDefaultStack,
-    tower::util::BoxCloneService<
-        api::P2mRequest,
-        api::P2mResponse,
-        error::TraceabilityError,
-    >,
+    P2mApiDefaultStack<M>,
     O2mApiDefaultStack,
 )
 where
@@ -230,13 +227,6 @@ where
         + 'static,
     M::Future: Send,
 {
-    fn convert_validation_error(err: tower::BoxError) -> error::TraceabilityError {
-        match err.downcast::<error::TraceabilityError>() {
-            Ok(trace_err) => *trace_err,
-            Err(_) => error::TraceabilityError::InternalTrace2eError,
-        }
-    }
-
     let sequencer = tower::ServiceBuilder::new()
         .layer(tower::layer::layer_fn(|inner| {
             core::sequencer::WaitingQueueService::new(inner, max_retries)
@@ -248,18 +238,10 @@ where
     let m2m_service: M2mApiDefaultStack =
         m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
 
-    let base_p2m_service = p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client);
-
-    // Create validated service with explicit Send future requirement
-    let validated_service = tower::ServiceBuilder::new()
-        .map_err(convert_validation_error)
-        .layer(tower::filter::FilterLayer::new(validation::ResourceValidator))
-        .service(base_p2m_service);
-
-    // Box the service to ensure Send + Sync + Clone requirements
-    let boxed_service = tower::util::BoxCloneService::new(validated_service);
+    let p2m_service = p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
+        .with_resource_validation(true);
 
     let o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
 
-    (m2m_service, boxed_service, o2m_service)
+    (m2m_service, p2m_service, o2m_service)
 }
