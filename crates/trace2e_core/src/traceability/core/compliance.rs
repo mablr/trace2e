@@ -1,3 +1,26 @@
+//! # Compliance Module
+//!
+//! This module implements the compliance system for traceability policies in the trace2e framework.
+//! It provides policy management and evaluation capabilities to control data flows between resources
+//! based on confidentiality, integrity, deletion status, and consent requirements.
+//!
+//! ## Overview
+//!
+//! The compliance system enforces policies on resources and evaluates whether data flows between
+//! resources are permitted based on these policies. It supports four main policy dimensions:
+//!
+//! - **Confidentiality**: Controls whether data is public or secret
+//! - **Integrity**: Numeric level indicating data trustworthiness (higher = more trusted)
+//! - **Deletion**: Tracks deletion status (not deleted, pending deletion, or deleted)
+//! - **Consent**: Boolean flag indicating whether the resource owner has given consent for flows
+//!
+//! ## Policy Evaluation Rules
+//!
+//! Data flows are permitted only when:
+//! 1. Neither source nor destination is deleted or pending deletion
+//! 2. Source integrity level >= destination integrity level
+//! 3. Secret data cannot flow to public destinations (but public can flow to secret)
+//! 4. Both source and destination have consent (when enforced)
 use std::{
     collections::{HashMap, HashSet},
     future::Future,
@@ -17,20 +40,50 @@ use crate::traceability::{
     naming::Resource,
 };
 
-/// Confidentiality policy defines the level of confidentiality of a resource
+/// Confidentiality policy defines the level of confidentiality of a resource.
+///
+/// This enum controls whether data associated with a resource is considered sensitive
+/// and restricts flows from secret resources to public destinations.
+///
+/// # Flow Rules
+///
+/// - `Public` → `Public`: ✅ Allowed
+/// - `Public` → `Secret`: ✅ Allowed (upgrading confidentiality)
+/// - `Secret` → `Secret`: ✅ Allowed
+/// - `Secret` → `Public`: ❌ Blocked (would leak sensitive data)
 #[derive(Default, PartialEq, Debug, Clone, Copy, Eq)]
 pub enum ConfidentialityPolicy {
+    /// Data that must be kept confidential and cannot flow to public destinations
     Secret,
+    /// Data that can be shared publicly (default)
     #[default]
     Public,
 }
 
-/// Deletion policy defines the deletion status of a resource
+/// Deletion policy defines the deletion status of a resource.
+///
+/// This enum tracks the lifecycle state of a resource with respect to deletion,
+/// supporting a two-phase deletion process where resources are first marked for
+/// deletion and then actually deleted.
+///
+/// # State Transitions
+///
+/// ```text
+/// NotDeleted → Pending → Deleted
+/// ```
+///
+/// # Flow Rules
+///
+/// Resources with `Pending` or `Deleted` status cannot be involved in data flows
+/// (both as source and destination).
 #[derive(Default, PartialEq, Debug, Clone, Eq, Copy)]
 pub enum DeletionPolicy {
+    /// Resource is active and can participate in flows (default)
     #[default]
     NotDeleted,
+    /// Resource is marked for deletion but not yet removed
     Pending,
+    /// Resource has been fully deleted
     Deleted,
 }
 
@@ -40,16 +93,35 @@ impl From<bool> for DeletionPolicy {
     }
 }
 
-/// Policy for a resource
+/// Policy for a resource that controls compliance checking for data flows.
+///
+/// A `Policy` combines multiple dimensions of access control and resource management
+/// to determine whether data flows involving a resource should be permitted.
+///
+/// # Fields
+///
+/// - **`confidentiality`**: Controls whether the resource contains sensitive data
+/// - **`integrity`**: Numeric trust level (0 = lowest, higher = more trusted)
+/// - **`deleted`**: Tracks deletion status through a multi-phase process
+/// - **`consent`**: WIP...
+///
+/// # Policy Evaluation
+///
+/// When evaluating flows between resources, policies are checked to ensure:
+/// 1. No deleted resources are involved
+/// 2. Integrity levels are compatible (source >= destination)
+/// 3. Confidentiality is preserved (secret data doesn't leak to public)
+/// 4. All parties have given consent
 ///
 /// This policy is used to check the compliance of input/output flows of the associated resource.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Policy {
+    /// Confidentiality level of the resource
     confidentiality: ConfidentialityPolicy,
+    /// Integrity level (0 = lowest trust, higher values = more trusted)
     integrity: u32,
+    /// Deletion status of the resource
     deleted: DeletionPolicy,
-    // Whether the owner has given consent for flows involving this resource.
-    // Default: true (consent given). When false, flows should be denied.
     consent: bool,
 }
 
@@ -65,6 +137,14 @@ impl Default for Policy {
 }
 
 impl Policy {
+    /// Creates a new policy with the specified parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `confidentiality` - The confidentiality level for the resource
+    /// * `integrity` - The integrity level (0 = lowest, higher = more trusted)
+    /// * `deleted` - The deletion status
+    /// * `consent` - WIP...
     pub fn new(
         confidentiality: ConfidentialityPolicy,
         integrity: u32,
@@ -74,32 +154,48 @@ impl Policy {
         Self { confidentiality, integrity, deleted, consent }
     }
 
-    /// Returns the confidentiality policy
-    /// Returns true if the resource is confidential
+    /// Returns true if the resource contains confidential data.
+    ///
+    /// This is a convenience method that checks if the confidentiality policy
+    /// is set to `Secret`.
     pub fn is_confidential(&self) -> bool {
         self.confidentiality == ConfidentialityPolicy::Secret
     }
 
-    /// Returns true if the resource is deleted
+    /// Returns true if the resource is deleted or pending deletion.
+    ///
+    /// Resources that are deleted cannot participate in data flows.
     pub fn is_deleted(&self) -> bool {
         self.deleted != DeletionPolicy::NotDeleted
     }
 
-    /// Returns true if the resource is pending deletion
+    /// Returns true if the resource is pending deletion.
+    ///
+    /// This indicates the resource has been marked for deletion but hasn't
+    /// been fully removed yet.
     pub fn is_pending_deletion(&self) -> bool {
         self.deleted == DeletionPolicy::Pending
     }
 
-    /// Returns true if the resource is pending deletion
+    /// Returns the integrity level of the resource.
+    ///
+    /// Higher values indicate more trusted data. For flows to be permitted,
+    /// the source integrity must be greater than or equal to the destination integrity.
     pub fn get_integrity(&self) -> u32 {
         self.integrity
     }
 
-    /// Returns true if owner has given consent for flows involving this resource
+    /// Returns true if the resource owner has given consent for flows.
+    ///
+    /// When consent is false, flows involving this resource should be denied.
     pub fn get_consent(&self) -> bool {
         self.consent
     }
 
+    /// Updates the consent flag for this policy.
+    ///
+    /// Returns `PolicyUpdated` if the consent was successfully changed,
+    /// or `PolicyNotUpdated` if the resource is deleted and cannot be modified.
     pub fn with_consent(&mut self, consent: bool) -> ComplianceResponse {
         if !self.is_deleted() {
             self.consent = consent;
@@ -108,6 +204,15 @@ impl Policy {
             ComplianceResponse::PolicyNotUpdated
         }
     }
+
+    /// Updates the integrity level for this policy.
+    ///
+    /// Returns `PolicyUpdated` if the integrity was successfully changed,
+    /// or `PolicyNotUpdated` if the resource is deleted and cannot be modified.
+    ///
+    /// # Arguments
+    ///
+    /// * `integrity` - The new integrity level
     pub fn with_integrity(&mut self, integrity: u32) -> ComplianceResponse {
         if !self.is_deleted() {
             self.integrity = integrity;
@@ -117,6 +222,14 @@ impl Policy {
         }
     }
 
+    /// Updates the confidentiality level for this policy.
+    ///
+    /// Returns `PolicyUpdated` if the confidentiality was successfully changed,
+    /// or `PolicyNotUpdated` if the resource is deleted and cannot be modified.
+    ///
+    /// # Arguments
+    ///
+    /// * `confidentiality` - The new confidentiality level
     pub fn with_confidentiality(
         &mut self,
         confidentiality: ConfidentialityPolicy,
@@ -129,7 +242,13 @@ impl Policy {
         }
     }
 
-    /// Request the deletion of the resource
+    /// Marks the resource for deletion.
+    ///
+    /// This transitions the resource from `NotDeleted` to `Pending` deletion status.
+    /// Once marked for deletion, the policy cannot be further modified.
+    ///
+    /// Returns `PolicyUpdated` if the deletion was successfully marked as pending,
+    /// or `PolicyNotUpdated` if the resource is already deleted or pending deletion.
     pub fn deleted(&mut self) -> ComplianceResponse {
         if !self.is_deleted() {
             self.deleted = DeletionPolicy::Pending;
@@ -139,6 +258,13 @@ impl Policy {
         }
     }
 
+    /// Marks the deletion as enforced for a resource that is pending deletion.
+    ///
+    /// This transitions the resource from `Pending` to `Deleted` status.
+    /// This method should be called after the actual deletion has been performed.
+    ///
+    /// Returns `PolicyUpdated` if the deletion was successfully marked,
+    /// or `PolicyNotUpdated` if the resource is not pending deletion.
     pub fn deletion_enforced(&mut self) -> ComplianceResponse {
         if self.is_pending_deletion() {
             self.deleted = DeletionPolicy::Deleted;
@@ -149,27 +275,66 @@ impl Policy {
     }
 }
 
+/// Internal policy storage and management system.
+///
+/// `PolicyMap` provides thread-safe storage for resource policies and supports
+/// two operating modes:
+///
+/// # Operating Modes
+///
+/// ## Normal Mode (default)
+/// - Used in production
+/// - Unknown resources get default policies automatically
+/// - More forgiving for dynamic resource discovery
+///
+/// ## Cache Mode
+/// - Used primarily in testing
+/// - Unknown resources cause `PolicyNotFound` errors
+/// - Enforces explicit policy management
 #[derive(Default, Clone, Debug)]
 struct PolicyMap {
+    /// Whether to operate in cache mode (true) or normal mode (false)
     cache_mode: bool,
+    /// Thread-safe storage for resource policies
     policies: Arc<DashMap<Resource, Policy>>,
 }
 
 impl PolicyMap {
-    /// Create a new PolicyMap in cache mode for testing purposes
+    /// Creates a new PolicyMap in cache mode for testing purposes.
+    ///
+    /// In cache mode, requests for unknown resources will return
+    /// `PolicyNotFound` errors instead of default policies.
     #[cfg(test)]
     fn init_cache() -> Self {
         Self { cache_mode: true, policies: Arc::new(DashMap::new()) }
     }
 
-    /// Create a new PolicyMap in cache mode
+    /// Creates a new PolicyMap in cache mode with pre-populated policies.
+    ///
+    /// This is useful for testing scenarios where you want to work with
+    /// a known set of policies.
+    ///
+    /// # Arguments
+    ///
+    /// * `policies` - Pre-populated policy map
     fn cache(policies: Arc<DashMap<Resource, Policy>>) -> Self {
         Self { cache_mode: true, policies }
     }
 
-    /// Get the policy for a specific resource
-    /// It returns a PolicyNotFound error if the resource is not found in cache mode
-    /// It returns the default policy if the resource is not found in normal mode
+    /// Retrieves the policy for a specific resource.
+    ///
+    /// # Behavior by Mode
+    ///
+    /// - **Normal mode**: Returns default policy if resource not found
+    /// - **Cache mode**: Returns `PolicyNotFound` error if resource not found
+    ///
+    /// # Arguments
+    ///
+    /// * `resource` - The resource to look up
+    ///
+    /// # Errors
+    ///
+    /// Returns `PolicyNotFound` error in cache mode when the resource is not found.
     fn get_policy(&self, resource: &Resource) -> Result<Policy, TraceabilityError> {
         self.policies.get(resource).map(|p| p.to_owned()).map_or(
             if self.cache_mode {
@@ -181,9 +346,26 @@ impl PolicyMap {
         )
     }
 
-    /// Get the policies for a set of resources
-    /// It returns a PolicyNotFound error if the resource is not found in cache mode
-    /// It returns the default policy if the resource is not found in normal mode
+    /// Retrieves policies for a set of resources.
+    ///
+    /// Stream resources are automatically filtered out as they don't have policies.
+    ///
+    /// # Behavior by Mode
+    ///
+    /// - **Normal mode**: Unknown resources get default policies
+    /// - **Cache mode**: Unknown resources cause the entire operation to fail
+    ///
+    /// # Arguments
+    ///
+    /// * `resources` - Set of resources to look up
+    ///
+    /// # Returns
+    ///
+    /// A map from resources to their policies, excluding stream resources.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PolicyNotFound` error in cache mode when any resource is not found.
     fn get_policies(
         &self,
         resources: HashSet<Resource>,
@@ -204,8 +386,20 @@ impl PolicyMap {
         Ok(policies_set)
     }
 
-    /// Set the policy for a specific resource
-    /// Returns the old policy if the resource is already set
+    /// Sets the complete policy for a specific resource.
+    ///
+    /// This replaces any existing policy for the resource. If the resource
+    /// is already deleted, the update is rejected.
+    ///
+    /// # Arguments
+    ///
+    /// * `resource` - The resource to update
+    /// * `policy` - The new policy to set
+    ///
+    /// # Returns
+    ///
+    /// - `PolicyUpdated` if the policy was successfully set
+    /// - `PolicyNotUpdated` if the resource is deleted and cannot be modified
     fn set_policy(&self, resource: Resource, policy: Policy) -> ComplianceResponse {
         // Enforce deleted policy
         if self.policies.get(&resource).is_some_and(|policy| policy.is_deleted()) {
@@ -215,7 +409,15 @@ impl PolicyMap {
         ComplianceResponse::PolicyUpdated
     }
 
-    /// Set the confidentiality for a specific resource
+    /// Sets the confidentiality level for a specific resource.
+    ///
+    /// Creates a default policy if the resource doesn't exist.
+    /// Updates are rejected if the resource is deleted.
+    ///
+    /// # Arguments
+    ///
+    /// * `resource` - The resource to update
+    /// * `confidentiality` - The new confidentiality level
     fn set_confidentiality(
         &self,
         resource: Resource,
@@ -235,7 +437,15 @@ impl PolicyMap {
         response
     }
 
-    /// Set the integrity for a specific resource
+    /// Sets the integrity level for a specific resource.
+    ///
+    /// Creates a default policy if the resource doesn't exist.
+    /// Updates are rejected if the resource is deleted.
+    ///
+    /// # Arguments
+    ///
+    /// * `resource` - The resource to update
+    /// * `integrity` - The new integrity level
     fn set_integrity(&self, resource: Resource, integrity: u32) -> ComplianceResponse {
         let mut response = ComplianceResponse::PolicyNotUpdated;
         self.policies
@@ -251,7 +461,14 @@ impl PolicyMap {
         response
     }
 
-    /// Set a specific resource as deleted
+    /// Marks a specific resource for deletion.
+    ///
+    /// Creates a default policy if the resource doesn't exist, then marks it for deletion.
+    /// Updates are rejected if the resource is already deleted.
+    ///
+    /// # Arguments
+    ///
+    /// * `resource` - The resource to mark for deletion
     fn set_deleted(&self, resource: Resource) -> ComplianceResponse {
         let mut response = ComplianceResponse::PolicyNotUpdated;
         self.policies
@@ -267,7 +484,15 @@ impl PolicyMap {
         response
     }
 
-    /// Set consent flag for a specific resource
+    /// Sets the consent flag for a specific resource.
+    ///
+    /// Creates a default policy if the resource doesn't exist.
+    /// Updates are rejected if the resource is deleted.
+    ///
+    /// # Arguments
+    ///
+    /// * `resource` - The resource to update
+    /// * `consent` - The new consent value
     fn set_consent(&self, resource: Resource, consent: bool) -> ComplianceResponse {
         let mut response = ComplianceResponse::PolicyNotUpdated;
         self.policies
@@ -291,8 +516,49 @@ impl From<HashMap<Resource, Policy>> for PolicyMap {
     }
 }
 
-/// Helper function to evaluate the compliance of policies for a flow from source to destination
-/// Returns true if the flow is compliant, false otherwise
+/// Evaluates whether a data flow is compliant with the given policies.
+///
+/// This function implements the core compliance logic by checking multiple policy
+/// dimensions against a set of rules that determine whether data can flow from
+/// source resources to a destination resource.
+///
+/// # Policy Evaluation Rules
+///
+/// A flow is **permitted** only when ALL of the following conditions are met:
+///
+/// 1. **No Deleted Resources**: Neither source nor destination is deleted or pending deletion
+/// 2. **Integrity Preservation**: Source integrity ≥ destination integrity
+/// 3. **Confidentiality Protection**: Secret data cannot flow to public destinations
+/// 4. **Consent Required**: Both source and destination must have consent (when enforced)
+///
+/// # Arguments
+///
+/// * `source_policies` - Map of node IDs to their resource policies (sources)
+/// * `destination_policy` - Policy of the destination resource
+///
+/// # Returns
+///
+/// - `Ok(ComplianceResponse::Grant)` if the flow is permitted
+/// - `Err(TraceabilityError::DirectPolicyViolation)` if any rule is violated
+///
+/// # Flow Scenarios
+///
+/// ## ✅ Permitted Flows
+/// - Public (integrity 5) → Public (integrity 3) - integrity preserved
+/// - Secret (integrity 5) → Secret (integrity 3) - confidentiality maintained
+/// - Public (integrity 5) → Secret (integrity 3) - upgrading confidentiality
+///
+/// ## ❌ Blocked Flows  
+/// - Any deleted/pending resource involved
+/// - Public (integrity 3) → Public (integrity 5) - integrity violation
+/// - Secret (integrity 5) → Public (integrity 3) - confidentiality leak
+/// - Any resource without consent (when enforced)
+///
+/// # Multi-Node Support
+///
+/// The function supports evaluating flows that involve multiple source nodes,
+/// checking that ALL source policies are compatible with the destination.
+/// Node-based policies are not yet implemented.
 fn eval_policies(
     source_policies: HashMap<String, HashMap<Resource, Policy>>,
     destination_policy: Policy,
@@ -341,9 +607,38 @@ fn eval_policies(
     Ok(ComplianceResponse::Grant)
 }
 
-/// Compliance service for managing and checking policies
+/// The main compliance service that manages policies and evaluates flows.
+///
+/// `ComplianceService` implements the `Service` trait from the Tower library,
+/// providing an asynchronous interface for handling compliance requests.
+/// It combines policy storage and evaluation logic in a single service.
+///
+/// # Features
+///
+/// - **Policy Management**: Store, retrieve, and update resource policies
+/// - **Flow Evaluation**: Check whether data flows comply with policies
+/// - **Thread Safety**: Safe for concurrent use across multiple threads
+/// - **Async Interface**: Non-blocking operations using Tower's Service trait
+///
+/// # Request Types
+///
+/// The service handles several types of compliance requests:
+///
+/// - `EvalPolicies` - Evaluate whether a flow is permitted
+/// - `GetPolicy` / `GetPolicies` - Retrieve existing policies
+/// - `SetPolicy` - Set complete policy for a resource
+/// - `SetConfidentiality` / `SetIntegrity` / `SetConsent` - Update specific policy fields
+/// - `SetDeleted` - Mark resources for deletion
+///
+/// # Error Handling
+///
+/// The service returns `TraceabilityError` for various failure conditions:
+/// - `PolicyNotFound` - Resource not found (in cache mode)
+/// - `DirectPolicyViolation` - Flow violates compliance rules
+/// - `InternalTrace2eError` - Internal service errors
 #[derive(Default, Clone, Debug)]
 pub struct ComplianceService {
+    /// Internal policy storage and management
     policies: PolicyMap,
 }
 
