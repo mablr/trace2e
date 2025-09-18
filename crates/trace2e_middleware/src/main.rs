@@ -24,6 +24,10 @@ struct Trace2eMiddlewareArgs {
     /// Enable gRPC reflection
     #[arg(short, long, default_value_t = false)]
     reflection: bool,
+
+    /// Disable resource validation for P2M requests
+    #[arg(long, default_value_t = false)]
+    disable_resource_validation: bool,
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -34,10 +38,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args = Trace2eMiddlewareArgs::parse();
 
-    let (m2m_service, p2m_service, _) =
-        init_middleware(args.address.clone(), None, M2mGrpc::default());
-
     let address = format!("{}:{}", args.address, args.port).parse().unwrap();
+
+    let (m2m_service, p2m_service, _) = init_middleware(
+        args.address.clone(),
+        None,
+        M2mGrpc::default(),
+        !args.disable_resource_validation, // Enable validation unless disabled
+    );
 
     let mut server_builder = Server::builder()
         .add_service(Trace2eGrpcServer::new(Trace2eRouter::new(p2m_service, m2m_service)));

@@ -95,6 +95,7 @@ pub type O2mApiDefaultStack =
 /// * `node_id` - Unique identifier for this middleware node in the distributed system
 /// * `max_retries` - Maximum retry attempts for the waiting queue (None for unlimited)
 /// * `m2m_client` - Client service for M2M communication with remote middleware
+/// * `enable_resource_validation` - Whether to enable resource validation for P2M requests
 ///
 /// # Returns
 /// A tuple containing (M2M service, P2M service, O2M service) ready for use
@@ -105,6 +106,7 @@ pub fn init_middleware<M>(
     node_id: String,
     max_retries: Option<u32>,
     m2m_client: M,
+    enable_resource_validation: bool,
 ) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack)
 where
     M: tower::Service<
@@ -116,7 +118,15 @@ where
         + 'static,
     M::Future: Send,
 {
-    init_middleware_with_enrolled_resources(node_id, max_retries, m2m_client, 0, 0, 0)
+    init_middleware_with_enrolled_resources(
+        node_id,
+        max_retries,
+        m2m_client,
+        enable_resource_validation,
+        0,
+        0,
+        0,
+    )
 }
 
 /// Initialize a middleware stack with pre-enrolled resources for testing.
@@ -129,6 +139,7 @@ where
 /// * `node_id` - Unique identifier for this middleware node
 /// * `max_retries` - Maximum retry attempts for the waiting queue
 /// * `m2m_client` - Client service for M2M communication
+/// * `enable_resource_validation` - Whether to enable resource validation for P2M requests
 /// * `process_count` - Number of mock processes to pre-enroll
 /// * `per_process_file_count` - Number of files to enroll per process
 /// * `per_process_stream_count` - Number of streams to enroll per process
@@ -143,6 +154,7 @@ pub fn init_middleware_with_enrolled_resources<M>(
     node_id: String,
     max_retries: Option<u32>,
     m2m_client: M,
+    enable_resource_validation: bool,
     _process_count: u32,
     _per_process_file_count: u32,
     _per_process_stream_count: u32,
@@ -167,9 +179,11 @@ where
 
     let m2m_service: M2mApiDefaultStack =
         m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
+
     #[cfg(test)]
     let p2m_service: P2mApiDefaultStack<M> =
         p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
+            .with_resource_validation(enable_resource_validation)
             .with_enrolled_resources(
                 _process_count,
                 _per_process_file_count,
@@ -177,7 +191,8 @@ where
             );
     #[cfg(not(test))]
     let p2m_service: P2mApiDefaultStack<M> =
-        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client);
+        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
+            .with_resource_validation(enable_resource_validation);
 
     let o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
 

@@ -15,16 +15,13 @@
 //!
 //! ## Integration
 //!
-//! The validator is designed to work as a Tower middleware layer, allowing it to be
-//! easily integrated into service stacks using the `FilterLayer`. Invalid requests
-//! are rejected early with descriptive error messages before consuming system resources.
+//! The validator is designed to work with the P2M service through the embedded validation
+//! feature. Invalid requests are rejected early with descriptive error messages before
+//! consuming system resources.
 
 use std::net::SocketAddr;
 
 use sysinfo::{Pid, System};
-use tower::{BoxError, filter::Predicate};
-
-use crate::traceability::{api::P2mRequest, error::TraceabilityError};
 
 /// Resource validator for P2M requests.
 ///
@@ -40,9 +37,9 @@ use crate::traceability::{api::P2mRequest, error::TraceabilityError};
 ///
 /// ## Usage
 ///
-/// The validator implements the `Predicate` trait and can be used with Tower's
-/// `FilterLayer` to automatically validate requests in a service stack.
-#[derive(Default, Debug, Clone)]
+/// The validator methods are called by the P2M service when resource validation
+/// is enabled through the `with_resource_validation(true)` builder method.
+#[derive(Debug, Clone)]
 pub struct ResourceValidator;
 
 impl ResourceValidator {
@@ -57,7 +54,7 @@ impl ResourceValidator {
     ///
     /// # Returns
     /// `true` if the process exists and is accessible, `false` otherwise
-    fn is_valid_process(&self, pid: i32) -> bool {
+    pub fn is_valid_process(&self, pid: i32) -> bool {
         let mut system = System::new();
         system.refresh_all();
         system.process(Pid::from(pid as usize)).is_some()
@@ -75,7 +72,7 @@ impl ResourceValidator {
     ///
     /// # Returns
     /// `true` if both addresses are valid and compatible, `false` otherwise
-    fn is_valid_stream(&self, local_socket: &str, peer_socket: &str) -> bool {
+    pub fn is_valid_stream(&self, local_socket: &str, peer_socket: &str) -> bool {
         match (local_socket.parse::<SocketAddr>(), peer_socket.parse::<SocketAddr>()) {
             (Ok(local_socket), Ok(peer_socket)) => {
                 (local_socket.is_ipv4() && peer_socket.is_ipv4())
@@ -86,58 +83,13 @@ impl ResourceValidator {
     }
 }
 
-impl Predicate<P2mRequest> for ResourceValidator {
-    type Request = P2mRequest;
-
-    /// Validates P2M requests according to their type and resource requirements.
-    ///
-    /// Applies appropriate validation rules based on the request type:
-    /// - `RemoteEnroll`: Validates both process and stream resources
-    /// - `LocalEnroll`, `IoRequest`: Validates process resources only  
-    /// - `IoReport`: Passes through without validation (grant ID is validated later)
-    ///
-    /// # Arguments
-    /// * `request` - The P2M request to validate
-    ///
-    /// # Returns
-    /// `Ok(request)` if validation passes, `Err(TraceabilityError)` if validation fails
-    ///
-    /// # Errors
-    /// - `InvalidProcess`: When the process ID is not found or accessible
-    /// - `InvalidStream`: When socket addresses are malformed or incompatible
-    fn check(&mut self, request: Self::Request) -> Result<Self::Request, BoxError> {
-        match request.clone() {
-            P2mRequest::RemoteEnroll { pid, local_socket, peer_socket, .. } => {
-                if self.is_valid_process(pid) {
-                    if self.is_valid_stream(&local_socket, &peer_socket) {
-                        Ok(request)
-                    } else {
-                        Err(Box::new(TraceabilityError::InvalidStream(local_socket, peer_socket)))
-                    }
-                } else {
-                    Err(Box::new(TraceabilityError::InvalidProcess(pid)))
-                }
-            }
-            P2mRequest::LocalEnroll { pid, .. } | P2mRequest::IoRequest { pid, .. } => {
-                if self.is_valid_process(pid) {
-                    Ok(request)
-                } else {
-                    Err(Box::new(TraceabilityError::InvalidProcess(pid)))
-                }
-            }
-            P2mRequest::IoReport { .. } => Ok(request),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use tower::{Service, ServiceBuilder, filter::FilterLayer};
+    use tower::Service;
 
-    use super::*;
     use crate::{
         traceability::{
-            api::P2mResponse,
+            api::{P2mRequest, P2mResponse},
             core::{
                 compliance::ComplianceService, provenance::ProvenanceService,
                 sequencer::SequencerService,
@@ -149,14 +101,13 @@ mod tests {
 
     #[tokio::test]
     async fn unit_traceability_provenance_service_p2m_validator() {
-        let mut p2m_service = ServiceBuilder::new()
-            .layer(FilterLayer::new(ResourceValidator))
-            .service(P2mApiService::new(
-                SequencerService::default(),
-                ProvenanceService::default(),
-                ComplianceService::default(),
-                M2mNop,
-            ));
+        let mut p2m_service = P2mApiService::new(
+            SequencerService::default(),
+            ProvenanceService::default(),
+            ComplianceService::default(),
+            M2mNop,
+        )
+        .with_resource_validation(true);
 
         assert_eq!(
             p2m_service
@@ -190,14 +141,6 @@ mod tests {
                 .await
                 .unwrap(),
             P2mResponse::Ack
-        );
-
-        assert_eq!(
-            p2m_service
-                .check(P2mRequest::LocalEnroll { pid: 0, fd: 1, path: "test".to_string() })
-                .unwrap_err()
-                .to_string(),
-            "Traceability error, process not found (pid: 0)"
         );
 
         assert_eq!(
