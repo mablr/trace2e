@@ -138,6 +138,7 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
     ///
     /// # Returns
     /// The service instance with pre-enrolled mock resources
+    #[cfg(test)]
     pub fn with_enrolled_resources(
         self,
         process_count: u32,
