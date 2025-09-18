@@ -1,4 +1,41 @@
-//! gRPC service for the Trace2e middleware.
+//! # gRPC Transport Implementation
+//!
+//! This module provides the gRPC-based transport layer for distributed traceability
+//! operations in the trace2e framework. It implements both client and server
+//! functionality for machine-to-machine (M2M) communication using Protocol Buffers
+//! and the Tonic gRPC framework.
+//!
+//! ## Components
+//!
+//! - **M2mGrpc**: Client service for making outbound gRPC calls to remote middleware
+//! - **Trace2eRouter**: Server implementation that routes incoming gRPC requests
+//! - **Protocol Buffer Conversions**: Type conversions between internal and protobuf types
+//!
+//! ## Connection Management
+//!
+//! The gRPC client maintains a cache of connected remote clients to avoid
+//! repeated connection overhead. Connections are established on-demand and
+//! reused for subsequent requests to the same remote endpoint.
+//!
+//! ## Service Operations
+//!
+//! ### Process-to-Middleware (P2M)
+//! - Local process enrollment (file descriptors)
+//! - Remote process enrollment (network connections)
+//! - I/O request authorization
+//! - I/O operation reporting
+//!
+//! ### Machine-to-Machine (M2M)
+//! - Destination compliance policy retrieval
+//! - Source compliance policy retrieval
+//! - Provenance information updates
+//!
+//! ## Protocol Buffer Integration
+//!
+//! The module includes comprehensive type conversions between the internal
+//! trace2e types and their Protocol Buffer representations, ensuring seamless
+//! serialization and deserialization across network boundaries.
+
 use std::{
     collections::{HashMap, HashSet},
     future::Future,
@@ -11,10 +48,13 @@ use dashmap::DashMap;
 use tonic::{Request, Response, Status, transport::Channel};
 use tower::Service;
 
+/// Default port for gRPC communication between trace2e middleware instances.
 pub const DEFAULT_GRPC_PORT: u16 = 50051;
 
+/// Protocol Buffer definitions and descriptor sets for the trace2e gRPC service.
 pub mod proto {
     tonic::include_proto!("trace2e");
+    /// Pre-compiled Protocol Buffer descriptor set for service reflection.
     pub const MIDDLEWARE_DESCRIPTOR_SET: &[u8] = include_bytes!("../../trace2e_descriptor.bin");
 }
 
@@ -28,18 +68,53 @@ use crate::{
     transport::eval_remote_ip,
 };
 
+/// Converts traceability errors to gRPC Status codes for wire transmission.
 impl From<TraceabilityError> for Status {
     fn from(error: TraceabilityError) -> Self {
         Status::internal(error.to_string())
     }
 }
 
+/// gRPC client service for machine-to-machine communication.
+///
+/// `M2mGrpc` provides the client-side implementation for making gRPC calls to
+/// remote trace2e middleware instances. It manages connection pooling and
+/// handles the translation between internal M2M requests and gRPC protocol.
+///
+/// ## Connection Management
+///
+/// The service maintains a thread-safe cache of connected clients to avoid
+/// connection overhead. Connections are established lazily when first needed
+/// and reused for subsequent requests to the same remote endpoint.
+///
+/// ## Request Routing
+///
+/// The service automatically determines the target remote IP address from
+/// the request payload and routes the call to the appropriate endpoint.
+/// Network failures are reported as transport errors.
 #[derive(Default, Clone)]
 pub struct M2mGrpc {
+    /// Cache of established gRPC client connections indexed by remote IP address.
     connected_remotes: Arc<DashMap<String, proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>>>,
 }
 
 impl M2mGrpc {
+    /// Establishes a new gRPC connection to a remote middleware instance.
+    ///
+    /// Creates a new client connection to the specified remote IP address
+    /// using the default gRPC port. The connection is cached for future use.
+    ///
+    /// # Arguments
+    ///
+    /// * `remote_ip` - The IP address of the remote middleware instance
+    ///
+    /// # Returns
+    ///
+    /// A connected gRPC client, or an error if connection fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TransportFailedToContactRemote` if the connection cannot be established.
     async fn connect_remote(
         &self,
         remote_ip: String,
@@ -57,6 +132,15 @@ impl M2mGrpc {
         }
     }
 
+    /// Retrieves an existing cached gRPC client for the specified remote IP.
+    ///
+    /// # Arguments
+    ///
+    /// * `remote_ip` - The IP address to look up in the connection cache
+    ///
+    /// # Returns
+    ///
+    /// An existing client connection if available, None otherwise.
     async fn get_client(
         &self,
         remote_ip: String,
@@ -64,6 +148,23 @@ impl M2mGrpc {
         self.connected_remotes.get(&remote_ip).map(|c| c.to_owned())
     }
 
+    /// Retrieves an existing client or establishes a new connection if needed.
+    ///
+    /// This method first checks the connection cache and returns an existing
+    /// client if available. If no cached connection exists, it establishes
+    /// a new connection and caches it for future use.
+    ///
+    /// # Arguments
+    ///
+    /// * `remote_ip` - The IP address of the target middleware instance
+    ///
+    /// # Returns
+    ///
+    /// A ready-to-use gRPC client connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TransportFailedToContactRemote` if connection establishment fails.
     async fn get_client_or_connect(
         &self,
         remote_ip: String,
@@ -151,17 +252,47 @@ impl Service<M2mRequest> for M2mGrpc {
     }
 }
 
+/// gRPC server router that handles incoming requests and routes them to appropriate services.
+///
+/// `Trace2eRouter` implements the gRPC server-side logic by accepting incoming
+/// requests and routing them to the appropriate process-to-middleware (P2M) or
+/// machine-to-machine (M2M) service handlers.
+///
+/// ## Type Parameters
+///
+/// * `P2mApi` - Service handling process-to-middleware requests
+/// * `M2mApi` - Service handling machine-to-machine requests
+///
+/// ## Request Routing
+///
+/// The router translates incoming Protocol Buffer requests to internal API
+/// types, calls the appropriate service, and converts responses back to
+/// Protocol Buffer format for transmission.
 pub struct Trace2eRouter<P2mApi, M2mApi> {
+    /// Process-to-middleware service handler.
     p2m: P2mApi,
+    /// Machine-to-machine service handler.
     m2m: M2mApi,
 }
 
 impl<P2mApi, M2mApi> Trace2eRouter<P2mApi, M2mApi> {
+    /// Creates a new router with the specified service handlers.
+    ///
+    /// # Arguments
+    ///
+    /// * `p2m` - Service for handling process-to-middleware requests
+    /// * `m2m` - Service for handling machine-to-machine requests
     pub fn new(p2m: P2mApi, m2m: M2mApi) -> Self {
         Self { p2m, m2m }
     }
 }
 
+/// Implementation of the trace2e gRPC service protocol.
+///
+/// This implementation provides the server-side handlers for all gRPC endpoints
+/// defined in the trace2e protocol. It handles both P2M (process-to-middleware)
+/// and M2M (machine-to-machine) operations by delegating to the appropriate
+/// internal service handlers.
 #[tonic::async_trait]
 impl<P2mApi, M2mApi> proto::trace2e_grpc_server::Trace2eGrpc for Trace2eRouter<P2mApi, M2mApi>
 where
@@ -178,7 +309,10 @@ where
         + 'static,
     M2mApi::Future: Send,
 {
-    // P2M operations
+    /// Handles local process enrollment requests.
+    ///
+    /// Registers a local file descriptor with the middleware for tracking.
+    /// This is called when a process opens a local file or resource.
     async fn p2m_local_enroll(
         &self,
         request: Request<proto::LocalCt>,
@@ -198,6 +332,10 @@ where
         }
     }
 
+    /// Handles remote process enrollment requests.
+    ///
+    /// Registers a network connection (socket) with the middleware for tracking.
+    /// This is called when a process establishes a network connection.
     async fn p2m_remote_enroll(
         &self,
         request: Request<proto::RemoteCt>,
@@ -218,6 +356,10 @@ where
         }
     }
 
+    /// Handles I/O authorization requests from processes.
+    ///
+    /// Evaluates whether a process is authorized to perform an I/O operation
+    /// on a specific file descriptor. Returns a grant ID if authorized.
     async fn p2m_io_request(
         &self,
         request: Request<proto::IoInfo>,
@@ -237,6 +379,10 @@ where
         }
     }
 
+    /// Handles I/O operation completion reports from processes.
+    ///
+    /// Records the completion and result of an I/O operation that was
+    /// previously authorized. This completes the audit trail for the operation.
     async fn p2m_io_report(
         &self,
         request: Request<proto::IoResult>,
@@ -257,7 +403,10 @@ where
         }
     }
 
-    // M2M operations
+    /// Handles destination compliance policy requests from remote middleware.
+    ///
+    /// Returns the compliance policy for a destination resource to enable
+    /// remote middleware instances to evaluate flow authorization.
     async fn m2m_destination_compliance(
         &self,
         request: Request<proto::GetDestinationCompliance>,
@@ -270,6 +419,10 @@ where
         }
     }
 
+    /// Handles source compliance policy requests from remote middleware.
+    ///
+    /// Returns the compliance policies for a set of source resources to enable
+    /// distributed flow evaluation across multiple middleware instances.
     async fn m2m_source_compliance(
         &self,
         request: Request<proto::GetSourceCompliance>,
@@ -282,6 +435,11 @@ where
         }
     }
 
+    /// Handles provenance update requests from remote middleware.
+    ///
+    /// Updates the provenance information for a destination resource based
+    /// on data flows from remote sources. This maintains the audit trail
+    /// across distributed operations.
     async fn m2m_update_provenance(
         &self,
         request: Request<proto::UpdateProvenance>,
@@ -295,8 +453,13 @@ where
     }
 }
 
-// Conversion trait implementations
+// Protocol Buffer type conversion implementations
+//
+// The following implementations provide bidirectional conversion between
+// internal trace2e types and their Protocol Buffer representations,
+// enabling seamless serialization for network transmission.
 
+/// Converts Protocol Buffer GetDestinationCompliance request to internal M2M request.
 impl From<proto::GetDestinationCompliance> for M2mRequest {
     fn from(req: proto::GetDestinationCompliance) -> Self {
         M2mRequest::GetDestinationCompliance {
@@ -306,6 +469,7 @@ impl From<proto::GetDestinationCompliance> for M2mRequest {
     }
 }
 
+/// Converts Protocol Buffer GetSourceCompliance request to internal M2M request.
 impl From<proto::GetSourceCompliance> for M2mRequest {
     fn from(req: proto::GetSourceCompliance) -> Self {
         M2mRequest::GetSourceCompliance {
@@ -315,6 +479,7 @@ impl From<proto::GetSourceCompliance> for M2mRequest {
     }
 }
 
+/// Converts Protocol Buffer MappedPolicy to internal resource-policy tuple.
 impl From<proto::MappedPolicy> for (Resource, Policy) {
     fn from(policy: proto::MappedPolicy) -> Self {
         (
@@ -324,12 +489,14 @@ impl From<proto::MappedPolicy> for (Resource, Policy) {
     }
 }
 
+/// Converts Protocol Buffer References to internal node-resources tuple.
 impl From<proto::References> for (String, HashSet<Resource>) {
     fn from(references: proto::References) -> Self {
         (references.node, references.resources.into_iter().map(|r| r.into()).collect())
     }
 }
 
+/// Converts Protocol Buffer UpdateProvenance request to internal M2M request.
 impl From<proto::UpdateProvenance> for M2mRequest {
     fn from(req: proto::UpdateProvenance) -> Self {
         M2mRequest::UpdateProvenance {
@@ -339,12 +506,14 @@ impl From<proto::UpdateProvenance> for M2mRequest {
     }
 }
 
+/// Converts internal Policy to Protocol Buffer DestinationCompliance response.
 impl From<Policy> for proto::DestinationCompliance {
     fn from(policy: Policy) -> Self {
         proto::DestinationCompliance { policy: Some(policy.into()) }
     }
 }
 
+/// Converts internal resource-policy map to Protocol Buffer SourceCompliance response.
 impl From<HashMap<Resource, Policy>> for proto::SourceCompliance {
     fn from(policies: HashMap<Resource, Policy>) -> Self {
         proto::SourceCompliance {
@@ -359,18 +528,21 @@ impl From<HashMap<Resource, Policy>> for proto::SourceCompliance {
     }
 }
 
+/// Converts internal node-resources tuple to Protocol Buffer References.
 impl From<(String, HashSet<Resource>)> for proto::References {
     fn from((node, resources): (String, HashSet<Resource>)) -> Self {
         proto::References { node, resources: resources.into_iter().map(|r| r.into()).collect() }
     }
 }
 
+/// Converts internal resource-policy tuple to Protocol Buffer MappedPolicy.
 impl From<(Resource, Policy)> for proto::MappedPolicy {
     fn from((resource, policy): (Resource, Policy)) -> Self {
         proto::MappedPolicy { resource: Some(resource.into()), policy: Some(policy.into()) }
     }
 }
 
+/// Converts Protocol Buffer Resource to internal Resource type.
 impl From<proto::Resource> for Resource {
     fn from(proto_resource: proto::Resource) -> Self {
         match proto_resource.resource {
@@ -381,6 +553,7 @@ impl From<proto::Resource> for Resource {
     }
 }
 
+/// Converts internal Resource to Protocol Buffer Resource type.
 impl From<Resource> for proto::Resource {
     fn from(resource: Resource) -> Self {
         match resource {

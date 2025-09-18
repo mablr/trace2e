@@ -1,3 +1,30 @@
+//! # Loopback Transport Implementation
+//!
+//! This module provides a loopback transport implementation for testing and
+//! development scenarios where multiple middleware instances need to communicate
+//! within a single process or test environment. It simulates network communication
+//! by routing M2M requests directly to local middleware instances.
+//!
+//! ## Features
+//!
+//! - **In-Process Communication**: Routes calls directly to registered middleware instances
+//! - **Network Simulation**: Supports configurable delays and jitter to simulate network latency
+//! - **Test Orchestration**: Provides utilities for spawning multiple middleware instances
+//! - **Resource Pre-enrollment**: Supports pre-populating middleware with test resources
+//!
+//! ## Use Cases
+//!
+//! - Unit and integration testing of distributed traceability scenarios
+//! - Development and debugging of multi-node workflows
+//! - Performance testing with controlled network conditions
+//! - Simulation of distributed systems in a single process
+//!
+//! ## Network Simulation
+//!
+//! The loopback transport can simulate network characteristics by introducing
+//! configurable delays and jitter to M2M calls, allowing testing of timeout
+//! handling and performance under various network conditions.
+
 use std::{
     collections::VecDeque,
     future::Future,
@@ -20,12 +47,36 @@ use crate::{
     transport::eval_remote_ip,
 };
 
+/// Spawns multiple loopback middleware instances with no pre-enrolled resources.
+///
+/// Creates a set of middleware instances that can communicate with each other
+/// through the loopback transport. Each middleware is identified by an IP address
+/// for routing purposes.
+///
+/// # Arguments
+///
+/// * `ips` - Vector of IP addresses to assign to the middleware instances
+///
+/// # Returns
+///
+/// A queue of (P2M service, O2M service) tuples for each middleware instance.
 pub async fn spawn_loopback_middlewares(
     ips: Vec<String>,
 ) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
     spawn_loopback_middlewares_with_enrolled_resources(ips, 0, 0, 0).await
 }
 
+/// Spawns multiple loopback middleware instances with pre-enrolled test resources.
+///
+/// Creates middleware instances and pre-populates them with the specified number
+/// of processes, files, and network streams for testing purposes.
+///
+/// # Arguments
+///
+/// * `ips` - Vector of IP addresses for the middleware instances
+/// * `process_count` - Number of processes to enroll per middleware
+/// * `per_process_file_count` - Number of files to create per process
+/// * `per_process_stream_count` - Number of network streams to create per process
 pub async fn spawn_loopback_middlewares_with_enrolled_resources(
     ips: Vec<String>,
     process_count: u32,
@@ -43,6 +94,20 @@ pub async fn spawn_loopback_middlewares_with_enrolled_resources(
     .await
 }
 
+/// Spawns loopback middleware instances with network simulation and pre-enrolled resources.
+///
+/// Creates middleware instances with configurable network delay simulation and
+/// pre-populated test resources. This is the most comprehensive setup function
+/// for testing complex distributed scenarios.
+///
+/// # Arguments
+///
+/// * `ips` - Vector of IP addresses for the middleware instances
+/// * `base_delay_ms` - Base network delay in milliseconds
+/// * `jitter_max_ms` - Maximum additional random delay in milliseconds
+/// * `process_count` - Number of processes to enroll per middleware
+/// * `per_process_file_count` - Number of files to create per process
+/// * `per_process_stream_count` - Number of network streams to create per process
 pub async fn spawn_loopback_middlewares_with_entropy(
     ips: Vec<String>,
     base_delay_ms: u64,
@@ -68,11 +133,33 @@ pub async fn spawn_loopback_middlewares_with_entropy(
     middlewares
 }
 
+/// Loopback transport service for in-process M2M communication.
+///
+/// `M2mLoopback` provides a transport implementation that routes M2M requests
+/// to local middleware instances within the same process. It maintains a
+/// registry of middleware instances indexed by IP address and supports
+/// configurable network delay simulation.
+///
+/// ## Network Simulation
+///
+/// The service can simulate network latency by introducing delays before
+/// processing requests. This includes both a base delay and random jitter
+/// to simulate real network conditions.
+///
+/// ## Thread Safety
+///
+/// The service is thread-safe and can be safely cloned and used across
+/// multiple concurrent tasks. All internal state is protected by appropriate
+/// synchronization primitives.
 #[derive(Clone)]
 pub struct M2mLoopback {
+    /// Registry of middleware instances indexed by IP address.
     middlewares: Arc<DashMap<String, M2mApiDefaultStack>>,
+    /// Base network delay in milliseconds.
     base_delay_ms: u64,
+    /// Maximum additional random delay in milliseconds.
     jitter_max_ms: u64,
+    /// Timestamp of the last call for delay calculation.
     last_call_time: Arc<std::sync::Mutex<Option<Instant>>>,
 }
 
@@ -83,6 +170,12 @@ impl Default for M2mLoopback {
 }
 
 impl M2mLoopback {
+    /// Creates a new loopback transport with the specified delay characteristics.
+    ///
+    /// # Arguments
+    ///
+    /// * `base_delay_ms` - Base delay to add to all requests in milliseconds
+    /// * `jitter_max_ms` - Maximum random additional delay in milliseconds
     pub fn new(base_delay_ms: u64, jitter_max_ms: u64) -> Self {
         Self {
             middlewares: Arc::new(DashMap::new()),
@@ -92,10 +185,33 @@ impl M2mLoopback {
         }
     }
 
+    /// Registers a middleware instance with the specified IP address.
+    ///
+    /// This allows the loopback transport to route requests to the appropriate
+    /// middleware instance based on the target IP address extracted from requests.
+    ///
+    /// # Arguments
+    ///
+    /// * `ip` - IP address identifier for the middleware
+    /// * `middleware` - The middleware service instance to register
     pub async fn register_middleware(&self, ip: String, middleware: M2mApiDefaultStack) {
         self.middlewares.insert(ip, middleware);
     }
 
+    /// Retrieves a middleware instance for the specified IP address.
+    ///
+    /// # Arguments
+    ///
+    /// * `ip` - IP address of the target middleware
+    ///
+    /// # Returns
+    ///
+    /// The middleware service instance, or an error if not found.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TransportFailedToContactRemote` if no middleware is registered
+    /// for the specified IP address.
     pub async fn get_middleware(
         &self,
         ip: String,
@@ -106,6 +222,14 @@ impl M2mLoopback {
             .ok_or(TraceabilityError::TransportFailedToContactRemote(ip))
     }
 
+    /// Calculates the delay to apply based on the configured delay parameters.
+    ///
+    /// Combines the base delay with a random jitter component to simulate
+    /// realistic network latency characteristics.
+    ///
+    /// # Returns
+    ///
+    /// The total delay duration to apply to the current request.
     fn calculate_delay(&self) -> Duration {
         if self.base_delay_ms == 0 && self.jitter_max_ms == 0 {
             return Duration::from_millis(0);
