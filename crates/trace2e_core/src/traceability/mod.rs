@@ -45,6 +45,7 @@
 //! The module provides helper functions for initializing complete middleware stacks:
 //! - `init_middleware()`: Initialize production middleware with specified M2M client
 //! - `init_middleware_with_enrolled_resources()`: Initialize with pre-enrolled test resources
+//! - `init_middleware_with_validation()`: Initialize with optional resource validation layer
 
 //! Traceability module.
 pub mod api;
@@ -181,6 +182,75 @@ where
         } else {
             p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
         };
+
+    let o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
+
+    (m2m_service, p2m_service, o2m_service)
+}
+
+/// Initialize a complete middleware stack with resource validation enabled.
+///
+/// Creates a fully configured middleware stack similar to `init_middleware()` but
+/// with resource validation enabled for the P2M service. All P2M requests are
+/// validated for valid processes and streams before processing.
+///
+/// # Arguments
+/// * `node_id` - Unique identifier for this middleware node in the distributed system
+/// * `max_retries` - Maximum retry attempts for the waiting queue (None for unlimited)
+/// * `m2m_client` - Client service for M2M communication with remote middleware
+///
+/// # Returns
+/// A tuple containing (M2M service, validated P2M service, O2M service) ready for use
+///
+/// # Type Parameters
+/// * `M` - M2M client type that implements the required service traits
+pub fn init_middleware_with_validation<M>(
+    node_id: String,
+    max_retries: Option<u32>,
+    m2m_client: M,
+) -> (
+    M2mApiDefaultStack,
+    impl tower::Service<
+        api::P2mRequest,
+        Response = api::P2mResponse,
+        Error = error::TraceabilityError,
+    > + Clone + Send,
+    O2mApiDefaultStack,
+)
+where
+    M: tower::Service<
+            api::M2mRequest,
+            Response = api::M2mResponse,
+            Error = error::TraceabilityError,
+        > + Clone
+        + Send
+        + 'static,
+    M::Future: Send,
+{
+    fn convert_validation_error(err: tower::BoxError) -> error::TraceabilityError {
+        match err.downcast::<error::TraceabilityError>() {
+            Ok(trace_err) => *trace_err,
+            Err(_) => error::TraceabilityError::InternalTrace2eError,
+        }
+    }
+
+    let sequencer = tower::ServiceBuilder::new()
+        .layer(tower::layer::layer_fn(|inner| {
+            core::sequencer::WaitingQueueService::new(inner, max_retries)
+        }))
+        .service(core::sequencer::SequencerService::default());
+    let provenance = core::provenance::ProvenanceService::new(node_id);
+    let compliance = core::compliance::ComplianceService::default();
+
+    let m2m_service: M2mApiDefaultStack =
+        m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
+
+    let base_p2m_service = p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client);
+
+    let p2m_service = tower::ServiceBuilder::new()
+        .map_err(convert_validation_error)
+        .layer(tower::filter::FilterLayer::new(validation::ResourceValidator))
+        .service(base_p2m_service);
 
     let o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
 
