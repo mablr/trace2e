@@ -1,5 +1,5 @@
 # Made by ithacaxyz team
-name: DEP
+name: Run cargo update
 
 on:
   schedule:
