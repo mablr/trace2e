@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ConfidentialityPolicy","DeletionPolicy"],"struct":["ComplianceService","Policy"]};

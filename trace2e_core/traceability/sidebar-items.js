@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["init_middleware","init_middleware_with_enrolled_resources"],"mod":["api","core","error","m2m","naming","o2m","p2m","validation"],"type":["M2mApiDefaultStack","O2mApiDefaultStack","P2mApiDefaultStack"]};
