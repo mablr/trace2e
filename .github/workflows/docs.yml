@@ -1,0 +1,61 @@
+name: Publish RustDocs (trace2e_core)
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'crates/trace2e_core/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+# Needed to push to gh-pages
+permissions:
+  contents: write
+
+concurrency:
+  group: docs-pages
+  cancel-in-progress: true
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cache cargo and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build docs for trace2e_core
+        run: |
+          cargo doc --no-deps -p trace2e_core
+
+      - name: Add helpful index redirect
+        run: |
+          echo '<!DOCTYPE html><meta charset="utf-8"><meta http-equiv="refresh" content="0; url=trace2e_core/index.html"><link rel="canonical" href="trace2e_core/index.html">' > target/doc/index.html
+
+      - name: Deploy to GitHub Pages (gh-pages branch)
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: ./target/doc
+          user_name: github-actions[bot]
+          user_email: github-actions[bot]@users.noreply.github.com
+          commit_message: "docs: update trace2e_core rustdocs for ${{ github.sha }}"
