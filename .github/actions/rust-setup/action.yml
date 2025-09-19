@@ -1,0 +1,54 @@
+name: Rust CI Setup
+description: Common setup for Rust CI (checkout, protoc, toolchain, cache)
+
+inputs:
+  protoc:
+    description: Whether to install protoc
+    required: false
+    default: "false"
+  protoc-version:
+    description: Version of protoc to install
+    required: false
+    default: "latest"
+  toolchain:
+    description: Rust toolchain channel or version
+    required: false
+    default: "stable"
+  cache:
+    description: Whether to enable cargo cache
+    required: false
+    default: "false"
+  cache-key-suffix:
+    description: Additional suffix for cache key
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set cargo output color
+      shell: bash
+      run: echo "CARGO_TERM_COLOR=always" >> "$GITHUB_ENV"
+
+    - name: Install protoc
+      if: ${{ inputs.protoc == 'true' }}
+      uses: taiki-e/install-action@v2
+      with:
+        tool: protoc@${{ inputs['protoc-version'] }}
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        toolchain: ${{ inputs.toolchain }}
+
+    - name: Cache cargo and target
+      if: ${{ inputs.cache == 'true' }}
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}-${{ inputs['cache-key-suffix'] }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-

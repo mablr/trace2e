@@ -15,32 +15,26 @@ on:
 permissions:
   contents: write
 
+env:
+  PROTOC_VERSION: 3.21.12
+  CARGO_TERM_COLOR: always
+
 concurrency:
   group: docs-pages
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  docs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+      - name: Setup
+        uses: ./.github/actions/rust-setup
         with:
-          toolchain: stable
-
-      - name: Cache cargo and target
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          cache: true
+          protoc: true
 
       - name: Build docs for trace2e_core
         run: |

@@ -5,22 +5,22 @@ on:
     branches: [ "master" ]
   pull_request: {}
 
-env:
-  PROTOC_VERSION: 3.21.12
-  CARGO_TERM_COLOR: always
-
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5
-    - name: Install protoc
-      uses: taiki-e/install-action@v2
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Setup
+      uses: ./.github/actions/rust-setup
       with:
-        tool: protoc@${{ env.PROTOC_VERSION }}
+        protoc: true
+
     - name: Code formatting check
       run: make fmt
       shell: bash
+
     - name: Run clippy
       run: make clippy
       shell: bash
@@ -29,11 +29,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-    - uses: actions/checkout@v5
-    - name: Install protoc
-      uses: taiki-e/install-action@v2
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Setup
+      uses: ./.github/actions/rust-setup
       with:
-        tool: protoc@${{ env.PROTOC_VERSION }}
+        protoc: true
+
     - name: Run middleware tests
       run: make test-middleware
       shell: bash
@@ -42,11 +45,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-    - uses: actions/checkout@v5
-    - name: Install protoc
-      uses: taiki-e/install-action@v2
+    - name: Checkout
+      uses: actions/checkout@v5
+
+    - name: Setup
+      uses: ./.github/actions/rust-setup
       with:
-        tool: protoc@${{ env.PROTOC_VERSION }}
+        protoc: true
+
     - name: Run integration tests
       run: make test-lib
       shell: bash
