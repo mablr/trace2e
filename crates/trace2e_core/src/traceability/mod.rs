@@ -21,30 +21,17 @@
 //! Administrative interface for policy management, compliance configuration,
 //! and provenance analysis by external operators and organizations.
 //!
-//! ## Service Components
+//! ## Main Components
 //!
 //! ### Core Services
 //! - **Sequencer**: Manages flow ordering and resource reservations to prevent race conditions
 //! - **Provenance**: Tracks data provenance across operations
 //! - **Compliance**: Enforces organizational policies and regulatory requirements
 //!
-//! ### Infrastructure Services
+//! ### Infrastructure Primitives
 //! - **Validation**: Validates incoming requests and resource accessibility
 //! - **Naming**: Provides unified resource identification and naming conventions
 //! - **Error Handling**: Comprehensive error types and handling for operational monitoring
-//!
-//! ## Default Service Stacks
-//!
-//! Pre-configured service combinations are available as type aliases for common deployment patterns:
-//! - `M2mApiDefaultStack`: Standard M2M service with default component configuration
-//! - `P2mApiDefaultStack<M>`: Standard P2M service parameterized by M2M client type
-//! - `O2mApiDefaultStack`: Standard O2M service with default component configuration
-//!
-//! ## Initialization Helpers
-//!
-//! The module provides helper functions for initializing complete middleware stacks:
-//! - `init_middleware()`: Initialize production middleware with specified M2M client
-//! - `init_middleware_with_enrolled_resources()`: Initialize with pre-enrolled test resources
 pub mod api;
 pub mod core;
 pub mod error;
