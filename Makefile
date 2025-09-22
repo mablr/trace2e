@@ -1,4 +1,4 @@
-.PHONY: fmt clippy test pre-commit clean
+.PHONY: fmt clippy test pre-commit clean release bench help test-middleware test-lib pr
 
 # Format code
 fmt:
@@ -16,6 +16,14 @@ test-middleware:
 test-lib:
 	./test-lib.sh
 
+# Build release binary for trace2e middleware
+release:
+	cargo build -r -p trace2e_middleware
+
+# Run middleware benchmarks (core traceability server)
+bench:
+	cargo bench -p trace2e_core
+
 # Run all pre-commit checks
 pr: fmt clippy test
 	@echo "All pre-commit checks passed!"
@@ -27,11 +35,13 @@ clean:
 # Help target
 help:
 	@echo "Available targets:"
-	@echo "  fmt             - Format code"
-	@echo "  clippy          - Run clippy on trace2e_middleware package"
+	@echo "  fmt             - Format code (workspace)"
+	@echo "  clippy          - Run clippy for all targets/features (deny warnings)"
 	@echo "  test            - Run all tests (middleware + custom lib)"
-	@echo "  test-middleware - Run middleware tests"
-	@echo "  test-lib        - Run custom lib tests"
+	@echo "  test-middleware - Run middleware (trace2e_core) tests"
+	@echo "  test-lib        - Run custom lib tests (./test-lib.sh)"
+	@echo "  release         - Build trace2e_middleware in release mode"
+	@echo "  bench           - Run middleware benchmarks (trace2e_core)"
 	@echo "  pr              - Run all pre-commit checks (fmt + clippy + test)"
 	@echo "  clean           - Clean build artifacts"
-	@echo "  help       - Show this help message"
+	@echo "  help            - Show this help message"
