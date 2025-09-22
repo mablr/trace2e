@@ -56,20 +56,36 @@ The system works through three main components:
 
 2. Build the middleware in release mode to enable optimizations:
    ```bash
-   cargo build -r
+   make release
    ./target/release/trace2e_middleware
    ```
 The middleware will listen on `[::]:8080` by default.
 
+### Testing
+
+- Run all tests (middleware + custom lib):
+   ```bash
+   make test
+   ```
+- Run only middleware tests:
+   ```bash
+   make test-middleware
+   ```
+- Run only custom lib tests (wrapper script):
+   ```bash
+   make test-lib
+   ```
+
 ### Benchmarking
 
-To benchmark the middleware internal traceability server, run the following command:
+To benchmark the middleware internal traceability server, run:
 ```bash
-cargo bench -p trace2e_core
+make bench
 ```
 
 To benchmark the `trace2e_client` and the `stde2e` wrapper, run the following commands:
 ```bash
+make release
 ./target/release/trace2e_middleware &
 cargo bench -p trace2e_client
 cargo bench -p stde2e
