@@ -1,4 +1,4 @@
-.PHONY: fmt clippy test pre-commit clean release bench help test-middleware test-lib pr
+.PHONY: fmt clippy test pre-commit clean release bench docs help test-middleware test-lib pr
 
 # Format code
 fmt:
@@ -24,6 +24,10 @@ release:
 bench:
 	cargo bench -p trace2e_core
 
+# Generate documentation for trace2e_core
+docs:
+	cargo doc -p trace2e_core --no-deps --open
+
 # Run all pre-commit checks
 pr: fmt clippy test
 	@echo "All pre-commit checks passed!"
@@ -42,6 +46,7 @@ help:
 	@echo "  test-lib        - Run custom lib tests (./test-lib.sh)"
 	@echo "  release         - Build trace2e_middleware in release mode"
 	@echo "  bench           - Run middleware benchmarks (trace2e_core)"
+	@echo "  docs            - Generate and open documentation for trace2e_core"
 	@echo "  pr              - Run all pre-commit checks (fmt + clippy + test)"
 	@echo "  clean           - Clean build artifacts"
 	@echo "  help            - Show this help message"

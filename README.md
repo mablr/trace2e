@@ -76,6 +76,14 @@ The middleware will listen on `[::]:8080` by default.
    make test-lib
    ```
 
+### Documentation
+
+This will build the documentation and automatically open it in your default web browser.
+```bash
+make docs
+```
+
+
 ### Benchmarking
 
 To benchmark the middleware internal traceability server, run:
