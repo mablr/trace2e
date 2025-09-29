@@ -23,7 +23,11 @@ pub struct ConsentService {
 }
 
 impl ConsentService {
-    async fn get_consent(&self, source: Resource, destination: (Option<String>, Resource)) -> Result<bool, TraceabilityError> {
+    async fn get_consent(
+        &self,
+        source: Resource,
+        destination: (Option<String>, Resource),
+    ) -> Result<bool, TraceabilityError> {
         let key = ConsentKey(source, destination.0, destination.1);
         match self.states.entry(key) {
             Entry::Occupied(occ) => match occ.get() {
@@ -43,9 +47,10 @@ impl ConsentService {
         }
     }
 
-    fn pending_requests(&self) -> Vec<((Resource, Option<String>, Resource), broadcast::Sender<bool>)> {
-        self
-            .states
+    fn pending_requests(
+        &self,
+    ) -> Vec<((Resource, Option<String>, Resource), broadcast::Sender<bool>)> {
+        self.states
             .iter()
             .filter_map(|entry| match entry.value() {
                 ConsentState::Pending { tx } => {
@@ -57,7 +62,12 @@ impl ConsentService {
             .collect()
     }
 
-    fn set_consent(&self, source: Resource, destination: (Option<String>, Resource), consent: bool) {
+    fn set_consent(
+        &self,
+        source: Resource,
+        destination: (Option<String>, Resource),
+        consent: bool,
+    ) {
         let key = ConsentKey(source, destination.0, destination.1);
         // Read-first: only upgrade to mutable if the state is Pending.
         if let Some(entry) = self.states.get(&key) {
