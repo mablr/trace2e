@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["compliance","provenance","sequencer"]};
+window.SIDEBAR_ITEMS = {"mod":["compliance","consent","provenance","sequencer"]};
