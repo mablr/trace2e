@@ -35,7 +35,7 @@ use tower::Service;
 use tracing::info;
 
 use crate::traceability::{
-    api::{ComplianceRequest, ComplianceResponse},
+    api::{ComplianceRequest, ComplianceResponse, ConsentRequest, ConsentResponse},
     core::consent::ConsentService,
     error::TraceabilityError,
     naming::Resource,
@@ -638,15 +638,29 @@ fn eval_policies(
 /// - `PolicyNotFound` - Resource not found (in cache mode)
 /// - `DirectPolicyViolation` - Flow violates compliance rules
 /// - `InternalTrace2eError` - Internal service errors
-#[derive(Default, Clone, Debug)]
-pub struct ComplianceService {
+#[derive(Clone, Debug)]
+pub struct ComplianceService<C = ConsentService> {
     /// Internal policy storage and management
     policies: PolicyMap,
     /// Consent service
-    consent: ConsentService,
+    consent: C,
 }
 
-impl Service<ComplianceRequest> for ComplianceService {
+impl Default for ComplianceService<ConsentService> {
+    fn default() -> Self {
+        Self { policies: PolicyMap::default(), consent: ConsentService::default() }
+    }
+}
+
+impl<C> Service<ComplianceRequest> for ComplianceService<C>
+where
+    C: Service<ConsentRequest, Response = ConsentResponse, Error = TraceabilityError>
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+    C::Future: Send,
+{
     type Response = ComplianceResponse;
     type Error = TraceabilityError;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
