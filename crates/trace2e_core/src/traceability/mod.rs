@@ -92,6 +92,7 @@ pub type O2mApiDefaultStack =
 pub fn init_middleware<M>(
     node_id: String,
     max_retries: Option<u32>,
+    consent_timeout: u64,
     m2m_client: M,
     enable_resource_validation: bool,
 ) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack)
@@ -108,6 +109,7 @@ where
     init_middleware_with_enrolled_resources(
         node_id,
         max_retries,
+        consent_timeout,
         m2m_client,
         enable_resource_validation,
         0,
@@ -137,9 +139,11 @@ where
 /// # Warning
 /// Should only be used for testing purposes. Production deployments should use
 /// `init_middleware()` and rely on actual process enrollment.
+#[allow(clippy::too_many_arguments)]
 pub fn init_middleware_with_enrolled_resources<M>(
     node_id: String,
     max_retries: Option<u32>,
+    consent_timeout: u64,
     m2m_client: M,
     enable_resource_validation: bool,
     _process_count: u32,
@@ -162,7 +166,8 @@ where
         }))
         .service(core::sequencer::SequencerService::default());
     let provenance = core::provenance::ProvenanceService::new(node_id);
-    let compliance = core::compliance::ComplianceService::default();
+    let consent = core::consent::ConsentService::new(consent_timeout);
+    let compliance = core::compliance::ComplianceService::new_with_consent(consent);
 
     let m2m_service: M2mApiDefaultStack =
         m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());

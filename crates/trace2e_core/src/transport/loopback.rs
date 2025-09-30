@@ -122,6 +122,7 @@ pub async fn spawn_loopback_middlewares_with_entropy(
         let (m2m, p2m, o2m) = init_middleware_with_enrolled_resources(
             ip.clone(),
             None,
+            0,
             m2m_loopback.clone(),
             false, // Disable resource validation for loopback tests
             process_count,

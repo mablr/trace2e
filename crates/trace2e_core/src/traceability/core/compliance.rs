@@ -339,6 +339,10 @@ impl Default for ComplianceService {
 }
 
 impl ComplianceService<ConsentService> {
+    pub fn new_with_consent(consent: ConsentService) -> Self {
+        Self { cache_mode: false, policies: Arc::new(DashMap::new()), consent }
+    }
+
     /// Creates a new PolicyMap in cache mode for testing purposes.
     ///
     /// In cache mode, requests for unknown resources will return
@@ -467,7 +471,7 @@ impl ComplianceService<ConsentService> {
     }
 }
 
-impl<C> ComplianceService<C> {
+impl ComplianceService {
     /// Retrieves the policy for a specific resource.
     ///
     /// # Behavior by Mode
@@ -1082,7 +1086,8 @@ mod tests {
                         ])
                     )]),
                     mock_file.clone()
-                ).await
+                )
+                .await
                 .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
 
@@ -1094,7 +1099,8 @@ mod tests {
                         HashMap::from([(Resource::new_process_mock(0), Policy::default())])
                     )]),
                     process.clone()
-                ).await
+                )
+                .await
                 .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
     }

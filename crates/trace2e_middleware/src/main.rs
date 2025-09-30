@@ -21,6 +21,9 @@ struct Trace2eMiddlewareArgs {
     #[arg(short, long, default_value_t = DEFAULT_GRPC_PORT)]
     port: u16,
 
+    #[arg(short, long, default_value_t = 0)]
+    consent_timeout: u64,
+
     /// Enable gRPC reflection
     #[arg(short, long, default_value_t = false)]
     reflection: bool,
@@ -43,6 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (m2m_service, p2m_service, _) = init_middleware(
         args.address.clone(),
         None,
+        args.consent_timeout,
         M2mGrpc::default(),
         !args.disable_resource_validation, // Enable validation unless disabled
     );
