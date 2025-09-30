@@ -33,7 +33,7 @@ impl ConsentService {
     /// Create a new `ConsentService` with the specified timeout.
     ///
     /// Timeout is disabled if set to 0.
-    pub fn new(&self, timeout_ms: u64) -> Self {
+    pub fn new(timeout_ms: u64) -> Self {
         Self { timeout: timeout_ms, states: Arc::new(DashMap::new()) }
     }
 
@@ -257,15 +257,10 @@ mod tests {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
 
-        // Configure a short internal consent timeout
-        let mut inner = ConsentService::default();
-        // tests submodule can access private parent fields
-        inner.timeout = 5; // ms
-
-        // Wrap with a larger tower timeout to avoid the layer expiring first
+        // Wrap with a larger timeout tower layer
         let mut svc = ServiceBuilder::new()
-            .layer(TimeoutLayer::new(Duration::from_millis(10)))
-            .service(inner);
+            .layer(TimeoutLayer::new(Duration::from_millis(2)))
+            .service(ConsentService::new(1));
 
         let source = Resource::new_process_mock(2);
         let destination = (None, Resource::new_file("/tmp/timeout.txt".to_string()));
