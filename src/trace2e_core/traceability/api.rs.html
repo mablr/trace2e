@@ -392,8 +392,8 @@
 <a href=#392 id=392 data-nosnippet>392</a>    </span>EvalPolicies {
 <a href=#393 id=393 data-nosnippet>393</a>        <span class="doccomment">/// Policies for source resources organized by authority node ID
 <a href=#394 id=394 data-nosnippet>394</a>        </span>source_policies: HashMap&lt;String, HashMap&lt;Resource, Policy&gt;&gt;,
-<a href=#395 id=395 data-nosnippet>395</a>        <span class="doccomment">/// Policy requirements for the destination resource
-<a href=#396 id=396 data-nosnippet>396</a>        </span>destination_policy: Policy,
+<a href=#395 id=395 data-nosnippet>395</a>        <span class="doccomment">/// Destination resource receiving the data
+<a href=#396 id=396 data-nosnippet>396</a>        </span>destination: Resource,
 <a href=#397 id=397 data-nosnippet>397</a>    },
 <a href=#398 id=398 data-nosnippet>398</a>
 <a href=#399 id=399 data-nosnippet>399</a>    <span class="doccomment">/// Retrieve the current compliance policy for a specific resource.
@@ -496,40 +496,43 @@
 <a href=#496 id=496 data-nosnippet>496</a>    </span>PolicyNotUpdated,
 <a href=#497 id=497 data-nosnippet>497</a>}
 <a href=#498 id=498 data-nosnippet>498</a>
-<a href=#499 id=499 data-nosnippet>499</a><span class="kw">pub enum </span>ConsentRequest {
-<a href=#500 id=500 data-nosnippet>500</a>    <span class="doccomment">/// Request consent for a data flow operation.
-<a href=#501 id=501 data-nosnippet>501</a>    ///
-<a href=#502 id=502 data-nosnippet>502</a>    /// Requests consent from the resource owner for a data flow operation.
-<a href=#503 id=503 data-nosnippet>503</a>    </span>RequestConsent {
-<a href=#504 id=504 data-nosnippet>504</a>        <span class="doccomment">/// Source resource providing data
-<a href=#505 id=505 data-nosnippet>505</a>        </span>source: Resource,
-<a href=#506 id=506 data-nosnippet>506</a>        <span class="doccomment">/// Destination resource receiving data
-<a href=#507 id=507 data-nosnippet>507</a>        </span>destination: (<span class="prelude-ty">Option</span>&lt;String&gt;, Resource),
-<a href=#508 id=508 data-nosnippet>508</a>    },
-<a href=#509 id=509 data-nosnippet>509</a>    <span class="doccomment">/// Retrieve all pending consent requests.
-<a href=#510 id=510 data-nosnippet>510</a>    ///
-<a href=#511 id=511 data-nosnippet>511</a>    /// Returns a list of all data flow operations currently awaiting consent.
-<a href=#512 id=512 data-nosnippet>512</a>    </span>PendingRequests,
-<a href=#513 id=513 data-nosnippet>513</a>    <span class="doccomment">/// Set consent decision for a specific data flow operation.
-<a href=#514 id=514 data-nosnippet>514</a>    ///
-<a href=#515 id=515 data-nosnippet>515</a>    /// Updates the consent status for a pending data flow operation.
-<a href=#516 id=516 data-nosnippet>516</a>    </span>SetConsent {
-<a href=#517 id=517 data-nosnippet>517</a>        <span class="doccomment">/// Source resource providing data
-<a href=#518 id=518 data-nosnippet>518</a>        </span>source: Resource,
-<a href=#519 id=519 data-nosnippet>519</a>        <span class="doccomment">/// Destination resource receiving data
-<a href=#520 id=520 data-nosnippet>520</a>        </span>destination: (<span class="prelude-ty">Option</span>&lt;String&gt;, Resource),
-<a href=#521 id=521 data-nosnippet>521</a>        <span class="doccomment">/// Consent decision: true to grant, false to deny
-<a href=#522 id=522 data-nosnippet>522</a>        </span>consent: bool,
-<a href=#523 id=523 data-nosnippet>523</a>    },
-<a href=#524 id=524 data-nosnippet>524</a>}
-<a href=#525 id=525 data-nosnippet>525</a>
-<a href=#526 id=526 data-nosnippet>526</a><span class="kw">pub enum </span>ConsentResponse {
-<a href=#527 id=527 data-nosnippet>527</a>    <span class="doccomment">/// Consent granted or denied for a data flow.
-<a href=#528 id=528 data-nosnippet>528</a>    </span>Consent(bool),
-<a href=#529 id=529 data-nosnippet>529</a>    <span class="doccomment">/// List of all pending consent requests.
-<a href=#530 id=530 data-nosnippet>530</a>    </span>PendingRequests(
-<a href=#531 id=531 data-nosnippet>531</a>        Vec&lt;((Resource, <span class="prelude-ty">Option</span>&lt;String&gt;, Resource), tokio::sync::broadcast::Sender&lt;bool&gt;)&gt;,
-<a href=#532 id=532 data-nosnippet>532</a>    ),
-<a href=#533 id=533 data-nosnippet>533</a>    <span class="doccomment">/// Acknowledgment of successful consent decision update.
-<a href=#534 id=534 data-nosnippet>534</a>    </span>Ack,
-<a href=#535 id=535 data-nosnippet>535</a>}</code></pre></div></section></main></body></html>
+<a href=#499 id=499 data-nosnippet>499</a><span class="attr">#[derive(Debug, Eq, PartialEq)]
+<a href=#500 id=500 data-nosnippet>500</a></span><span class="kw">pub enum </span>ConsentRequest {
+<a href=#501 id=501 data-nosnippet>501</a>    <span class="doccomment">/// Request consent for a data flow operation.
+<a href=#502 id=502 data-nosnippet>502</a>    ///
+<a href=#503 id=503 data-nosnippet>503</a>    /// Requests consent from the resource owner for a data flow operation.
+<a href=#504 id=504 data-nosnippet>504</a>    </span>RequestConsent {
+<a href=#505 id=505 data-nosnippet>505</a>        <span class="doccomment">/// Source resource providing data
+<a href=#506 id=506 data-nosnippet>506</a>        </span>source: Resource,
+<a href=#507 id=507 data-nosnippet>507</a>        <span class="doccomment">/// Destination resource receiving data
+<a href=#508 id=508 data-nosnippet>508</a>        </span>destination: (<span class="prelude-ty">Option</span>&lt;String&gt;, Resource),
+<a href=#509 id=509 data-nosnippet>509</a>    },
+<a href=#510 id=510 data-nosnippet>510</a>    <span class="doccomment">/// Retrieve all pending consent requests.
+<a href=#511 id=511 data-nosnippet>511</a>    ///
+<a href=#512 id=512 data-nosnippet>512</a>    /// Returns a list of all data flow operations currently awaiting consent.
+<a href=#513 id=513 data-nosnippet>513</a>    </span>PendingRequests,
+<a href=#514 id=514 data-nosnippet>514</a>    <span class="doccomment">/// Set consent decision for a specific data flow operation.
+<a href=#515 id=515 data-nosnippet>515</a>    ///
+<a href=#516 id=516 data-nosnippet>516</a>    /// Updates the consent status for a pending data flow operation.
+<a href=#517 id=517 data-nosnippet>517</a>    </span>SetConsent {
+<a href=#518 id=518 data-nosnippet>518</a>        <span class="doccomment">/// Source resource providing data
+<a href=#519 id=519 data-nosnippet>519</a>        </span>source: Resource,
+<a href=#520 id=520 data-nosnippet>520</a>        <span class="doccomment">/// Destination resource receiving data
+<a href=#521 id=521 data-nosnippet>521</a>        </span>destination: (<span class="prelude-ty">Option</span>&lt;String&gt;, Resource),
+<a href=#522 id=522 data-nosnippet>522</a>        <span class="doccomment">/// Consent decision: true to grant, false to deny
+<a href=#523 id=523 data-nosnippet>523</a>        </span>consent: bool,
+<a href=#524 id=524 data-nosnippet>524</a>    },
+<a href=#525 id=525 data-nosnippet>525</a>}
+<a href=#526 id=526 data-nosnippet>526</a>
+<a href=#527 id=527 data-nosnippet>527</a><span class="attr">#[derive(Debug)]
+<a href=#528 id=528 data-nosnippet>528</a>#[allow(clippy::type_complexity)]
+<a href=#529 id=529 data-nosnippet>529</a></span><span class="kw">pub enum </span>ConsentResponse {
+<a href=#530 id=530 data-nosnippet>530</a>    <span class="doccomment">/// Consent granted or denied for a data flow.
+<a href=#531 id=531 data-nosnippet>531</a>    </span>Consent(bool),
+<a href=#532 id=532 data-nosnippet>532</a>    <span class="doccomment">/// List of all pending consent requests.
+<a href=#533 id=533 data-nosnippet>533</a>    </span>PendingRequests(
+<a href=#534 id=534 data-nosnippet>534</a>        Vec&lt;((Resource, <span class="prelude-ty">Option</span>&lt;String&gt;, Resource), tokio::sync::broadcast::Sender&lt;bool&gt;)&gt;,
+<a href=#535 id=535 data-nosnippet>535</a>    ),
+<a href=#536 id=536 data-nosnippet>536</a>    <span class="doccomment">/// Acknowledgment of successful consent decision update.
+<a href=#537 id=537 data-nosnippet>537</a>    </span>Ack,
+<a href=#538 id=538 data-nosnippet>538</a>}</code></pre></div></section></main></body></html>
