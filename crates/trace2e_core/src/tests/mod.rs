@@ -426,7 +426,7 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
                 ConfidentialityPolicy::Secret,
                 Default::default(),
                 DeletionPolicy::NotDeleted,
-                true
+                false
             )
         )])
     );
@@ -584,7 +584,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
         HashSet::from([fd1_1_1.file()]),
         HashMap::from([(
             fd1_1_1.file(),
-            Policy::new(Default::default(), Default::default(), DeletionPolicy::Pending, true)
+            Policy::new(Default::default(), Default::default(), DeletionPolicy::Pending, false)
         )])
     );
 
@@ -609,7 +609,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
         HashSet::from([fd1_1_1.file()]),
         HashMap::from([(
             fd1_1_1.file(),
-            Policy::new(Default::default(), Default::default(), DeletionPolicy::Pending, true)
+            Policy::new(Default::default(), Default::default(), DeletionPolicy::Pending, false)
         )])
     );
 }
