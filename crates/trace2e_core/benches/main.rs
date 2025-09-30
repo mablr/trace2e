@@ -73,99 +73,6 @@ fn bench_compliance_get_policies_multiple(c: &mut Criterion) {
     });
 }
 
-fn bench_compliance_check_pass(c: &mut Criterion) {
-    c.bench_function("compliance_check_pass", |b| {
-        b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
-            let mut compliance = ComplianceService::default();
-            let source_policy =
-                Policy::new(ConfidentialityPolicy::Public, 5, DeletionPolicy::NotDeleted, true);
-            let dest_policy =
-                Policy::new(ConfidentialityPolicy::Public, 3, DeletionPolicy::NotDeleted, true);
-            let source_policies = HashMap::from([(
-                String::new(),
-                HashMap::from([(Resource::new_process_mock(0), source_policy)]),
-            )]);
-
-            let _ = black_box(
-                compliance
-                    .call(ComplianceRequest::EvalPolicies {
-                        source_policies,
-                        destination_policy: dest_policy,
-                    })
-                    .await,
-            );
-        });
-    });
-}
-
-fn bench_compliance_check_fail(c: &mut Criterion) {
-    c.bench_function("compliance_check_fail", |b| {
-        b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
-            let mut compliance = ComplianceService::default();
-            let source_policy =
-                Policy::new(ConfidentialityPolicy::Secret, 5, DeletionPolicy::NotDeleted, true);
-            let dest_policy =
-                Policy::new(ConfidentialityPolicy::Public, 3, DeletionPolicy::NotDeleted, true);
-            let source_policies = HashMap::from([(
-                String::new(),
-                HashMap::from([(Resource::new_process_mock(0), source_policy)]),
-            )]);
-
-            let _ = black_box(
-                compliance
-                    .call(ComplianceRequest::EvalPolicies {
-                        source_policies,
-                        destination_policy: dest_policy,
-                    })
-                    .await,
-            );
-        });
-    });
-}
-
-fn bench_compliance_check_complex(c: &mut Criterion) {
-    c.bench_function("compliance_check_complex", |b| {
-        b.to_async(tokio::runtime::Runtime::new().unwrap()).iter(|| async {
-            let mut compliance = ComplianceService::default();
-            let high_policy =
-                Policy::new(ConfidentialityPolicy::Secret, 10, DeletionPolicy::NotDeleted, true);
-            let medium_policy =
-                Policy::new(ConfidentialityPolicy::Public, 5, DeletionPolicy::NotDeleted, true);
-            let low_policy =
-                Policy::new(ConfidentialityPolicy::Public, 1, DeletionPolicy::NotDeleted, true);
-
-            let source_policies = HashMap::from([
-                (
-                    String::new(),
-                    HashMap::from([(Resource::new_process_mock(0), Policy::default())]),
-                ),
-                (
-                    "10.0.0.1".to_string(),
-                    HashMap::from([
-                        (Resource::new_process_mock(0), high_policy),
-                        (Resource::new_process_mock(1), medium_policy),
-                    ]),
-                ),
-                (
-                    "10.0.0.2".to_string(),
-                    HashMap::from([(Resource::new_process_mock(0), low_policy)]),
-                ),
-            ]);
-            let dest_policy =
-                Policy::new(ConfidentialityPolicy::Public, 3, DeletionPolicy::NotDeleted, true);
-
-            let _ = black_box(
-                compliance
-                    .call(ComplianceRequest::EvalPolicies {
-                        source_policies,
-                        destination_policy: dest_policy,
-                    })
-                    .await,
-            );
-        });
-    });
-}
-
 // SequencerService Benchmarks
 fn bench_sequencer_make_flow_success(c: &mut Criterion) {
     c.bench_function("sequencer_make_flow_success", |b| {
@@ -527,9 +434,6 @@ criterion_group!(
     bench_compliance_set_policy,
     bench_compliance_get_policies_single,
     bench_compliance_get_policies_multiple,
-    bench_compliance_check_pass,
-    bench_compliance_check_fail,
-    bench_compliance_check_complex,
 );
 
 criterion_group!(
