@@ -69,4 +69,7 @@ pub enum TraceabilityError {
 
     #[error("Traceability error, transport layer failed to evaluate remote IP")]
     TransportFailedToEvaluateRemote,
+
+    #[error("Traceability error, consent request timeout")]
+    ConsentRequestTimeout,
 }

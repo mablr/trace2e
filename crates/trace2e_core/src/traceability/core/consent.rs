@@ -2,7 +2,7 @@
 use std::{future::Future, pin::Pin, sync::Arc, task::Poll};
 
 use dashmap::{DashMap, Entry};
-use tokio::sync::broadcast;
+use tokio::{sync::broadcast, time::Duration};
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
 use tracing::info;
@@ -43,13 +43,37 @@ impl ConsentService {
                     let mut rx = tx.subscribe();
                     // Drop map guard before awaiting
                     drop(occ);
-                    rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
+                    if self.timeout == 0 {
+                        rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
+                    } else {
+                        match tokio::time::timeout(
+                            Duration::from_millis(self.timeout),
+                            rx.recv(),
+                        )
+                        .await
+                        {
+                            Ok(res) => res.map_err(|_| TraceabilityError::InternalTrace2eError),
+                            Err(_) => Err(TraceabilityError::ConsentRequestTimeout),
+                        }
+                    }
                 }
             },
             Entry::Vacant(vac) => {
                 let (tx, mut rx) = broadcast::channel(16);
                 vac.insert(ConsentState::Pending { tx });
-                rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
+                if self.timeout == 0 {
+                    rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
+                } else {
+                    match tokio::time::timeout(
+                        Duration::from_millis(self.timeout),
+                        rx.recv(),
+                    )
+                    .await
+                    {
+                        Ok(res) => res.map_err(|_| TraceabilityError::InternalTrace2eError),
+                        Err(_) => Err(TraceabilityError::ConsentRequestTimeout),
+                    }
+                }
             }
         }
     }
