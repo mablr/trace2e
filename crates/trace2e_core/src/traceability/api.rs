@@ -392,8 +392,8 @@ pub enum ComplianceRequest {
     EvalPolicies {
         /// Policies for source resources organized by authority node ID
         source_policies: HashMap<String, HashMap<Resource, Policy>>,
-        /// Policy requirements for the destination resource
-        destination_policy: Policy,
+        /// Destination resource receiving the data
+        destination: Resource,
     },
 
     /// Retrieve the current compliance policy for a specific resource.
@@ -496,6 +496,7 @@ pub enum ComplianceResponse {
     PolicyNotUpdated,
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub enum ConsentRequest {
     /// Request consent for a data flow operation.
     ///
@@ -523,6 +524,8 @@ pub enum ConsentRequest {
     },
 }
 
+#[derive(Debug)]
+#[allow(clippy::type_complexity)]
 pub enum ConsentResponse {
     /// Consent granted or denied for a data flow.
     Consent(bool),

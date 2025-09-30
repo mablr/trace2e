@@ -80,6 +80,7 @@ impl ConsentService {
     }
 
     /// Internal method to list pending requests
+    #[allow(clippy::type_complexity)]
     fn pending_requests(
         &self,
     ) -> Vec<((Resource, Option<String>, Resource), broadcast::Sender<bool>)> {
@@ -104,16 +105,16 @@ impl ConsentService {
     ) {
         let key = ConsentKey(source, destination.0, destination.1);
         // Read-first: only upgrade to mutable if the state is Pending.
-        if let Some(entry) = self.states.get(&key) {
-            if matches!(entry.value(), ConsentState::Pending { .. }) {
-                drop(entry);
-                if let Some(mut entry) = self.states.get_mut(&key) {
-                    if let ConsentState::Pending { tx } = entry.value() {
-                        // Notify waiters, then transition to Decided.
-                        tx.send(consent).unwrap();
-                        *entry = ConsentState::Decided(consent);
-                    }
-                }
+        if let Some(entry) = self.states.get(&key)
+            && matches!(entry.value(), ConsentState::Pending { .. })
+        {
+            drop(entry);
+            if let Some(mut entry) = self.states.get_mut(&key)
+                && let ConsentState::Pending { tx } = entry.value()
+            {
+                // Notify waiters, then transition to Decided.
+                tx.send(consent).unwrap();
+                *entry = ConsentState::Decided(consent);
             }
         }
     }

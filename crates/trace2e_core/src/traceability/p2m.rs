@@ -367,29 +367,6 @@ where
                                 // If destination is a stream, query remote policy via m2m
                                 // else if query local destination policy
                                 // else return error
-                                let destination_policy =
-                                    if let Some(remote_stream) = destination.is_stream() {
-                                        if let M2mResponse::DestinationCompliance(policy) = m2m
-                                            .ready()
-                                            .await?
-                                            .call(M2mRequest::GetDestinationCompliance {
-                                                source: source.clone(),
-                                                destination: remote_stream,
-                                            })
-                                            .await?
-                                        {
-                                            policy
-                                        } else {
-                                            return Err(TraceabilityError::InternalTrace2eError);
-                                        }
-                                    } else if let ComplianceResponse::Policy(policy) = compliance
-                                        .call(ComplianceRequest::GetPolicy(destination.clone()))
-                                        .await?
-                                    {
-                                        policy
-                                    } else {
-                                        return Err(TraceabilityError::InternalTrace2eError);
-                                    };
 
                                 let source_policies = match provenance
                                     .call(ProvenanceRequest::GetReferences(source.clone()))
@@ -474,7 +451,7 @@ where
                                 match compliance
                                     .call(ComplianceRequest::EvalPolicies {
                                         source_policies,
-                                        destination_policy,
+                                        destination: destination.clone(),
                                     })
                                     .await
                                 {
