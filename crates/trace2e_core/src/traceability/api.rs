@@ -495,3 +495,41 @@ pub enum ComplianceResponse {
     /// actual modification to the current configuration.
     PolicyNotUpdated,
 }
+
+pub enum ConsentRequest {
+    /// Request consent for a data flow operation.
+    ///
+    /// Requests consent from the resource owner for a data flow operation.
+    RequestConsent {
+        /// Source resource providing data
+        source: Resource,
+        /// Destination resource receiving data
+        destination: (Option<String>, Resource),
+    },
+    /// Retrieve all pending consent requests.
+    ///
+    /// Returns a list of all data flow operations currently awaiting consent.
+    PendingRequests,
+    /// Set consent decision for a specific data flow operation.
+    ///
+    /// Updates the consent status for a pending data flow operation.
+    SetConsent {
+        /// Source resource providing data
+        source: Resource,
+        /// Destination resource receiving data
+        destination: (Option<String>, Resource),
+        /// Consent decision: true to grant, false to deny
+        consent: bool,
+    },
+}
+
+pub enum ConsentResponse {
+    /// Consent granted or denied for a data flow.
+    Consent(bool),
+    /// List of all pending consent requests.
+    PendingRequests(
+        Vec<((Resource, Option<String>, Resource), tokio::sync::broadcast::Sender<bool>)>,
+    ),
+    /// Acknowledgment of successful consent decision update.
+    Ack,
+}

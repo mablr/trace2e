@@ -36,6 +36,7 @@ use tracing::info;
 
 use crate::traceability::{
     api::{ComplianceRequest, ComplianceResponse},
+    core::consent::ConsentService,
     error::TraceabilityError,
     naming::Resource,
 };
@@ -122,6 +123,7 @@ pub struct Policy {
     integrity: u32,
     /// Deletion status of the resource
     deleted: DeletionPolicy,
+    /// Whether the resource owner consent is required for flows
     consent: bool,
 }
 
@@ -131,7 +133,7 @@ impl Default for Policy {
             confidentiality: ConfidentialityPolicy::Public,
             integrity: 0,
             deleted: DeletionPolicy::NotDeleted,
-            consent: true,
+            consent: false,
         }
     }
 }
@@ -144,7 +146,7 @@ impl Policy {
     /// * `confidentiality` - The confidentiality level for the resource
     /// * `integrity` - The integrity level (0 = lowest, higher = more trusted)
     /// * `deleted` - The deletion status
-    /// * `consent` - WIP...
+    /// * `consent` - Whether the resource owner consent is required for flows
     pub fn new(
         confidentiality: ConfidentialityPolicy,
         integrity: u32,
@@ -640,6 +642,8 @@ fn eval_policies(
 pub struct ComplianceService {
     /// Internal policy storage and management
     policies: PolicyMap,
+    /// Consent service
+    consent: ConsentService,
 }
 
 impl Service<ComplianceRequest> for ComplianceService {
