@@ -30,6 +30,14 @@ pub struct ConsentService {
 }
 
 impl ConsentService {
+    /// Create a new `ConsentService` with the specified timeout.
+    ///
+    /// Timeout is disabled if set to 0.
+    pub fn new(&self, timeout_ms: u64) -> Self {
+        Self { timeout: timeout_ms, states: Arc::new(DashMap::new()) }
+    }
+
+    /// Internal method to get consent
     async fn get_consent(
         &self,
         source: Resource,
@@ -46,11 +54,8 @@ impl ConsentService {
                     if self.timeout == 0 {
                         rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
                     } else {
-                        match tokio::time::timeout(
-                            Duration::from_millis(self.timeout),
-                            rx.recv(),
-                        )
-                        .await
+                        match tokio::time::timeout(Duration::from_millis(self.timeout), rx.recv())
+                            .await
                         {
                             Ok(res) => res.map_err(|_| TraceabilityError::InternalTrace2eError),
                             Err(_) => Err(TraceabilityError::ConsentRequestTimeout),
@@ -64,11 +69,7 @@ impl ConsentService {
                 if self.timeout == 0 {
                     rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
                 } else {
-                    match tokio::time::timeout(
-                        Duration::from_millis(self.timeout),
-                        rx.recv(),
-                    )
-                    .await
+                    match tokio::time::timeout(Duration::from_millis(self.timeout), rx.recv()).await
                     {
                         Ok(res) => res.map_err(|_| TraceabilityError::InternalTrace2eError),
                         Err(_) => Err(TraceabilityError::ConsentRequestTimeout),
@@ -78,6 +79,7 @@ impl ConsentService {
         }
     }
 
+    /// Internal method to list pending requests
     fn pending_requests(
         &self,
     ) -> Vec<((Resource, Option<String>, Resource), broadcast::Sender<bool>)> {
@@ -93,6 +95,7 @@ impl ConsentService {
             .collect()
     }
 
+    /// Internal method to set consent
     fn set_consent(
         &self,
         source: Resource,
@@ -161,6 +164,7 @@ impl Service<ConsentRequest> for ConsentService {
 mod tests {
     use super::*;
     use std::time::Duration;
+    use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 
     #[tokio::test]
     async fn unit_consent_service_pending_then_set() {
@@ -246,5 +250,41 @@ mod tests {
             .await
             .unwrap();
         assert!(matches!(immediate, ConsentResponse::Consent(false)));
+    }
+
+    #[tokio::test]
+    async fn unit_consent_service_times_out_with_layer() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
+
+        // Configure a short internal consent timeout
+        let mut inner = ConsentService::default();
+        // tests submodule can access private parent fields
+        inner.timeout = 5; // ms
+
+        // Wrap with a larger tower timeout to avoid the layer expiring first
+        let mut svc = ServiceBuilder::new()
+            .layer(TimeoutLayer::new(Duration::from_millis(10)))
+            .service(inner);
+
+        let source = Resource::new_process_mock(2);
+        let destination = (None, Resource::new_file("/tmp/timeout.txt".to_string()));
+
+        // This call should pend internally and then error with ConsentRequestTimeout
+        let result = svc.call(ConsentRequest::RequestConsent { source, destination }).await;
+
+        match result {
+            Ok(_) => panic!("expected timeout error, got Ok"),
+            Err(err) => {
+                // TimeoutLayer boxes inner errors; downcast to our TraceabilityError
+                if let Some(te) = err.downcast_ref::<TraceabilityError>() {
+                    assert_eq!(*te, TraceabilityError::ConsentRequestTimeout);
+                } else if err.is::<tower::timeout::error::Elapsed>() {
+                    panic!("outer TimeoutLayer elapsed before inner consent timeout");
+                } else {
+                    panic!("unexpected error: {err}");
+                }
+            }
+        }
     }
 }
