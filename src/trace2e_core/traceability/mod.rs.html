@@ -92,96 +92,101 @@
 <a href=#92 id=92 data-nosnippet>92</a></span><span class="kw">pub fn </span>init_middleware&lt;M&gt;(
 <a href=#93 id=93 data-nosnippet>93</a>    node_id: String,
 <a href=#94 id=94 data-nosnippet>94</a>    max_retries: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-<a href=#95 id=95 data-nosnippet>95</a>    m2m_client: M,
-<a href=#96 id=96 data-nosnippet>96</a>    enable_resource_validation: bool,
-<a href=#97 id=97 data-nosnippet>97</a>) -&gt; (M2mApiDefaultStack, P2mApiDefaultStack&lt;M&gt;, O2mApiDefaultStack)
-<a href=#98 id=98 data-nosnippet>98</a><span class="kw">where
-<a href=#99 id=99 data-nosnippet>99</a>    </span>M: tower::Service&lt;
-<a href=#100 id=100 data-nosnippet>100</a>            api::M2mRequest,
-<a href=#101 id=101 data-nosnippet>101</a>            Response = api::M2mResponse,
-<a href=#102 id=102 data-nosnippet>102</a>            Error = error::TraceabilityError,
-<a href=#103 id=103 data-nosnippet>103</a>        &gt; + Clone
-<a href=#104 id=104 data-nosnippet>104</a>        + Send
-<a href=#105 id=105 data-nosnippet>105</a>        + <span class="lifetime">'static</span>,
-<a href=#106 id=106 data-nosnippet>106</a>    M::Future: Send,
-<a href=#107 id=107 data-nosnippet>107</a>{
-<a href=#108 id=108 data-nosnippet>108</a>    init_middleware_with_enrolled_resources(
-<a href=#109 id=109 data-nosnippet>109</a>        node_id,
-<a href=#110 id=110 data-nosnippet>110</a>        max_retries,
-<a href=#111 id=111 data-nosnippet>111</a>        m2m_client,
-<a href=#112 id=112 data-nosnippet>112</a>        enable_resource_validation,
-<a href=#113 id=113 data-nosnippet>113</a>        <span class="number">0</span>,
-<a href=#114 id=114 data-nosnippet>114</a>        <span class="number">0</span>,
+<a href=#95 id=95 data-nosnippet>95</a>    consent_timeout: u64,
+<a href=#96 id=96 data-nosnippet>96</a>    m2m_client: M,
+<a href=#97 id=97 data-nosnippet>97</a>    enable_resource_validation: bool,
+<a href=#98 id=98 data-nosnippet>98</a>) -&gt; (M2mApiDefaultStack, P2mApiDefaultStack&lt;M&gt;, O2mApiDefaultStack)
+<a href=#99 id=99 data-nosnippet>99</a><span class="kw">where
+<a href=#100 id=100 data-nosnippet>100</a>    </span>M: tower::Service&lt;
+<a href=#101 id=101 data-nosnippet>101</a>            api::M2mRequest,
+<a href=#102 id=102 data-nosnippet>102</a>            Response = api::M2mResponse,
+<a href=#103 id=103 data-nosnippet>103</a>            Error = error::TraceabilityError,
+<a href=#104 id=104 data-nosnippet>104</a>        &gt; + Clone
+<a href=#105 id=105 data-nosnippet>105</a>        + Send
+<a href=#106 id=106 data-nosnippet>106</a>        + <span class="lifetime">'static</span>,
+<a href=#107 id=107 data-nosnippet>107</a>    M::Future: Send,
+<a href=#108 id=108 data-nosnippet>108</a>{
+<a href=#109 id=109 data-nosnippet>109</a>    init_middleware_with_enrolled_resources(
+<a href=#110 id=110 data-nosnippet>110</a>        node_id,
+<a href=#111 id=111 data-nosnippet>111</a>        max_retries,
+<a href=#112 id=112 data-nosnippet>112</a>        consent_timeout,
+<a href=#113 id=113 data-nosnippet>113</a>        m2m_client,
+<a href=#114 id=114 data-nosnippet>114</a>        enable_resource_validation,
 <a href=#115 id=115 data-nosnippet>115</a>        <span class="number">0</span>,
-<a href=#116 id=116 data-nosnippet>116</a>    )
-<a href=#117 id=117 data-nosnippet>117</a>}
-<a href=#118 id=118 data-nosnippet>118</a>
-<a href=#119 id=119 data-nosnippet>119</a><span class="doccomment">/// Initialize a middleware stack with pre-enrolled resources for testing.
-<a href=#120 id=120 data-nosnippet>120</a>///
-<a href=#121 id=121 data-nosnippet>121</a>/// Creates a middleware stack identical to `init_middleware()` but with
-<a href=#122 id=122 data-nosnippet>122</a>/// pre-enrolled mock resources. This is useful for testing, benchmarking,
-<a href=#123 id=123 data-nosnippet>123</a>/// and simulation scenarios where actual process interactions are not needed.
-<a href=#124 id=124 data-nosnippet>124</a>///
-<a href=#125 id=125 data-nosnippet>125</a>/// # Arguments
-<a href=#126 id=126 data-nosnippet>126</a>/// * `node_id` - Unique identifier for this middleware node
-<a href=#127 id=127 data-nosnippet>127</a>/// * `max_retries` - Maximum retry attempts for the waiting queue
-<a href=#128 id=128 data-nosnippet>128</a>/// * `m2m_client` - Client service for M2M communication
-<a href=#129 id=129 data-nosnippet>129</a>/// * `enable_resource_validation` - Whether to enable resource validation for P2M requests
-<a href=#130 id=130 data-nosnippet>130</a>/// * `process_count` - Number of mock processes to pre-enroll
-<a href=#131 id=131 data-nosnippet>131</a>/// * `per_process_file_count` - Number of files to enroll per process
-<a href=#132 id=132 data-nosnippet>132</a>/// * `per_process_stream_count` - Number of streams to enroll per process
-<a href=#133 id=133 data-nosnippet>133</a>///
-<a href=#134 id=134 data-nosnippet>134</a>/// # Returns
-<a href=#135 id=135 data-nosnippet>135</a>/// A tuple containing (M2M service, P2M service, O2M service) with pre-enrolled resources
-<a href=#136 id=136 data-nosnippet>136</a>///
-<a href=#137 id=137 data-nosnippet>137</a>/// # Warning
-<a href=#138 id=138 data-nosnippet>138</a>/// Should only be used for testing purposes. Production deployments should use
-<a href=#139 id=139 data-nosnippet>139</a>/// `init_middleware()` and rely on actual process enrollment.
-<a href=#140 id=140 data-nosnippet>140</a></span><span class="kw">pub fn </span>init_middleware_with_enrolled_resources&lt;M&gt;(
-<a href=#141 id=141 data-nosnippet>141</a>    node_id: String,
-<a href=#142 id=142 data-nosnippet>142</a>    max_retries: <span class="prelude-ty">Option</span>&lt;u32&gt;,
-<a href=#143 id=143 data-nosnippet>143</a>    m2m_client: M,
-<a href=#144 id=144 data-nosnippet>144</a>    enable_resource_validation: bool,
-<a href=#145 id=145 data-nosnippet>145</a>    _process_count: u32,
-<a href=#146 id=146 data-nosnippet>146</a>    _per_process_file_count: u32,
-<a href=#147 id=147 data-nosnippet>147</a>    _per_process_stream_count: u32,
-<a href=#148 id=148 data-nosnippet>148</a>) -&gt; (M2mApiDefaultStack, P2mApiDefaultStack&lt;M&gt;, O2mApiDefaultStack)
-<a href=#149 id=149 data-nosnippet>149</a><span class="kw">where
-<a href=#150 id=150 data-nosnippet>150</a>    </span>M: tower::Service&lt;
-<a href=#151 id=151 data-nosnippet>151</a>            api::M2mRequest,
-<a href=#152 id=152 data-nosnippet>152</a>            Response = api::M2mResponse,
-<a href=#153 id=153 data-nosnippet>153</a>            Error = error::TraceabilityError,
-<a href=#154 id=154 data-nosnippet>154</a>        &gt; + Clone
-<a href=#155 id=155 data-nosnippet>155</a>        + Send
-<a href=#156 id=156 data-nosnippet>156</a>        + <span class="lifetime">'static</span>,
-<a href=#157 id=157 data-nosnippet>157</a>    M::Future: Send,
-<a href=#158 id=158 data-nosnippet>158</a>{
-<a href=#159 id=159 data-nosnippet>159</a>    <span class="kw">let </span>sequencer = tower::ServiceBuilder::new()
-<a href=#160 id=160 data-nosnippet>160</a>        .layer(tower::layer::layer_fn(|inner| {
-<a href=#161 id=161 data-nosnippet>161</a>            core::sequencer::WaitingQueueService::new(inner, max_retries)
-<a href=#162 id=162 data-nosnippet>162</a>        }))
-<a href=#163 id=163 data-nosnippet>163</a>        .service(core::sequencer::SequencerService::default());
-<a href=#164 id=164 data-nosnippet>164</a>    <span class="kw">let </span>provenance = core::provenance::ProvenanceService::new(node_id);
-<a href=#165 id=165 data-nosnippet>165</a>    <span class="kw">let </span>compliance = core::compliance::ComplianceService::default();
-<a href=#166 id=166 data-nosnippet>166</a>
-<a href=#167 id=167 data-nosnippet>167</a>    <span class="kw">let </span>m2m_service: M2mApiDefaultStack =
-<a href=#168 id=168 data-nosnippet>168</a>        m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
-<a href=#169 id=169 data-nosnippet>169</a>
-<a href=#170 id=170 data-nosnippet>170</a>    <span class="attr">#[cfg(test)]
-<a href=#171 id=171 data-nosnippet>171</a>    </span><span class="kw">let </span>p2m_service: P2mApiDefaultStack&lt;M&gt; =
-<a href=#172 id=172 data-nosnippet>172</a>        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
-<a href=#173 id=173 data-nosnippet>173</a>            .with_resource_validation(enable_resource_validation)
-<a href=#174 id=174 data-nosnippet>174</a>            .with_enrolled_resources(
-<a href=#175 id=175 data-nosnippet>175</a>                _process_count,
-<a href=#176 id=176 data-nosnippet>176</a>                _per_process_file_count,
-<a href=#177 id=177 data-nosnippet>177</a>                _per_process_stream_count,
-<a href=#178 id=178 data-nosnippet>178</a>            );
-<a href=#179 id=179 data-nosnippet>179</a>    <span class="attr">#[cfg(not(test))]
-<a href=#180 id=180 data-nosnippet>180</a>    </span><span class="kw">let </span>p2m_service: P2mApiDefaultStack&lt;M&gt; =
-<a href=#181 id=181 data-nosnippet>181</a>        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
-<a href=#182 id=182 data-nosnippet>182</a>            .with_resource_validation(enable_resource_validation);
-<a href=#183 id=183 data-nosnippet>183</a>
-<a href=#184 id=184 data-nosnippet>184</a>    <span class="kw">let </span>o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
-<a href=#185 id=185 data-nosnippet>185</a>
-<a href=#186 id=186 data-nosnippet>186</a>    (m2m_service, p2m_service, o2m_service)
-<a href=#187 id=187 data-nosnippet>187</a>}</code></pre></div></section></main></body></html>
+<a href=#116 id=116 data-nosnippet>116</a>        <span class="number">0</span>,
+<a href=#117 id=117 data-nosnippet>117</a>        <span class="number">0</span>,
+<a href=#118 id=118 data-nosnippet>118</a>    )
+<a href=#119 id=119 data-nosnippet>119</a>}
+<a href=#120 id=120 data-nosnippet>120</a>
+<a href=#121 id=121 data-nosnippet>121</a><span class="doccomment">/// Initialize a middleware stack with pre-enrolled resources for testing.
+<a href=#122 id=122 data-nosnippet>122</a>///
+<a href=#123 id=123 data-nosnippet>123</a>/// Creates a middleware stack identical to `init_middleware()` but with
+<a href=#124 id=124 data-nosnippet>124</a>/// pre-enrolled mock resources. This is useful for testing, benchmarking,
+<a href=#125 id=125 data-nosnippet>125</a>/// and simulation scenarios where actual process interactions are not needed.
+<a href=#126 id=126 data-nosnippet>126</a>///
+<a href=#127 id=127 data-nosnippet>127</a>/// # Arguments
+<a href=#128 id=128 data-nosnippet>128</a>/// * `node_id` - Unique identifier for this middleware node
+<a href=#129 id=129 data-nosnippet>129</a>/// * `max_retries` - Maximum retry attempts for the waiting queue
+<a href=#130 id=130 data-nosnippet>130</a>/// * `m2m_client` - Client service for M2M communication
+<a href=#131 id=131 data-nosnippet>131</a>/// * `enable_resource_validation` - Whether to enable resource validation for P2M requests
+<a href=#132 id=132 data-nosnippet>132</a>/// * `process_count` - Number of mock processes to pre-enroll
+<a href=#133 id=133 data-nosnippet>133</a>/// * `per_process_file_count` - Number of files to enroll per process
+<a href=#134 id=134 data-nosnippet>134</a>/// * `per_process_stream_count` - Number of streams to enroll per process
+<a href=#135 id=135 data-nosnippet>135</a>///
+<a href=#136 id=136 data-nosnippet>136</a>/// # Returns
+<a href=#137 id=137 data-nosnippet>137</a>/// A tuple containing (M2M service, P2M service, O2M service) with pre-enrolled resources
+<a href=#138 id=138 data-nosnippet>138</a>///
+<a href=#139 id=139 data-nosnippet>139</a>/// # Warning
+<a href=#140 id=140 data-nosnippet>140</a>/// Should only be used for testing purposes. Production deployments should use
+<a href=#141 id=141 data-nosnippet>141</a>/// `init_middleware()` and rely on actual process enrollment.
+<a href=#142 id=142 data-nosnippet>142</a></span><span class="attr">#[allow(clippy::too_many_arguments)]
+<a href=#143 id=143 data-nosnippet>143</a></span><span class="kw">pub fn </span>init_middleware_with_enrolled_resources&lt;M&gt;(
+<a href=#144 id=144 data-nosnippet>144</a>    node_id: String,
+<a href=#145 id=145 data-nosnippet>145</a>    max_retries: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+<a href=#146 id=146 data-nosnippet>146</a>    consent_timeout: u64,
+<a href=#147 id=147 data-nosnippet>147</a>    m2m_client: M,
+<a href=#148 id=148 data-nosnippet>148</a>    enable_resource_validation: bool,
+<a href=#149 id=149 data-nosnippet>149</a>    _process_count: u32,
+<a href=#150 id=150 data-nosnippet>150</a>    _per_process_file_count: u32,
+<a href=#151 id=151 data-nosnippet>151</a>    _per_process_stream_count: u32,
+<a href=#152 id=152 data-nosnippet>152</a>) -&gt; (M2mApiDefaultStack, P2mApiDefaultStack&lt;M&gt;, O2mApiDefaultStack)
+<a href=#153 id=153 data-nosnippet>153</a><span class="kw">where
+<a href=#154 id=154 data-nosnippet>154</a>    </span>M: tower::Service&lt;
+<a href=#155 id=155 data-nosnippet>155</a>            api::M2mRequest,
+<a href=#156 id=156 data-nosnippet>156</a>            Response = api::M2mResponse,
+<a href=#157 id=157 data-nosnippet>157</a>            Error = error::TraceabilityError,
+<a href=#158 id=158 data-nosnippet>158</a>        &gt; + Clone
+<a href=#159 id=159 data-nosnippet>159</a>        + Send
+<a href=#160 id=160 data-nosnippet>160</a>        + <span class="lifetime">'static</span>,
+<a href=#161 id=161 data-nosnippet>161</a>    M::Future: Send,
+<a href=#162 id=162 data-nosnippet>162</a>{
+<a href=#163 id=163 data-nosnippet>163</a>    <span class="kw">let </span>sequencer = tower::ServiceBuilder::new()
+<a href=#164 id=164 data-nosnippet>164</a>        .layer(tower::layer::layer_fn(|inner| {
+<a href=#165 id=165 data-nosnippet>165</a>            core::sequencer::WaitingQueueService::new(inner, max_retries)
+<a href=#166 id=166 data-nosnippet>166</a>        }))
+<a href=#167 id=167 data-nosnippet>167</a>        .service(core::sequencer::SequencerService::default());
+<a href=#168 id=168 data-nosnippet>168</a>    <span class="kw">let </span>provenance = core::provenance::ProvenanceService::new(node_id);
+<a href=#169 id=169 data-nosnippet>169</a>    <span class="kw">let </span>consent = core::consent::ConsentService::new(consent_timeout);
+<a href=#170 id=170 data-nosnippet>170</a>    <span class="kw">let </span>compliance = core::compliance::ComplianceService::new_with_consent(consent);
+<a href=#171 id=171 data-nosnippet>171</a>
+<a href=#172 id=172 data-nosnippet>172</a>    <span class="kw">let </span>m2m_service: M2mApiDefaultStack =
+<a href=#173 id=173 data-nosnippet>173</a>        m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
+<a href=#174 id=174 data-nosnippet>174</a>
+<a href=#175 id=175 data-nosnippet>175</a>    <span class="attr">#[cfg(test)]
+<a href=#176 id=176 data-nosnippet>176</a>    </span><span class="kw">let </span>p2m_service: P2mApiDefaultStack&lt;M&gt; =
+<a href=#177 id=177 data-nosnippet>177</a>        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
+<a href=#178 id=178 data-nosnippet>178</a>            .with_resource_validation(enable_resource_validation)
+<a href=#179 id=179 data-nosnippet>179</a>            .with_enrolled_resources(
+<a href=#180 id=180 data-nosnippet>180</a>                _process_count,
+<a href=#181 id=181 data-nosnippet>181</a>                _per_process_file_count,
+<a href=#182 id=182 data-nosnippet>182</a>                _per_process_stream_count,
+<a href=#183 id=183 data-nosnippet>183</a>            );
+<a href=#184 id=184 data-nosnippet>184</a>    <span class="attr">#[cfg(not(test))]
+<a href=#185 id=185 data-nosnippet>185</a>    </span><span class="kw">let </span>p2m_service: P2mApiDefaultStack&lt;M&gt; =
+<a href=#186 id=186 data-nosnippet>186</a>        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
+<a href=#187 id=187 data-nosnippet>187</a>            .with_resource_validation(enable_resource_validation);
+<a href=#188 id=188 data-nosnippet>188</a>
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="kw">let </span>o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
+<a href=#190 id=190 data-nosnippet>190</a>
+<a href=#191 id=191 data-nosnippet>191</a>    (m2m_service, p2m_service, o2m_service)
+<a href=#192 id=192 data-nosnippet>192</a>}</code></pre></div></section></main></body></html>
