@@ -742,15 +742,15 @@
 <a href=#742 id=742 data-nosnippet>742</a>
 <a href=#743 id=743 data-nosnippet>743</a>    <span class="comment">// Helper functions to reduce test code duplication
 <a href=#744 id=744 data-nosnippet>744</a>    </span><span class="kw">fn </span>create_public_policy(integrity: u32) -&gt; Policy {
-<a href=#745 id=745 data-nosnippet>745</a>        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::NotDeleted, <span class="bool-val">true</span>)
+<a href=#745 id=745 data-nosnippet>745</a>        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::NotDeleted, <span class="bool-val">false</span>)
 <a href=#746 id=746 data-nosnippet>746</a>    }
 <a href=#747 id=747 data-nosnippet>747</a>
 <a href=#748 id=748 data-nosnippet>748</a>    <span class="kw">fn </span>create_secret_policy(integrity: u32) -&gt; Policy {
-<a href=#749 id=749 data-nosnippet>749</a>        Policy::new(ConfidentialityPolicy::Secret, integrity, DeletionPolicy::NotDeleted, <span class="bool-val">true</span>)
+<a href=#749 id=749 data-nosnippet>749</a>        Policy::new(ConfidentialityPolicy::Secret, integrity, DeletionPolicy::NotDeleted, <span class="bool-val">false</span>)
 <a href=#750 id=750 data-nosnippet>750</a>    }
 <a href=#751 id=751 data-nosnippet>751</a>
 <a href=#752 id=752 data-nosnippet>752</a>    <span class="kw">fn </span>create_deleted_policy(integrity: u32) -&gt; Policy {
-<a href=#753 id=753 data-nosnippet>753</a>        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::Pending, <span class="bool-val">true</span>)
+<a href=#753 id=753 data-nosnippet>753</a>        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::Pending, <span class="bool-val">false</span>)
 <a href=#754 id=754 data-nosnippet>754</a>    }
 <a href=#755 id=755 data-nosnippet>755</a>
 <a href=#756 id=756 data-nosnippet>756</a>    <span class="kw">fn </span>init_tracing() {
