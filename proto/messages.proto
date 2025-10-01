@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package trace2e;
+
+import "primitives.proto";
+
+// Common Messages
+message Ack {}
+
+// P2M specific messages
+message LocalCt {
+    int32 process_id = 1;
+    int32 file_descriptor = 2;
+    string path = 3;
+}
+
+message RemoteCt {
+    int32 process_id = 1;
+    int32 file_descriptor = 2;
+    string local_socket = 3;
+    string peer_socket = 4;
+}
+
+message IoInfo {
+    int32 process_id = 1;
+    int32 file_descriptor = 2;
+    Flow flow = 3;
+}
+
+message IoResult {
+    int32 process_id = 1;
+    int32 file_descriptor = 2;
+    string grant_id = 3;
+    bool result = 4;
+}
+
+message Grant {
+    string id = 1;
+}
+
+// M2M specific messages
+message GetDestinationCompliance {
+    Resource source = 1;
+    Resource destination = 2;
+}
+
+message GetSourceCompliance {
+    repeated Resource resources = 1;
+}
+
+message DestinationCompliance {
+    Policy policy = 1;
+}
+
+message SourceCompliance {
+    repeated MappedPolicy policies = 1;
+}
+
+message UpdateProvenance {
+    repeated References source_prov = 1;
+    Resource destination = 2;
+}

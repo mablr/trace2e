@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package trace2e;
 
+import "messages.proto";
+
 // Single service that handles all middleware operations
 service Trace2eGrpc {
     // Process to Middleware operations
@@ -14,118 +16,4 @@ service Trace2eGrpc {
     rpc M2MDestinationCompliance(GetDestinationCompliance) returns (DestinationCompliance);
     rpc M2MSourceCompliance(GetSourceCompliance) returns (SourceCompliance);
     rpc M2MUpdateProvenance(UpdateProvenance) returns (Ack);
-}
-
-// Common Messages
-message Ack {}
-
-// P2M specific messages
-message LocalCt {
-    int32 process_id = 1;
-    int32 file_descriptor = 2;
-    string path = 3;
-}
-
-message RemoteCt {
-    int32 process_id = 1;
-    int32 file_descriptor = 2;
-    string local_socket = 3;
-    string peer_socket = 4;
-}
-
-enum Flow {
-    FLOW_INPUT = 0;
-    FLOW_OUTPUT = 1;
-}
-
-message IoInfo {
-    int32 process_id = 1;
-    int32 file_descriptor = 2;
-    Flow flow = 3;
-}
-
-message IoResult {
-    int32 process_id = 1;
-    int32 file_descriptor = 2;
-    string grant_id = 3;
-    bool result = 4;
-}
-
-message Grant {
-    string id = 1;
-}
-
-
-// M2M specific messages
-message File {
-    string path = 1;
-}
-
-message Stream {
-    string local_socket = 1;
-    string peer_socket = 2;
-}
-
-message Fd {
-    oneof fd {
-        File file = 1;
-        Stream stream = 2;
-    }
-}
-
-message Process {
-    int32 pid = 1;
-    uint64 starttime = 2;
-    string exe_path = 3;
-}
-
-message Resource {
-    oneof resource {
-        Fd fd = 1;
-        Process process = 2;
-    }
-}
-
-message GetDestinationCompliance {
-    Resource source = 1;
-    Resource destination = 2;
-}
-
-message GetSourceCompliance {
-    repeated Resource resources = 1;
-}
-
-enum Confidentiality {
-    CONFIDENTIALITY_PUBLIC = 0;
-    CONFIDENTIALITY_SECRET = 1;
-}
-
-message Policy {
-    Confidentiality confidentiality = 1;
-    uint32 integrity = 2;
-    bool deleted = 3;
-    bool consent = 4;
-}
-
-message DestinationCompliance {
-    Policy policy = 1;
-}
-
-message MappedPolicy {
-    Resource resource = 1;
-    Policy policy = 2;
-}
-
-message SourceCompliance {
-    repeated MappedPolicy policies = 1;
-}
-
-message References {
-    string node = 1;
-    repeated Resource resources = 2;
-}
-
-message UpdateProvenance {
-    repeated References source_prov = 1;
-    Resource destination = 2;
 }

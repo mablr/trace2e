@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package trace2e;
+
+// Enums
+enum Flow {
+    FLOW_INPUT = 0;
+    FLOW_OUTPUT = 1;
+}
+
+enum Confidentiality {
+    CONFIDENTIALITY_PUBLIC = 0;
+    CONFIDENTIALITY_SECRET = 1;
+}
+
+// Basic resource types
+message File {
+    string path = 1;
+}
+
+message Stream {
+    string local_socket = 1;
+    string peer_socket = 2;
+}
+
+message Fd {
+    oneof fd {
+        File file = 1;
+        Stream stream = 2;
+    }
+}
+
+message Process {
+    int32 pid = 1;
+    uint64 starttime = 2;
+    string exe_path = 3;
+}
+
+message Resource {
+    oneof resource {
+        Fd fd = 1;
+        Process process = 2;
+    }
+}
+
+// Policy-related messages
+message Policy {
+    Confidentiality confidentiality = 1;
+    uint32 integrity = 2;
+    bool deleted = 3;
+    bool consent = 4;
+}
+
+message MappedPolicy {
+    Resource resource = 1;
+    Policy policy = 2;
+}
+
+message References {
+    string node = 1;
+    repeated Resource resources = 2;
+}
