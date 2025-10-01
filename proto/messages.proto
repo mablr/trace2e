@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package trace2e;
+package trace2e.messages;
 
 import "primitives.proto";
 
@@ -24,7 +24,7 @@ message RemoteCt {
 message IoInfo {
     int32 process_id = 1;
     int32 file_descriptor = 2;
-    Flow flow = 3;
+    primitives.Flow flow = 3;
 }
 
 message IoResult {
@@ -40,23 +40,23 @@ message Grant {
 
 // M2M specific messages
 message GetDestinationCompliance {
-    Resource source = 1;
-    Resource destination = 2;
+    primitives.Resource source = 1;
+    primitives.Resource destination = 2;
 }
 
 message GetSourceCompliance {
-    repeated Resource resources = 1;
+    repeated primitives.Resource resources = 1;
 }
 
 message DestinationCompliance {
-    Policy policy = 1;
+    primitives.Policy policy = 1;
 }
 
 message SourceCompliance {
-    repeated MappedPolicy policies = 1;
+    repeated primitives.MappedPolicy policies = 1;
 }
 
 message UpdateProvenance {
-    repeated References source_prov = 1;
-    Resource destination = 2;
+    repeated primitives.References source_prov = 1;
+    primitives.Resource destination = 2;
 }

@@ -54,6 +54,13 @@ pub const DEFAULT_GRPC_PORT: u16 = 50051;
 /// Protocol Buffer definitions and descriptor sets for the trace2e gRPC service.
 pub mod proto {
     tonic::include_proto!("trace2e");
+    pub mod primitives {
+        tonic::include_proto!("trace2e.primitives");
+    }
+    pub mod messages {
+        tonic::include_proto!("trace2e.messages");
+    }
+
     /// Pre-compiled Protocol Buffer descriptor set for service reflection.
     pub const MIDDLEWARE_DESCRIPTOR_SET: &[u8] = include_bytes!("../../trace2e_descriptor.bin");
 }
@@ -193,7 +200,7 @@ impl Service<M2mRequest> for M2mGrpc {
             match request {
                 M2mRequest::GetDestinationCompliance { source, destination } => {
                     // Create the protobuf request
-                    let proto_req = proto::GetDestinationCompliance {
+                    let proto_req = proto::messages::GetDestinationCompliance {
                         source: Some(source.into()),
                         destination: Some(destination.into()),
                     };
@@ -210,7 +217,7 @@ impl Service<M2mRequest> for M2mGrpc {
                 }
                 M2mRequest::GetSourceCompliance { resources, .. } => {
                     // Create the protobuf request
-                    let proto_req = proto::GetSourceCompliance {
+                    let proto_req = proto::messages::GetSourceCompliance {
                         resources: resources.into_iter().map(|r| r.into()).collect(),
                     };
 
@@ -235,7 +242,7 @@ impl Service<M2mRequest> for M2mGrpc {
                 }
                 M2mRequest::UpdateProvenance { source_prov, destination } => {
                     // Create the protobuf request
-                    let proto_req = proto::UpdateProvenance {
+                    let proto_req = proto::messages::UpdateProvenance {
                         source_prov: source_prov.into_iter().map(|s| s.into()).collect(),
                         destination: Some(destination.into()),
                     };
@@ -315,8 +322,8 @@ where
     /// This is called when a process opens a local file or resource.
     async fn p2m_local_enroll(
         &self,
-        request: Request<proto::LocalCt>,
-    ) -> Result<Response<proto::Ack>, Status> {
+        request: Request<proto::messages::LocalCt>,
+    ) -> Result<Response<proto::messages::Ack>, Status> {
         let req = request.into_inner();
         let mut p2m = self.p2m.clone();
         match p2m
@@ -327,7 +334,7 @@ where
             })
             .await?
         {
-            P2mResponse::Ack => Ok(Response::new(proto::Ack {})),
+            P2mResponse::Ack => Ok(Response::new(proto::messages::Ack {})),
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
@@ -338,8 +345,8 @@ where
     /// This is called when a process establishes a network connection.
     async fn p2m_remote_enroll(
         &self,
-        request: Request<proto::RemoteCt>,
-    ) -> Result<Response<proto::Ack>, Status> {
+        request: Request<proto::messages::RemoteCt>,
+    ) -> Result<Response<proto::messages::Ack>, Status> {
         let req = request.into_inner();
         let mut p2m = self.p2m.clone();
         match p2m
@@ -351,7 +358,7 @@ where
             })
             .await?
         {
-            P2mResponse::Ack => Ok(Response::new(proto::Ack {})),
+            P2mResponse::Ack => Ok(Response::new(proto::messages::Ack {})),
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
@@ -362,19 +369,21 @@ where
     /// on a specific file descriptor. Returns a grant ID if authorized.
     async fn p2m_io_request(
         &self,
-        request: Request<proto::IoInfo>,
-    ) -> Result<Response<proto::Grant>, Status> {
+        request: Request<proto::messages::IoInfo>,
+    ) -> Result<Response<proto::messages::Grant>, Status> {
         let req = request.into_inner();
         let mut p2m = self.p2m.clone();
         match p2m
             .call(P2mRequest::IoRequest {
                 pid: req.process_id,
                 fd: req.file_descriptor,
-                output: req.flow == proto::Flow::Output as i32,
+                output: req.flow == proto::primitives::Flow::Output as i32,
             })
             .await?
         {
-            P2mResponse::Grant(id) => Ok(Response::new(proto::Grant { id: id.to_string() })),
+            P2mResponse::Grant(id) => {
+                Ok(Response::new(proto::messages::Grant { id: id.to_string() }))
+            }
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
@@ -385,8 +394,8 @@ where
     /// previously authorized. This completes the audit trail for the operation.
     async fn p2m_io_report(
         &self,
-        request: Request<proto::IoResult>,
-    ) -> Result<Response<proto::Ack>, Status> {
+        request: Request<proto::messages::IoResult>,
+    ) -> Result<Response<proto::messages::Ack>, Status> {
         let req = request.into_inner();
         let mut p2m = self.p2m.clone();
         match p2m
@@ -398,7 +407,7 @@ where
             })
             .await?
         {
-            P2mResponse::Ack => Ok(Response::new(proto::Ack {})),
+            P2mResponse::Ack => Ok(Response::new(proto::messages::Ack {})),
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
@@ -409,8 +418,8 @@ where
     /// remote middleware instances to evaluate flow authorization.
     async fn m2m_destination_compliance(
         &self,
-        request: Request<proto::GetDestinationCompliance>,
-    ) -> Result<Response<proto::DestinationCompliance>, Status> {
+        request: Request<proto::messages::GetDestinationCompliance>,
+    ) -> Result<Response<proto::messages::DestinationCompliance>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
         match m2m.call(req.into()).await? {
@@ -425,8 +434,8 @@ where
     /// distributed flow evaluation across multiple middleware instances.
     async fn m2m_source_compliance(
         &self,
-        request: Request<proto::GetSourceCompliance>,
-    ) -> Result<Response<proto::SourceCompliance>, Status> {
+        request: Request<proto::messages::GetSourceCompliance>,
+    ) -> Result<Response<proto::messages::SourceCompliance>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
         match m2m.call(req.into()).await? {
@@ -442,12 +451,12 @@ where
     /// across distributed operations.
     async fn m2m_update_provenance(
         &self,
-        request: Request<proto::UpdateProvenance>,
-    ) -> Result<Response<proto::Ack>, Status> {
+        request: Request<proto::messages::UpdateProvenance>,
+    ) -> Result<Response<proto::messages::Ack>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
         match m2m.call(req.into()).await? {
-            M2mResponse::Ack => Ok(Response::new(proto::Ack {})),
+            M2mResponse::Ack => Ok(Response::new(proto::messages::Ack {})),
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
@@ -460,8 +469,8 @@ where
 // enabling seamless serialization for network transmission.
 
 /// Converts Protocol Buffer GetDestinationCompliance request to internal M2M request.
-impl From<proto::GetDestinationCompliance> for M2mRequest {
-    fn from(req: proto::GetDestinationCompliance) -> Self {
+impl From<proto::messages::GetDestinationCompliance> for M2mRequest {
+    fn from(req: proto::messages::GetDestinationCompliance) -> Self {
         M2mRequest::GetDestinationCompliance {
             source: req.source.map(|s| s.into()).unwrap_or_default(),
             destination: req.destination.map(|d| d.into()).unwrap_or_default(),
@@ -470,8 +479,8 @@ impl From<proto::GetDestinationCompliance> for M2mRequest {
 }
 
 /// Converts Protocol Buffer GetSourceCompliance request to internal M2M request.
-impl From<proto::GetSourceCompliance> for M2mRequest {
-    fn from(req: proto::GetSourceCompliance) -> Self {
+impl From<proto::messages::GetSourceCompliance> for M2mRequest {
+    fn from(req: proto::messages::GetSourceCompliance) -> Self {
         M2mRequest::GetSourceCompliance {
             authority_ip: String::new(), // Already routed so no authority IP needed
             resources: req.resources.into_iter().map(|r| r.into()).collect(),
@@ -480,8 +489,8 @@ impl From<proto::GetSourceCompliance> for M2mRequest {
 }
 
 /// Converts Protocol Buffer MappedPolicy to internal resource-policy tuple.
-impl From<proto::MappedPolicy> for (Resource, Policy) {
-    fn from(policy: proto::MappedPolicy) -> Self {
+impl From<proto::primitives::MappedPolicy> for (Resource, Policy) {
+    fn from(policy: proto::primitives::MappedPolicy) -> Self {
         (
             policy.resource.map(|r| r.into()).unwrap_or_default(),
             policy.policy.map(|p| p.into()).unwrap_or_default(),
@@ -490,15 +499,15 @@ impl From<proto::MappedPolicy> for (Resource, Policy) {
 }
 
 /// Converts Protocol Buffer References to internal node-resources tuple.
-impl From<proto::References> for (String, HashSet<Resource>) {
-    fn from(references: proto::References) -> Self {
+impl From<proto::primitives::References> for (String, HashSet<Resource>) {
+    fn from(references: proto::primitives::References) -> Self {
         (references.node, references.resources.into_iter().map(|r| r.into()).collect())
     }
 }
 
 /// Converts Protocol Buffer UpdateProvenance request to internal M2M request.
-impl From<proto::UpdateProvenance> for M2mRequest {
-    fn from(req: proto::UpdateProvenance) -> Self {
+impl From<proto::messages::UpdateProvenance> for M2mRequest {
+    fn from(req: proto::messages::UpdateProvenance) -> Self {
         M2mRequest::UpdateProvenance {
             source_prov: req.source_prov.into_iter().map(|s| s.into()).collect(),
             destination: req.destination.map(|d| d.into()).unwrap_or_default(),
@@ -507,19 +516,19 @@ impl From<proto::UpdateProvenance> for M2mRequest {
 }
 
 /// Converts internal Policy to Protocol Buffer DestinationCompliance response.
-impl From<Policy> for proto::DestinationCompliance {
+impl From<Policy> for proto::messages::DestinationCompliance {
     fn from(policy: Policy) -> Self {
-        proto::DestinationCompliance { policy: Some(policy.into()) }
+        proto::messages::DestinationCompliance { policy: Some(policy.into()) }
     }
 }
 
 /// Converts internal resource-policy map to Protocol Buffer SourceCompliance response.
-impl From<HashMap<Resource, Policy>> for proto::SourceCompliance {
+impl From<HashMap<Resource, Policy>> for proto::messages::SourceCompliance {
     fn from(policies: HashMap<Resource, Policy>) -> Self {
-        proto::SourceCompliance {
+        proto::messages::SourceCompliance {
             policies: policies
                 .into_iter()
-                .map(|(resource, policy)| proto::MappedPolicy {
+                .map(|(resource, policy)| proto::primitives::MappedPolicy {
                     resource: Some(resource.into()),
                     policy: Some(policy.into()),
                 })
@@ -529,90 +538,105 @@ impl From<HashMap<Resource, Policy>> for proto::SourceCompliance {
 }
 
 /// Converts internal node-resources tuple to Protocol Buffer References.
-impl From<(String, HashSet<Resource>)> for proto::References {
+impl From<(String, HashSet<Resource>)> for proto::primitives::References {
     fn from((node, resources): (String, HashSet<Resource>)) -> Self {
-        proto::References { node, resources: resources.into_iter().map(|r| r.into()).collect() }
+        proto::primitives::References {
+            node,
+            resources: resources.into_iter().map(|r| r.into()).collect(),
+        }
     }
 }
 
 /// Converts internal resource-policy tuple to Protocol Buffer MappedPolicy.
-impl From<(Resource, Policy)> for proto::MappedPolicy {
+impl From<(Resource, Policy)> for proto::primitives::MappedPolicy {
     fn from((resource, policy): (Resource, Policy)) -> Self {
-        proto::MappedPolicy { resource: Some(resource.into()), policy: Some(policy.into()) }
+        proto::primitives::MappedPolicy {
+            resource: Some(resource.into()),
+            policy: Some(policy.into()),
+        }
     }
 }
 
 /// Converts Protocol Buffer Resource to internal Resource type.
-impl From<proto::Resource> for Resource {
-    fn from(proto_resource: proto::Resource) -> Self {
+impl From<proto::primitives::Resource> for Resource {
+    fn from(proto_resource: proto::primitives::Resource) -> Self {
         match proto_resource.resource {
-            Some(proto::resource::Resource::Fd(fd)) => Resource::Fd(fd.into()),
-            Some(proto::resource::Resource::Process(process)) => Resource::Process(process.into()),
+            Some(proto::primitives::resource::Resource::Fd(fd)) => Resource::Fd(fd.into()),
+            Some(proto::primitives::resource::Resource::Process(process)) => {
+                Resource::Process(process.into())
+            }
             None => Resource::None,
         }
     }
 }
 
 /// Converts internal Resource to Protocol Buffer Resource type.
-impl From<Resource> for proto::Resource {
+impl From<Resource> for proto::primitives::Resource {
     fn from(resource: Resource) -> Self {
         match resource {
-            Resource::Fd(fd) => {
-                proto::Resource { resource: Some(proto::resource::Resource::Fd(fd.into())) }
-            }
-            Resource::Process(process) => proto::Resource {
-                resource: Some(proto::resource::Resource::Process(process.into())),
+            Resource::Fd(fd) => proto::primitives::Resource {
+                resource: Some(proto::primitives::resource::Resource::Fd(fd.into())),
             },
-            Resource::None => proto::Resource { resource: None },
+            Resource::Process(process) => proto::primitives::Resource {
+                resource: Some(proto::primitives::resource::Resource::Process(process.into())),
+            },
+            Resource::None => proto::primitives::Resource { resource: None },
         }
     }
 }
 
-impl From<proto::Fd> for Fd {
-    fn from(proto_fd: proto::Fd) -> Self {
+impl From<proto::primitives::Fd> for Fd {
+    fn from(proto_fd: proto::primitives::Fd) -> Self {
         match proto_fd.fd {
-            Some(proto::fd::Fd::File(file)) => Fd::File(file.into()),
-            Some(proto::fd::Fd::Stream(stream)) => Fd::Stream(stream.into()),
+            Some(proto::primitives::fd::Fd::File(file)) => Fd::File(file.into()),
+            Some(proto::primitives::fd::Fd::Stream(stream)) => Fd::Stream(stream.into()),
             None => Fd::File(File { path: String::new() }), // Default to empty file
         }
     }
 }
 
-impl From<Fd> for proto::Fd {
+impl From<Fd> for proto::primitives::Fd {
     fn from(fd: Fd) -> Self {
         match fd {
-            Fd::File(file) => proto::Fd { fd: Some(proto::fd::Fd::File(file.into())) },
-            Fd::Stream(stream) => proto::Fd { fd: Some(proto::fd::Fd::Stream(stream.into())) },
+            Fd::File(file) => {
+                proto::primitives::Fd { fd: Some(proto::primitives::fd::Fd::File(file.into())) }
+            }
+            Fd::Stream(stream) => {
+                proto::primitives::Fd { fd: Some(proto::primitives::fd::Fd::Stream(stream.into())) }
+            }
         }
     }
 }
 
-impl From<proto::File> for File {
-    fn from(proto_file: proto::File) -> Self {
+impl From<proto::primitives::File> for File {
+    fn from(proto_file: proto::primitives::File) -> Self {
         File { path: proto_file.path }
     }
 }
 
-impl From<File> for proto::File {
+impl From<File> for proto::primitives::File {
     fn from(file: File) -> Self {
-        proto::File { path: file.path }
+        proto::primitives::File { path: file.path }
     }
 }
 
-impl From<proto::Stream> for Stream {
-    fn from(proto_stream: proto::Stream) -> Self {
+impl From<proto::primitives::Stream> for Stream {
+    fn from(proto_stream: proto::primitives::Stream) -> Self {
         Stream { local_socket: proto_stream.local_socket, peer_socket: proto_stream.peer_socket }
     }
 }
 
-impl From<Stream> for proto::Stream {
+impl From<Stream> for proto::primitives::Stream {
     fn from(stream: Stream) -> Self {
-        proto::Stream { local_socket: stream.local_socket, peer_socket: stream.peer_socket }
+        proto::primitives::Stream {
+            local_socket: stream.local_socket,
+            peer_socket: stream.peer_socket,
+        }
     }
 }
 
-impl From<proto::Process> for Process {
-    fn from(proto_process: proto::Process) -> Self {
+impl From<proto::primitives::Process> for Process {
+    fn from(proto_process: proto::primitives::Process) -> Self {
         Process {
             pid: proto_process.pid,
             starttime: proto_process.starttime,
@@ -621,9 +645,9 @@ impl From<proto::Process> for Process {
     }
 }
 
-impl From<Process> for proto::Process {
+impl From<Process> for proto::primitives::Process {
     fn from(process: Process) -> Self {
-        proto::Process {
+        proto::primitives::Process {
             pid: process.pid,
             starttime: process.starttime,
             exe_path: process.exe_path,
@@ -631,12 +655,12 @@ impl From<Process> for proto::Process {
     }
 }
 
-impl From<Policy> for proto::Policy {
+impl From<Policy> for proto::primitives::Policy {
     fn from(policy: Policy) -> Self {
-        proto::Policy {
+        proto::primitives::Policy {
             confidentiality: match policy.is_confidential() {
-                false => proto::Confidentiality::Public as i32,
-                true => proto::Confidentiality::Secret as i32,
+                false => proto::primitives::Confidentiality::Public as i32,
+                true => proto::primitives::Confidentiality::Secret as i32,
             },
             integrity: policy.get_integrity(),
             deleted: policy.is_deleted(),
@@ -645,11 +669,13 @@ impl From<Policy> for proto::Policy {
     }
 }
 
-impl From<proto::Policy> for Policy {
-    fn from(proto_policy: proto::Policy) -> Self {
+impl From<proto::primitives::Policy> for Policy {
+    fn from(proto_policy: proto::primitives::Policy) -> Self {
         Policy::new(
             match proto_policy.confidentiality {
-                x if x == proto::Confidentiality::Secret as i32 => ConfidentialityPolicy::Secret,
+                x if x == proto::primitives::Confidentiality::Secret as i32 => {
+                    ConfidentialityPolicy::Secret
+                }
                 _ => ConfidentialityPolicy::Public,
             },
             proto_policy.integrity,

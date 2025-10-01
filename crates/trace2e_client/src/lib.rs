@@ -1,6 +1,12 @@
 use std::{fs::canonicalize, path::Path, process::id};
 mod proto {
     tonic::include_proto!("trace2e");
+    pub mod primitives {
+        tonic::include_proto!("trace2e.primitives");
+    }
+    pub mod messages {
+        tonic::include_proto!("trace2e.messages");
+    }
 }
 
 mod grpc {
@@ -53,7 +59,7 @@ mod grpc {
     }
 
     pub fn local_enroll(path: impl AsRef<Path>, fd: i32) {
-        let request = tonic::Request::new(proto::LocalCt {
+        let request = tonic::Request::new(proto::messages::LocalCt {
             process_id: id() as i32,
             file_descriptor: fd,
             path: canonicalize(path.as_ref()).unwrap().to_str().unwrap().to_string(),
@@ -71,7 +77,7 @@ mod grpc {
     }
 
     pub fn remote_enroll(fd: i32, local_socket: String, peer_socket: String) {
-        let request = tonic::Request::new(proto::RemoteCt {
+        let request = tonic::Request::new(proto::messages::RemoteCt {
             process_id: id() as i32,
             file_descriptor: fd,
             local_socket,
@@ -90,7 +96,7 @@ mod grpc {
     }
 
     pub fn io_request(fd: i32, flow: i32) -> Result<u128, Box<dyn std::error::Error>> {
-        let request = tonic::Request::new(proto::IoInfo {
+        let request = tonic::Request::new(proto::messages::IoInfo {
             process_id: id() as i32,
             file_descriptor: fd,
             flow,
@@ -117,7 +123,7 @@ mod grpc {
     }
 
     pub fn io_report(fd: i32, grant_id: u128, result: bool) -> std::io::Result<()> {
-        let request = tonic::Request::new(proto::IoResult {
+        let request = tonic::Request::new(proto::messages::IoResult {
             process_id: id() as i32,
             file_descriptor: fd,
             grant_id: grant_id.to_string(),
@@ -143,4 +149,4 @@ mod grpc {
 }
 
 pub use grpc::{io_report, io_request, local_enroll, remote_enroll};
-pub use proto::Flow;
+pub use proto::primitives::Flow;

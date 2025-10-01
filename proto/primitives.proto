@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package trace2e;
+package trace2e.primitives;
 
 // Enums
 enum Flow {

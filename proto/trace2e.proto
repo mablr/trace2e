@@ -7,13 +7,13 @@ import "messages.proto";
 // Single service that handles all middleware operations
 service Trace2eGrpc {
     // Process to Middleware operations
-    rpc P2MLocalEnroll(LocalCt) returns (Ack);
-    rpc P2MRemoteEnroll(RemoteCt) returns (Ack);
-    rpc P2MIoRequest(IoInfo) returns (Grant);
-    rpc P2MIoReport(IoResult) returns (Ack);
+    rpc P2MLocalEnroll(messages.LocalCt) returns (messages.Ack);
+    rpc P2MRemoteEnroll(messages.RemoteCt) returns (messages.Ack);
+    rpc P2MIoRequest(messages.IoInfo) returns (messages.Grant);
+    rpc P2MIoReport(messages.IoResult) returns (messages.Ack);
 
     // Middleware to Middleware operations
-    rpc M2MDestinationCompliance(GetDestinationCompliance) returns (DestinationCompliance);
-    rpc M2MSourceCompliance(GetSourceCompliance) returns (SourceCompliance);
-    rpc M2MUpdateProvenance(UpdateProvenance) returns (Ack);
+    rpc M2MDestinationCompliance(messages.GetDestinationCompliance) returns (messages.DestinationCompliance);
+    rpc M2MSourceCompliance(messages.GetSourceCompliance) returns (messages.SourceCompliance);
+    rpc M2MUpdateProvenance(messages.UpdateProvenance) returns (messages.Ack);
 }
