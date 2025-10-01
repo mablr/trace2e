@@ -742,15 +742,15 @@ mod tests {
 
     // Helper functions to reduce test code duplication
     fn create_public_policy(integrity: u32) -> Policy {
-        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::NotDeleted, true)
+        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::NotDeleted, false)
     }
 
     fn create_secret_policy(integrity: u32) -> Policy {
-        Policy::new(ConfidentialityPolicy::Secret, integrity, DeletionPolicy::NotDeleted, true)
+        Policy::new(ConfidentialityPolicy::Secret, integrity, DeletionPolicy::NotDeleted, false)
     }
 
     fn create_deleted_policy(integrity: u32) -> Policy {
-        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::Pending, true)
+        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::Pending, false)
     }
 
     fn init_tracing() {
