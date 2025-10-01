@@ -415,6 +415,11 @@ impl ComplianceService<ConsentService> {
                     // for the (source, destination) pair before evaluating other policies.
                     // Destination node id is currently unknown here; use None.
                     let mut consent = self.consent.clone();
+
+                    // TODO: add timeout handling for consent requests
+                    // TODO: make this non-blocking and avoid awaiting inside the loop
+                    // TODO: handle consent requests through M2M service for remote sources
+                    // TODO: handle consent decisions through O2M service
                     let _ = consent
                         .call(ConsentRequest::RequestConsent {
                             source: source.clone(),
@@ -428,7 +433,7 @@ impl ComplianceService<ConsentService> {
                                 Err(TraceabilityError::DirectPolicyViolation)
                             }
                             _ => Err(TraceabilityError::InternalTrace2eError),
-                        })?; // TODO: optimize this by avoiding blocking calls
+                        })?;
                 }
                 // If the source or destination policy is deleted, the flow is not compliant
                 if source_policy.is_deleted() || destination_policy.is_deleted() {
