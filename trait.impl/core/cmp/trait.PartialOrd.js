@@ -1,9 +1,9 @@
 (function() {
-    var implementors = Object.fromEntries([["trace2e_core",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.90.0/core/cmp/trait.PartialOrd.html\" title=\"trait core::cmp::PartialOrd\">PartialOrd</a> for <a class=\"enum\" href=\"trace2e_core/transport/grpc/proto/enum.Confidentiality.html\" title=\"enum trace2e_core::transport::grpc::proto::Confidentiality\">Confidentiality</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.90.0/core/cmp/trait.PartialOrd.html\" title=\"trait core::cmp::PartialOrd\">PartialOrd</a> for <a class=\"enum\" href=\"trace2e_core/transport/grpc/proto/enum.Flow.html\" title=\"enum trace2e_core::transport::grpc::proto::Flow\">Flow</a>"]]]]);
+    var implementors = Object.fromEntries([["trace2e_core",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.90.0/core/cmp/trait.PartialOrd.html\" title=\"trait core::cmp::PartialOrd\">PartialOrd</a> for <a class=\"enum\" href=\"trace2e_core/transport/grpc/proto/enum.Confidentiality.html\" title=\"enum trace2e_core::transport::grpc::proto::Confidentiality\">Confidentiality</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.90.0/core/cmp/trait.PartialOrd.html\" title=\"trait core::cmp::PartialOrd\">PartialOrd</a> for <a class=\"enum\" href=\"trace2e_core/transport/grpc/proto/enum.Flow.html\" title=\"enum trace2e_core::transport::grpc::proto::Flow\">Flow</a>"]]],["trace2e_core",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.90.0/core/cmp/trait.PartialOrd.html\" title=\"trait core::cmp::PartialOrd\">PartialOrd</a> for <a class=\"enum\" href=\"trace2e_core/transport/grpc/proto/primitives/enum.Confidentiality.html\" title=\"enum trace2e_core::transport::grpc::proto::primitives::Confidentiality\">Confidentiality</a>"],["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.90.0/core/cmp/trait.PartialOrd.html\" title=\"trait core::cmp::PartialOrd\">PartialOrd</a> for <a class=\"enum\" href=\"trace2e_core/transport/grpc/proto/primitives/enum.Flow.html\" title=\"enum trace2e_core::transport::grpc::proto::primitives::Flow\">Flow</a>"]]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {
         window.pending_implementors = implementors;
     }
 })()
-//{"start":57,"fragment_lengths":[653]}
+//{"start":57,"fragment_lengths":[653,700]}
