@@ -14,6 +14,10 @@ inputs:
     description: Rust toolchain channel or version
     required: false
     default: "stable"
+  components:
+    description: Rust components to install
+    required: false
+    default: ""
   cache:
     description: Whether to enable cargo cache
     required: false
@@ -40,6 +44,7 @@ runs:
       uses: dtolnay/rust-toolchain@stable
       with:
         toolchain: ${{ inputs.toolchain }}
+        components: ${{ inputs.components }}
 
     - name: Cache cargo and target
       if: ${{ inputs.cache == 'true' }}

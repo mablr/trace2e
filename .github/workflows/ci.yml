@@ -16,6 +16,7 @@ jobs:
       uses: ./.github/actions/rust-setup
       with:
         protoc: true
+        components: "clippy, rustfmt"
 
     - name: Code formatting check
       run: make fmt
