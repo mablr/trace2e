@@ -150,11 +150,15 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
-                O2mRequest::SetConsent(resource) => {
+                O2mRequest::EnforceConsent(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[o2m-{}] SetConsent: resource: {:?}", provenance.node_id(), resource);
+                    info!(
+                        "[o2m-{}] EnforceConsent: resource: {:?}",
+                        provenance.node_id(),
+                        resource
+                    );
                     match compliance
-                        .call(ComplianceRequest::SetConsent { resource, consent: true })
+                        .call(ComplianceRequest::EnforceConsent { resource, consent: true })
                         .await?
                     {
                         ComplianceResponse::PolicyUpdated => Ok(O2mResponse::Ack),

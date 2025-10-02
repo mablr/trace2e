@@ -640,7 +640,7 @@ impl ComplianceService {
         response
     }
 
-    /// Sets the consent flag for a specific resource.
+    /// Sets the consent enforcement flag for a specific resource.
     ///
     /// Creates a default policy if the resource doesn't exist.
     /// Updates are rejected if the resource is deleted.
@@ -648,8 +648,8 @@ impl ComplianceService {
     /// # Arguments
     ///
     /// * `resource` - The resource to update
-    /// * `consent` - The new consent value
-    fn set_consent(&self, resource: Resource, consent: bool) -> ComplianceResponse {
+    /// * `consent` - The new consent enforcement value
+    fn enforce_consent(&self, resource: Resource, consent: bool) -> ComplianceResponse {
         let mut response = ComplianceResponse::PolicyNotUpdated;
         self.policies
             .entry(resource)
@@ -722,13 +722,13 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
                     info!("[compliance] SetDeleted: resource: {:?}", resource);
                     Ok(this.set_deleted(resource))
                 }
-                ComplianceRequest::SetConsent { resource, consent } => {
+                ComplianceRequest::EnforceConsent { resource, consent } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[compliance] SetConsent: resource: {:?}, consent: {:?}",
+                        "[compliance] EnforceConsent: resource: {:?}, consent: {:?}",
                         resource, consent
                     );
-                    Ok(this.set_consent(resource, consent))
+                    Ok(this.enforce_consent(resource, consent))
                 }
             }
         })

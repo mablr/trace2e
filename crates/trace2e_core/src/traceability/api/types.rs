@@ -233,11 +233,10 @@ pub enum O2mRequest {
     /// preserving its historical provenance for audit trails.
     SetDeleted(Resource),
 
-    /// Grant consent for data processing operations on a resource.
+    /// Enforce consent for data processing operations on a resource.
     ///
-    /// Sets the consent flag to allow data flows and processing operations
-    /// that require explicit permission, typically for privacy compliance.
-    SetConsent(Resource),
+    /// Set the consent flag to enforce consent for data flows, actually requiring explicit permission for each outgoing flow.
+    EnforceConsent(Resource),
 
     /// Retrieve the complete provenance lineage for a resource.
     ///
@@ -451,11 +450,11 @@ pub enum ComplianceRequest {
     /// maintaining historical records for audit purposes.
     SetDeleted(Resource),
 
-    /// Update consent status for data processing operations on a resource.
+    /// Update consent enforcement for data processing operations on a resource.
     ///
-    /// Sets or revokes consent for operations that require explicit permission,
+    /// Set or unset consent enforcement for a resource outgoing flows, actually requiring explicit permission for each outgoing flow.
     /// typically for privacy and regulatory compliance.
-    SetConsent {
+    EnforceConsent {
         /// Target resource to update consent for
         resource: Resource,
         /// Consent status: true to grant, false to revoke
