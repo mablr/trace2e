@@ -4,8 +4,8 @@ use tonic_reflection::server::Builder;
 use trace2e_core::{
     traceability::init_middleware,
     transport::grpc::{
-        DEFAULT_GRPC_PORT, M2mGrpc, Trace2eRouter,
-        proto::{MIDDLEWARE_DESCRIPTOR_SET, trace2e_grpc_server::Trace2eGrpcServer},
+        DEFAULT_GRPC_PORT, M2mGrpc, M2mHandler, P2mHandler,
+        proto::{MIDDLEWARE_DESCRIPTOR_SET, m2m_server::M2mServer, p2m_server::P2mServer},
     },
 };
 
@@ -52,7 +52,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     let mut server_builder = Server::builder()
-        .add_service(Trace2eGrpcServer::new(Trace2eRouter::new(p2m_service, m2m_service)));
+        .add_service(P2mServer::new(P2mHandler::new(p2m_service)))
+        .add_service(M2mServer::new(M2mHandler::new(m2m_service)));
 
     if args.reflection {
         let reflection_service = Builder::configure()

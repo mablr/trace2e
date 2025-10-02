@@ -5,13 +5,16 @@ package trace2e;
 import "messages.proto";
 
 // Single service that handles all middleware operations
-service Trace2eGrpc {
+service P2m {
     // Process to Middleware operations
     rpc P2MLocalEnroll(messages.LocalCt) returns (messages.Ack);
     rpc P2MRemoteEnroll(messages.RemoteCt) returns (messages.Ack);
     rpc P2MIoRequest(messages.IoInfo) returns (messages.Grant);
     rpc P2MIoReport(messages.IoResult) returns (messages.Ack);
 
+}
+
+service M2m {
     // Middleware to Middleware operations
     rpc M2MDestinationCompliance(messages.GetDestinationCompliance) returns (messages.DestinationCompliance);
     rpc M2MSourceCompliance(messages.GetSourceCompliance) returns (messages.SourceCompliance);

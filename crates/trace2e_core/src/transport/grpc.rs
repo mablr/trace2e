@@ -102,7 +102,7 @@ impl From<TraceabilityError> for Status {
 #[derive(Default, Clone)]
 pub struct M2mGrpc {
     /// Cache of established gRPC client connections indexed by remote IP address.
-    connected_remotes: Arc<DashMap<String, proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>>>,
+    connected_remotes: Arc<DashMap<String, proto::m2m_client::M2mClient<Channel>>>,
 }
 
 impl M2mGrpc {
@@ -125,11 +125,9 @@ impl M2mGrpc {
     async fn connect_remote(
         &self,
         remote_ip: String,
-    ) -> Result<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>, TraceabilityError> {
-        match proto::trace2e_grpc_client::Trace2eGrpcClient::connect(format!(
-            "{remote_ip}:{DEFAULT_GRPC_PORT}"
-        ))
-        .await
+    ) -> Result<proto::m2m_client::M2mClient<Channel>, TraceabilityError> {
+        match proto::m2m_client::M2mClient::connect(format!("{remote_ip}:{DEFAULT_GRPC_PORT}"))
+            .await
         {
             Ok(client) => {
                 self.connected_remotes.insert(remote_ip, client.clone());
@@ -148,10 +146,7 @@ impl M2mGrpc {
     /// # Returns
     ///
     /// An existing client connection if available, None otherwise.
-    async fn get_client(
-        &self,
-        remote_ip: String,
-    ) -> Option<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> {
+    async fn get_client(&self, remote_ip: String) -> Option<proto::m2m_client::M2mClient<Channel>> {
         self.connected_remotes.get(&remote_ip).map(|c| c.to_owned())
     }
 
@@ -175,7 +170,7 @@ impl M2mGrpc {
     async fn get_client_or_connect(
         &self,
         remote_ip: String,
-    ) -> Result<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>, TraceabilityError> {
+    ) -> Result<proto::m2m_client::M2mClient<Channel>, TraceabilityError> {
         match self.get_client(remote_ip.clone()).await {
             Some(client) => Ok(client),
             None => self.connect_remote(remote_ip).await,
@@ -275,22 +270,19 @@ impl Service<M2mRequest> for M2mGrpc {
 /// The router translates incoming Protocol Buffer requests to internal API
 /// types, calls the appropriate service, and converts responses back to
 /// Protocol Buffer format for transmission.
-pub struct Trace2eRouter<P2mApi, M2mApi> {
+pub struct P2mHandler<P2mApi> {
     /// Process-to-middleware service handler.
     p2m: P2mApi,
-    /// Machine-to-machine service handler.
-    m2m: M2mApi,
 }
 
-impl<P2mApi, M2mApi> Trace2eRouter<P2mApi, M2mApi> {
+impl<P2mApi> P2mHandler<P2mApi> {
     /// Creates a new router with the specified service handlers.
     ///
     /// # Arguments
     ///
     /// * `p2m` - Service for handling process-to-middleware requests
-    /// * `m2m` - Service for handling machine-to-machine requests
-    pub fn new(p2m: P2mApi, m2m: M2mApi) -> Self {
-        Self { p2m, m2m }
+    pub fn new(p2m: P2mApi) -> Self {
+        Self { p2m }
     }
 }
 
@@ -301,7 +293,7 @@ impl<P2mApi, M2mApi> Trace2eRouter<P2mApi, M2mApi> {
 /// and M2M (machine-to-machine) operations by delegating to the appropriate
 /// internal service handlers.
 #[tonic::async_trait]
-impl<P2mApi, M2mApi> proto::trace2e_grpc_server::Trace2eGrpc for Trace2eRouter<P2mApi, M2mApi>
+impl<P2mApi> proto::p2m_server::P2m for P2mHandler<P2mApi>
 where
     P2mApi: Service<P2mRequest, Response = P2mResponse, Error = TraceabilityError>
         + Clone
@@ -309,12 +301,6 @@ where
         + Send
         + 'static,
     P2mApi::Future: Send,
-    M2mApi: Service<M2mRequest, Response = M2mResponse, Error = TraceabilityError>
-        + Clone
-        + Sync
-        + Send
-        + 'static,
-    M2mApi::Future: Send,
 {
     /// Handles local process enrollment requests.
     ///
@@ -411,7 +397,33 @@ where
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
+}
+pub struct M2mHandler<M2mApi> {
+    /// Machine-to-machine service handler.
+    m2m: M2mApi,
+}
 
+impl<M2mApi> M2mHandler<M2mApi> {
+    /// Creates a new router with the specified service handlers.
+    ///
+    /// # Arguments
+    ///
+    /// * `m2m` - Service for handling machine-to-machine requests
+    pub fn new(m2m: M2mApi) -> Self {
+        Self { m2m }
+    }
+}
+
+#[tonic::async_trait]
+impl<M2mApi> proto::m2m_server::M2m for M2mHandler<M2mApi>
+where
+    M2mApi: Service<M2mRequest, Response = M2mResponse, Error = TraceabilityError>
+        + Clone
+        + Sync
+        + Send
+        + 'static,
+    M2mApi::Future: Send,
+{
     /// Handles destination compliance policy requests from remote middleware.
     ///
     /// Returns the compliance policy for a destination resource to enable

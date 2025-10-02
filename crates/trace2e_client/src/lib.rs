@@ -25,18 +25,17 @@ mod grpc {
     // The URL for the gRPC service
     const GRPC_URL: &str = "http://[::1]:50051";
 
-    static GRPC_CLIENT: Lazy<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> =
-        Lazy::new(|| {
-            let rt = &*TOKIO_RUNTIME;
-            rt.block_on(proto::trace2e_grpc_client::Trace2eGrpcClient::connect(GRPC_URL)).unwrap()
-        });
+    static GRPC_CLIENT: Lazy<proto::p2m_client::P2mClient<Channel>> = Lazy::new(|| {
+        let rt = &*TOKIO_RUNTIME;
+        rt.block_on(proto::p2m_client::P2mClient::connect(GRPC_URL)).unwrap()
+    });
 
     // Gets an appropriate gRPC client for the current runtime context
-    fn get_client() -> proto::trace2e_grpc_client::Trace2eGrpcClient<Channel> {
+    fn get_client() -> proto::p2m_client::P2mClient<Channel> {
         if Handle::try_current().is_ok() {
             // We're already in a Tokio runtime, use thread-local client for this runtime
             thread_local! {
-                static RUNTIME_CLIENT: OnceCell<proto::trace2e_grpc_client::Trace2eGrpcClient<Channel>> =
+                static RUNTIME_CLIENT: OnceCell<proto::p2m_client::P2mClient<Channel>> =
                     const { OnceCell::new() };
             }
 
@@ -44,9 +43,7 @@ mod grpc {
                 cell.get_or_init(|| {
                     block_in_place(|| {
                         Handle::current()
-                            .block_on(proto::trace2e_grpc_client::Trace2eGrpcClient::connect(
-                                GRPC_URL,
-                            ))
+                            .block_on(proto::p2m_client::P2mClient::connect(GRPC_URL))
                             .unwrap()
                     })
                 })
