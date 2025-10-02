@@ -640,7 +640,7 @@
 <a href=#640 id=640 data-nosnippet>640</a>        response
 <a href=#641 id=641 data-nosnippet>641</a>    }
 <a href=#642 id=642 data-nosnippet>642</a>
-<a href=#643 id=643 data-nosnippet>643</a>    <span class="doccomment">/// Sets the consent flag for a specific resource.
+<a href=#643 id=643 data-nosnippet>643</a>    <span class="doccomment">/// Sets the consent enforcement flag for a specific resource.
 <a href=#644 id=644 data-nosnippet>644</a>    ///
 <a href=#645 id=645 data-nosnippet>645</a>    /// Creates a default policy if the resource doesn't exist.
 <a href=#646 id=646 data-nosnippet>646</a>    /// Updates are rejected if the resource is deleted.
@@ -648,8 +648,8 @@
 <a href=#648 id=648 data-nosnippet>648</a>    /// # Arguments
 <a href=#649 id=649 data-nosnippet>649</a>    ///
 <a href=#650 id=650 data-nosnippet>650</a>    /// * `resource` - The resource to update
-<a href=#651 id=651 data-nosnippet>651</a>    /// * `consent` - The new consent value
-<a href=#652 id=652 data-nosnippet>652</a>    </span><span class="kw">fn </span>set_consent(<span class="kw-2">&amp;</span><span class="self">self</span>, resource: Resource, consent: bool) -&gt; ComplianceResponse {
+<a href=#651 id=651 data-nosnippet>651</a>    /// * `consent` - The new consent enforcement value
+<a href=#652 id=652 data-nosnippet>652</a>    </span><span class="kw">fn </span>enforce_consent(<span class="kw-2">&amp;</span><span class="self">self</span>, resource: Resource, consent: bool) -&gt; ComplianceResponse {
 <a href=#653 id=653 data-nosnippet>653</a>        <span class="kw">let </span><span class="kw-2">mut </span>response = ComplianceResponse::PolicyNotUpdated;
 <a href=#654 id=654 data-nosnippet>654</a>        <span class="self">self</span>.policies
 <a href=#655 id=655 data-nosnippet>655</a>            .entry(resource)
@@ -722,13 +722,13 @@
 <a href=#722 id=722 data-nosnippet>722</a>                    </span><span class="macro">info!</span>(<span class="string">"[compliance] SetDeleted: resource: {:?}"</span>, resource);
 <a href=#723 id=723 data-nosnippet>723</a>                    <span class="prelude-val">Ok</span>(this.set_deleted(resource))
 <a href=#724 id=724 data-nosnippet>724</a>                }
-<a href=#725 id=725 data-nosnippet>725</a>                ComplianceRequest::SetConsent { resource, consent } =&gt; {
+<a href=#725 id=725 data-nosnippet>725</a>                ComplianceRequest::EnforceConsent { resource, consent } =&gt; {
 <a href=#726 id=726 data-nosnippet>726</a>                    <span class="attr">#[cfg(feature = <span class="string">"trace2e_tracing"</span>)]
 <a href=#727 id=727 data-nosnippet>727</a>                    </span><span class="macro">info!</span>(
-<a href=#728 id=728 data-nosnippet>728</a>                        <span class="string">"[compliance] SetConsent: resource: {:?}, consent: {:?}"</span>,
+<a href=#728 id=728 data-nosnippet>728</a>                        <span class="string">"[compliance] EnforceConsent: resource: {:?}, consent: {:?}"</span>,
 <a href=#729 id=729 data-nosnippet>729</a>                        resource, consent
 <a href=#730 id=730 data-nosnippet>730</a>                    );
-<a href=#731 id=731 data-nosnippet>731</a>                    <span class="prelude-val">Ok</span>(this.set_consent(resource, consent))
+<a href=#731 id=731 data-nosnippet>731</a>                    <span class="prelude-val">Ok</span>(this.enforce_consent(resource, consent))
 <a href=#732 id=732 data-nosnippet>732</a>                }
 <a href=#733 id=733 data-nosnippet>733</a>            }
 <a href=#734 id=734 data-nosnippet>734</a>        })

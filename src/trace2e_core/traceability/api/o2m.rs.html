@@ -150,28 +150,32 @@
 <a href=#150 id=150 data-nosnippet>150</a>                        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(TraceabilityError::InternalTrace2eError),
 <a href=#151 id=151 data-nosnippet>151</a>                    }
 <a href=#152 id=152 data-nosnippet>152</a>                }
-<a href=#153 id=153 data-nosnippet>153</a>                O2mRequest::SetConsent(resource) =&gt; {
+<a href=#153 id=153 data-nosnippet>153</a>                O2mRequest::EnforceConsent(resource) =&gt; {
 <a href=#154 id=154 data-nosnippet>154</a>                    <span class="attr">#[cfg(feature = <span class="string">"trace2e_tracing"</span>)]
-<a href=#155 id=155 data-nosnippet>155</a>                    </span><span class="macro">info!</span>(<span class="string">"[o2m-{}] SetConsent: resource: {:?}"</span>, provenance.node_id(), resource);
-<a href=#156 id=156 data-nosnippet>156</a>                    <span class="kw">match </span>compliance
-<a href=#157 id=157 data-nosnippet>157</a>                        .call(ComplianceRequest::SetConsent { resource, consent: <span class="bool-val">true </span>})
-<a href=#158 id=158 data-nosnippet>158</a>                        .<span class="kw">await</span><span class="question-mark">?
-<a href=#159 id=159 data-nosnippet>159</a>                    </span>{
-<a href=#160 id=160 data-nosnippet>160</a>                        ComplianceResponse::PolicyUpdated =&gt; <span class="prelude-val">Ok</span>(O2mResponse::Ack),
-<a href=#161 id=161 data-nosnippet>161</a>                        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(TraceabilityError::InternalTrace2eError),
-<a href=#162 id=162 data-nosnippet>162</a>                    }
-<a href=#163 id=163 data-nosnippet>163</a>                }
-<a href=#164 id=164 data-nosnippet>164</a>                O2mRequest::GetReferences(resource) =&gt; {
-<a href=#165 id=165 data-nosnippet>165</a>                    <span class="attr">#[cfg(feature = <span class="string">"trace2e_tracing"</span>)]
-<a href=#166 id=166 data-nosnippet>166</a>                    </span><span class="macro">info!</span>(<span class="string">"[o2m-{}] GetReferences: resource: {:?}"</span>, provenance.node_id(), resource);
-<a href=#167 id=167 data-nosnippet>167</a>                    <span class="kw">match </span>provenance.call(ProvenanceRequest::GetReferences(resource)).<span class="kw">await</span><span class="question-mark">? </span>{
-<a href=#168 id=168 data-nosnippet>168</a>                        ProvenanceResponse::Provenance(references) =&gt; {
-<a href=#169 id=169 data-nosnippet>169</a>                            <span class="prelude-val">Ok</span>(O2mResponse::References(references))
-<a href=#170 id=170 data-nosnippet>170</a>                        }
-<a href=#171 id=171 data-nosnippet>171</a>                        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(TraceabilityError::InternalTrace2eError),
-<a href=#172 id=172 data-nosnippet>172</a>                    }
-<a href=#173 id=173 data-nosnippet>173</a>                }
-<a href=#174 id=174 data-nosnippet>174</a>            }
-<a href=#175 id=175 data-nosnippet>175</a>        })
-<a href=#176 id=176 data-nosnippet>176</a>    }
-<a href=#177 id=177 data-nosnippet>177</a>}</code></pre></div></section></main></body></html>
+<a href=#155 id=155 data-nosnippet>155</a>                    </span><span class="macro">info!</span>(
+<a href=#156 id=156 data-nosnippet>156</a>                        <span class="string">"[o2m-{}] EnforceConsent: resource: {:?}"</span>,
+<a href=#157 id=157 data-nosnippet>157</a>                        provenance.node_id(),
+<a href=#158 id=158 data-nosnippet>158</a>                        resource
+<a href=#159 id=159 data-nosnippet>159</a>                    );
+<a href=#160 id=160 data-nosnippet>160</a>                    <span class="kw">match </span>compliance
+<a href=#161 id=161 data-nosnippet>161</a>                        .call(ComplianceRequest::EnforceConsent { resource, consent: <span class="bool-val">true </span>})
+<a href=#162 id=162 data-nosnippet>162</a>                        .<span class="kw">await</span><span class="question-mark">?
+<a href=#163 id=163 data-nosnippet>163</a>                    </span>{
+<a href=#164 id=164 data-nosnippet>164</a>                        ComplianceResponse::PolicyUpdated =&gt; <span class="prelude-val">Ok</span>(O2mResponse::Ack),
+<a href=#165 id=165 data-nosnippet>165</a>                        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(TraceabilityError::InternalTrace2eError),
+<a href=#166 id=166 data-nosnippet>166</a>                    }
+<a href=#167 id=167 data-nosnippet>167</a>                }
+<a href=#168 id=168 data-nosnippet>168</a>                O2mRequest::GetReferences(resource) =&gt; {
+<a href=#169 id=169 data-nosnippet>169</a>                    <span class="attr">#[cfg(feature = <span class="string">"trace2e_tracing"</span>)]
+<a href=#170 id=170 data-nosnippet>170</a>                    </span><span class="macro">info!</span>(<span class="string">"[o2m-{}] GetReferences: resource: {:?}"</span>, provenance.node_id(), resource);
+<a href=#171 id=171 data-nosnippet>171</a>                    <span class="kw">match </span>provenance.call(ProvenanceRequest::GetReferences(resource)).<span class="kw">await</span><span class="question-mark">? </span>{
+<a href=#172 id=172 data-nosnippet>172</a>                        ProvenanceResponse::Provenance(references) =&gt; {
+<a href=#173 id=173 data-nosnippet>173</a>                            <span class="prelude-val">Ok</span>(O2mResponse::References(references))
+<a href=#174 id=174 data-nosnippet>174</a>                        }
+<a href=#175 id=175 data-nosnippet>175</a>                        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(TraceabilityError::InternalTrace2eError),
+<a href=#176 id=176 data-nosnippet>176</a>                    }
+<a href=#177 id=177 data-nosnippet>177</a>                }
+<a href=#178 id=178 data-nosnippet>178</a>            }
+<a href=#179 id=179 data-nosnippet>179</a>        })
+<a href=#180 id=180 data-nosnippet>180</a>    }
+<a href=#181 id=181 data-nosnippet>181</a>}</code></pre></div></section></main></body></html>
