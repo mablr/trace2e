@@ -32,9 +32,9 @@
 use std::net::SocketAddr;
 
 use crate::traceability::{
-    api::M2mRequest,
+    api::types::M2mRequest,
     error::TraceabilityError,
-    naming::{Fd, Resource},
+    infrastructure::naming::{Fd, Resource},
 };
 
 pub mod grpc;

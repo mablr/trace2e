@@ -41,13 +41,15 @@ use tower::{Service, ServiceExt};
 use tracing::{debug, info};
 
 use crate::traceability::{
-    api::{
+    api::types::{
         ComplianceRequest, ComplianceResponse, M2mRequest, M2mResponse, P2mRequest, P2mResponse,
         ProvenanceRequest, ProvenanceResponse, SequencerRequest, SequencerResponse,
     },
     error::TraceabilityError,
-    naming::{NodeId, Resource},
-    validation::ResourceValidator,
+    infrastructure::{
+        naming::{NodeId, Resource},
+        validation::ResourceValidator,
+    },
 };
 
 /// Maps (process_id, file_descriptor) to (source_resource, destination_resource) pairs
@@ -532,7 +534,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        traceability::core::{
+        traceability::services::{
             compliance::ComplianceService, provenance::ProvenanceService,
             sequencer::SequencerService,
         },

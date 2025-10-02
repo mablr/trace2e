@@ -31,12 +31,12 @@ use tower::Service;
 use tracing::info;
 
 use crate::traceability::{
-    api::{
+    api::types::{
         ComplianceRequest, ComplianceResponse, O2mRequest, O2mResponse, ProvenanceRequest,
         ProvenanceResponse,
     },
     error::TraceabilityError,
-    naming::NodeId,
+    infrastructure::naming::NodeId,
 };
 
 /// O2M (Operator-to-Middleware) API Service

@@ -7,9 +7,9 @@ use tower::Service;
 use tracing::{debug, info};
 
 use crate::traceability::{
-    api::{SequencerRequest, SequencerResponse},
+    api::types::{SequencerRequest, SequencerResponse},
     error::TraceabilityError,
-    naming::Resource,
+    infrastructure::naming::Resource,
 };
 
 /// Sequencer service for managing resources reservation
@@ -231,7 +231,7 @@ mod tests {
     use tower::{ServiceBuilder, layer::layer_fn, timeout::TimeoutLayer};
 
     use super::*;
-    use crate::traceability::naming::Resource;
+    use crate::traceability::infrastructure::naming::Resource;
     #[tokio::test]
     async fn unit_sequencer_impl_flow() {
         #[cfg(feature = "trace2e_tracing")]

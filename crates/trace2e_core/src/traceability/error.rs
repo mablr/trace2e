@@ -21,7 +21,7 @@
 
 use thiserror::Error;
 
-use crate::traceability::naming::Resource;
+use crate::traceability::infrastructure::naming::Resource;
 
 #[derive(Debug, Error, PartialEq)]
 pub enum TraceabilityError {

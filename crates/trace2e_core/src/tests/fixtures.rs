@@ -1,4 +1,4 @@
-use crate::traceability::naming::{Fd, Resource};
+use crate::traceability::infrastructure::naming::{Fd, Resource};
 
 pub(super) struct FileMapping {
     pid: i32,

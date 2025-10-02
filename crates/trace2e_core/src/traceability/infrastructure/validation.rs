@@ -89,12 +89,14 @@ mod tests {
 
     use crate::{
         traceability::{
-            api::{P2mRequest, P2mResponse},
-            core::{
+            api::{
+                p2m::P2mApiService,
+                types::{P2mRequest, P2mResponse},
+            },
+            services::{
                 compliance::ComplianceService, provenance::ProvenanceService,
                 sequencer::SequencerService,
             },
-            p2m::P2mApiService,
         },
         transport::nop::M2mNop,
     };

@@ -25,9 +25,9 @@ use std::{collections::HashMap, future::Future, pin::Pin, task::Poll};
 use tower::Service;
 
 use crate::traceability::{
-    api::{M2mRequest, M2mResponse},
-    core::compliance::Policy,
+    api::types::{M2mRequest, M2mResponse},
     error::TraceabilityError,
+    services::compliance::Policy,
 };
 
 /// No-operation transport service for M2M communication.

@@ -11,9 +11,9 @@ use tower::Service;
 use tracing::{debug, info};
 
 use crate::traceability::{
-    api::{ProvenanceRequest, ProvenanceResponse},
+    api::types::{ProvenanceRequest, ProvenanceResponse},
     error::TraceabilityError,
-    naming::{NodeId, Resource},
+    infrastructure::naming::{NodeId, Resource},
 };
 
 type ProvenanceMap = DashMap<Resource, HashMap<String, HashSet<Resource>>>;

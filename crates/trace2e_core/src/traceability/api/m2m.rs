@@ -36,12 +36,12 @@ use tower::Service;
 use tracing::info;
 
 use crate::traceability::{
-    api::{
+    api::types::{
         ComplianceRequest, ComplianceResponse, M2mRequest, M2mResponse, ProvenanceRequest,
         ProvenanceResponse, SequencerRequest, SequencerResponse,
     },
     error::TraceabilityError,
-    naming::NodeId,
+    infrastructure::naming::NodeId,
 };
 
 /// M2M (Middleware-to-Middleware) API Service

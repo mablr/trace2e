@@ -7,11 +7,54 @@ use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
 use tracing::info;
 
-use crate::traceability::{
-    api::{ConsentRequest, ConsentResponse},
-    error::TraceabilityError,
-    naming::Resource,
-};
+use crate::traceability::{error::TraceabilityError, infrastructure::naming::Resource};
+
+/// Consent service request types.
+///
+/// API for the consent service, which manages user consent for data flow operations.
+#[derive(Debug, Eq, PartialEq)]
+pub enum ConsentRequest {
+    /// Request consent for a data flow operation.
+    ///
+    /// Requests consent from the resource owner for a data flow operation.
+    RequestConsent {
+        /// Source resource providing data
+        source: Resource,
+        /// Destination resource receiving data
+        destination: (Option<String>, Resource),
+    },
+    /// Retrieve all pending consent requests.
+    ///
+    /// Returns a list of all data flow operations currently awaiting consent.
+    PendingRequests,
+    /// Set consent decision for a specific data flow operation.
+    ///
+    /// Updates the consent status for a pending data flow operation.
+    SetConsent {
+        /// Source resource providing data
+        source: Resource,
+        /// Destination resource receiving data
+        destination: (Option<String>, Resource),
+        /// Consent decision: true to grant, false to deny
+        consent: bool,
+    },
+}
+
+/// Consent service response types.
+///
+/// Responses from the consent service regarding consent decisions and pending requests.
+#[derive(Debug)]
+#[allow(clippy::type_complexity)]
+pub enum ConsentResponse {
+    /// Consent granted or denied for a data flow.
+    Consent(bool),
+    /// List of all pending consent requests.
+    PendingRequests(
+        Vec<((Resource, Option<String>, Resource), tokio::sync::broadcast::Sender<bool>)>,
+    ),
+    /// Acknowledgment of successful consent decision update.
+    Ack,
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 struct ConsentKey(Resource, Option<String>, Resource);

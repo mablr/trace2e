@@ -1,7 +1,8 @@
-//! Traceability API definitions.
+//! Traceability API type definitions.
 //!
-//! This module defines the core API types for the trace2e traceability system, which provides
-//! comprehensive data lineage tracking and compliance enforcement across distributed systems.
+//! This module defines all request and response types for the trace2e traceability system,
+//! which provides comprehensive data lineage tracking and compliance enforcement across
+//! distributed systems.
 //!
 //! The API is organized into three main communication patterns:
 //!
@@ -23,11 +24,14 @@
 //! - **Sequencer**: Resource management and flow control
 //! - **Provenance**: Data lineage tracking and ancestry management  
 //! - **Compliance**: Policy enforcement and authorization decisions
+//! - **Consent**: User consent management for data flows
 
 use std::collections::{HashMap, HashSet};
 
-use super::core::compliance::{ConfidentialityPolicy, Policy};
-use crate::traceability::naming::Resource;
+use crate::traceability::{
+    infrastructure::naming::Resource,
+    services::compliance::{ConfidentialityPolicy, Policy},
+};
 
 /// Process-to-Middleware (P2M) request types.
 ///
@@ -494,45 +498,4 @@ pub enum ComplianceResponse {
     /// Returned when the requested policy change would result in no
     /// actual modification to the current configuration.
     PolicyNotUpdated,
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum ConsentRequest {
-    /// Request consent for a data flow operation.
-    ///
-    /// Requests consent from the resource owner for a data flow operation.
-    RequestConsent {
-        /// Source resource providing data
-        source: Resource,
-        /// Destination resource receiving data
-        destination: (Option<String>, Resource),
-    },
-    /// Retrieve all pending consent requests.
-    ///
-    /// Returns a list of all data flow operations currently awaiting consent.
-    PendingRequests,
-    /// Set consent decision for a specific data flow operation.
-    ///
-    /// Updates the consent status for a pending data flow operation.
-    SetConsent {
-        /// Source resource providing data
-        source: Resource,
-        /// Destination resource receiving data
-        destination: (Option<String>, Resource),
-        /// Consent decision: true to grant, false to deny
-        consent: bool,
-    },
-}
-
-#[derive(Debug)]
-#[allow(clippy::type_complexity)]
-pub enum ConsentResponse {
-    /// Consent granted or denied for a data flow.
-    Consent(bool),
-    /// List of all pending consent requests.
-    PendingRequests(
-        Vec<((Resource, Option<String>, Resource), tokio::sync::broadcast::Sender<bool>)>,
-    ),
-    /// Acknowledgment of successful consent decision update.
-    Ack,
 }

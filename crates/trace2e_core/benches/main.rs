@@ -5,12 +5,12 @@ use tower::Service;
 use trace2e_core::{
     traceability::{
         api::{ComplianceRequest, P2mRequest, P2mResponse, ProvenanceRequest, SequencerRequest},
-        core::{
+        infrastructure::naming::Resource,
+        services::{
             compliance::{ComplianceService, ConfidentialityPolicy, DeletionPolicy, Policy},
             provenance::ProvenanceService,
             sequencer::SequencerService,
         },
-        naming::Resource,
     },
     transport::loopback::spawn_loopback_middlewares_with_enrolled_resources,
 };

@@ -32,24 +32,24 @@
 //! - **Validation**: Validates incoming requests and resource accessibility
 //! - **Naming**: Provides unified resource identification and naming conventions
 //! - **Error Handling**: Comprehensive error types and handling for operational monitoring
+
 pub mod api;
-pub mod core;
 pub mod error;
-pub mod m2m;
-pub mod naming;
-pub mod o2m;
-pub mod p2m;
-pub mod validation;
+pub mod infrastructure;
+pub mod services;
+
+// re-export types for convenience
+pub use api::types;
 
 /// Standard M2M API service stack with default component configuration.
 ///
 /// Combines sequencer, provenance, and compliance services using the default
 /// waiting queue mechanism for flow coordination. Suitable for most production
 /// deployments requiring standard M2M functionality.
-pub type M2mApiDefaultStack = m2m::M2mApiService<
-    core::sequencer::WaitingQueueService<core::sequencer::SequencerService>,
-    core::provenance::ProvenanceService,
-    core::compliance::ComplianceService,
+pub type M2mApiDefaultStack = api::m2m::M2mApiService<
+    services::sequencer::WaitingQueueService<services::sequencer::SequencerService>,
+    services::provenance::ProvenanceService,
+    services::compliance::ComplianceService,
 >;
 
 /// Standard P2M API service stack parameterized by M2M client type.
@@ -57,10 +57,10 @@ pub type M2mApiDefaultStack = m2m::M2mApiService<
 /// Combines sequencer, provenance, and compliance services with a configurable
 /// M2M client for distributed coordination. The generic parameter `M` allows
 /// different M2M transport implementations to be used.
-pub type P2mApiDefaultStack<M> = p2m::P2mApiService<
-    core::sequencer::WaitingQueueService<core::sequencer::SequencerService>,
-    core::provenance::ProvenanceService,
-    core::compliance::ComplianceService,
+pub type P2mApiDefaultStack<M> = api::p2m::P2mApiService<
+    services::sequencer::WaitingQueueService<services::sequencer::SequencerService>,
+    services::provenance::ProvenanceService,
+    services::compliance::ComplianceService,
     M,
 >;
 
@@ -69,8 +69,10 @@ pub type P2mApiDefaultStack<M> = p2m::P2mApiService<
 /// Combines provenance and compliance services for administrative operations.
 /// Does not include sequencer as O2M operations are typically read-heavy
 /// and don't require flow coordination.
-pub type O2mApiDefaultStack =
-    o2m::O2mApiService<core::provenance::ProvenanceService, core::compliance::ComplianceService>;
+pub type O2mApiDefaultStack = api::o2m::O2mApiService<
+    services::provenance::ProvenanceService,
+    services::compliance::ComplianceService,
+>;
 
 /// Initialize a complete middleware stack for production deployment.
 ///
@@ -162,19 +164,19 @@ where
 {
     let sequencer = tower::ServiceBuilder::new()
         .layer(tower::layer::layer_fn(|inner| {
-            core::sequencer::WaitingQueueService::new(inner, max_retries)
+            services::sequencer::WaitingQueueService::new(inner, max_retries)
         }))
-        .service(core::sequencer::SequencerService::default());
-    let provenance = core::provenance::ProvenanceService::new(node_id);
-    let consent = core::consent::ConsentService::new(consent_timeout);
-    let compliance = core::compliance::ComplianceService::new_with_consent(consent);
+        .service(services::sequencer::SequencerService::default());
+    let provenance = services::provenance::ProvenanceService::new(node_id);
+    let consent = services::consent::ConsentService::new(consent_timeout);
+    let compliance = services::compliance::ComplianceService::new_with_consent(consent);
 
     let m2m_service: M2mApiDefaultStack =
-        m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
+        api::m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
 
     #[cfg(test)]
     let p2m_service: P2mApiDefaultStack<M> =
-        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
+        api::p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
             .with_resource_validation(enable_resource_validation)
             .with_enrolled_resources(
                 _process_count,
@@ -183,10 +185,10 @@ where
             );
     #[cfg(not(test))]
     let p2m_service: P2mApiDefaultStack<M> =
-        p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
+        api::p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
             .with_resource_validation(enable_resource_validation);
 
-    let o2m_service: O2mApiDefaultStack = o2m::O2mApiService::new(provenance, compliance);
+    let o2m_service: O2mApiDefaultStack = api::o2m::O2mApiService::new(provenance, compliance);
 
     (m2m_service, p2m_service, o2m_service)
 }

@@ -11,9 +11,9 @@ use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 
 use crate::{
     traceability::{
-        api::{O2mRequest, O2mResponse, P2mRequest, P2mResponse},
-        core::compliance::{ConfidentialityPolicy, DeletionPolicy, Policy},
+        api::types::{O2mRequest, O2mResponse, P2mRequest, P2mResponse},
         init_middleware,
+        services::compliance::{ConfidentialityPolicy, DeletionPolicy, Policy},
     },
     transport::{
         loopback::{

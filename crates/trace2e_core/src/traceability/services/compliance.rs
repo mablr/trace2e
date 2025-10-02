@@ -35,10 +35,10 @@ use tower::Service;
 use tracing::info;
 
 use crate::traceability::{
-    api::{ComplianceRequest, ComplianceResponse, ConsentRequest, ConsentResponse},
-    core::consent::ConsentService,
+    api::types::{ComplianceRequest, ComplianceResponse},
     error::TraceabilityError,
-    naming::Resource,
+    infrastructure::naming::Resource,
+    services::consent::{ConsentRequest, ConsentResponse, ConsentService},
 };
 
 /// Confidentiality policy defines the level of confidentiality of a resource.
@@ -738,7 +738,7 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::traceability::naming::Resource;
+    use crate::traceability::infrastructure::naming::Resource;
 
     // Helper functions to reduce test code duplication
     fn create_public_policy(integrity: u32) -> Policy {

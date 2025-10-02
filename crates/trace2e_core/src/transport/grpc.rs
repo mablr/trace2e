@@ -67,10 +67,10 @@ pub mod proto {
 
 use crate::{
     traceability::{
-        api::{M2mRequest, M2mResponse, P2mRequest, P2mResponse},
-        core::compliance::{ConfidentialityPolicy, Policy},
+        api::types::{M2mRequest, M2mResponse, P2mRequest, P2mResponse},
         error::TraceabilityError,
-        naming::{Fd, File, Process, Resource, Stream},
+        infrastructure::naming::{Fd, File, Process, Resource, Stream},
+        services::compliance::{ConfidentialityPolicy, Policy},
     },
     transport::eval_remote_ip,
 };
