@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["MIDDLEWARE_DESCRIPTOR_SET"],"mod":["messages","primitives","trace2e_grpc_client","trace2e_grpc_server"]};
+window.SIDEBAR_ITEMS = {"constant":["MIDDLEWARE_DESCRIPTOR_SET"],"mod":["m2m_client","m2m_server","messages","p2m_client","p2m_server","primitives"]};

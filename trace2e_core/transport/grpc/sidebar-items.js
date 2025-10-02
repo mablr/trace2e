@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["DEFAULT_GRPC_PORT"],"mod":["proto"],"struct":["M2mGrpc","Trace2eRouter"]};
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_GRPC_PORT"],"mod":["proto"],"struct":["M2mGrpc","M2mHandler","P2mHandler"]};
