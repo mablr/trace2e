@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ComplianceRequest","ComplianceResponse","ConsentRequest","ConsentResponse","M2mRequest","M2mResponse","O2mRequest","O2mResponse","P2mRequest","P2mResponse","ProvenanceRequest","ProvenanceResponse","SequencerRequest","SequencerResponse"]};
+window.SIDEBAR_ITEMS = {"mod":["m2m","o2m","p2m","types"]};
