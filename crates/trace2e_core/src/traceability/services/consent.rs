@@ -12,7 +12,7 @@ use crate::traceability::{error::TraceabilityError, infrastructure::naming::Reso
 /// Consent service request types.
 ///
 /// API for the consent service, which manages user consent for data flow operations.
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ConsentRequest {
     /// Request consent for a data flow operation.
     ///
@@ -23,10 +23,11 @@ pub enum ConsentRequest {
         /// Destination resource receiving data
         destination: (Option<String>, Resource),
     },
-    /// Retrieve all pending consent requests.
+    /// Take ownership of a resource.
     ///
-    /// Returns a list of all data flow operations currently awaiting consent.
-    PendingRequests,
+    /// The owner of the resource will be able to receive consent request notifications
+    /// and send back decisions for the resource through the returned channels.
+    TakeResourceOwnership(Resource),
     /// Set consent decision for a specific data flow operation.
     ///
     /// Updates the consent status for a pending data flow operation.
@@ -44,32 +45,30 @@ pub enum ConsentRequest {
 ///
 /// Responses from the consent service regarding consent decisions and pending requests.
 #[derive(Debug)]
-#[allow(clippy::type_complexity)]
 pub enum ConsentResponse {
     /// Consent granted or denied for a data flow.
     Consent(bool),
-    /// List of all pending consent requests.
-    PendingRequests(
-        Vec<((Resource, Option<String>, Resource), tokio::sync::broadcast::Sender<bool>)>,
-    ),
     /// Acknowledgment of successful consent decision update.
     Ack,
+    /// Notification channel for the resource.
+    Notifications(broadcast::Receiver<Destination>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-struct ConsentKey(Resource, Option<String>, Resource);
+pub struct Destination(Option<String>, Resource);
 
-#[derive(Debug, Clone)]
-enum ConsentState {
-    Pending { tx: broadcast::Sender<bool> },
-    Decided(bool),
-}
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+struct ConsentKey(Resource, Destination);
 
 #[derive(Default, Debug, Clone)]
 pub struct ConsentService {
     timeout: u64,
     /// Unified store of consent states keyed by (source, node_id, destination)
-    states: Arc<DashMap<ConsentKey, ConsentState>>,
+    states: Arc<DashMap<ConsentKey, bool>>,
+    /// Consent request notification channels
+    notifications_channels: Arc<DashMap<Resource, broadcast::Sender<Destination>>>,
+    /// Consent decision channels
+    decision_channels: Arc<DashMap<ConsentKey, broadcast::Sender<bool>>>,
 }
 
 impl ConsentService {
@@ -77,7 +76,12 @@ impl ConsentService {
     ///
     /// Timeout is disabled if set to 0.
     pub fn new(timeout_ms: u64) -> Self {
-        Self { timeout: timeout_ms, states: Arc::new(DashMap::new()) }
+        Self {
+            timeout: timeout_ms,
+            states: Arc::new(DashMap::new()),
+            notifications_channels: Arc::new(DashMap::new()),
+            decision_channels: Arc::new(DashMap::new()),
+        }
     }
 
     /// Internal method to get consent
@@ -86,57 +90,45 @@ impl ConsentService {
         source: Resource,
         destination: (Option<String>, Resource),
     ) -> Result<bool, TraceabilityError> {
-        let key = ConsentKey(source, destination.0, destination.1);
-        match self.states.entry(key) {
-            Entry::Occupied(occ) => match occ.get() {
-                ConsentState::Decided(consent) => Ok(*consent),
-                ConsentState::Pending { tx } => {
-                    let mut rx = tx.subscribe();
-                    // Drop map guard before awaiting
-                    drop(occ);
-                    if self.timeout == 0 {
-                        rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
-                    } else {
-                        match tokio::time::timeout(Duration::from_millis(self.timeout), rx.recv())
+        let key = ConsentKey(source, Destination(destination.0, destination.1));
+        if let Some(consent) = self.states.get(&key) {
+            Ok(*consent)
+        } else {
+            match (self.notifications_channels.get(&key.0), self.decision_channels.get(&key)) {
+                (Some(notif_feed), Some(decision_feed)) => {
+                    notif_feed.send(key.1).map_err(|_| TraceabilityError::InternalTrace2eError)?;
+                    let mut receiver = decision_feed.subscribe();
+                    if self.timeout > 0 {
+                        tokio::time::timeout(Duration::from_millis(self.timeout), receiver.recv())
                             .await
-                        {
-                            Ok(res) => res.map_err(|_| TraceabilityError::InternalTrace2eError),
-                            Err(_) => Err(TraceabilityError::ConsentRequestTimeout),
-                        }
+                            .map_err(|_| TraceabilityError::ConsentRequestTimeout)?
+                            .map_err(|_| TraceabilityError::InternalTrace2eError)
+                    } else {
+                        receiver.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
                     }
                 }
-            },
-            Entry::Vacant(vac) => {
-                let (tx, mut rx) = broadcast::channel(16);
-                vac.insert(ConsentState::Pending { tx });
-                if self.timeout == 0 {
-                    rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
-                } else {
-                    match tokio::time::timeout(Duration::from_millis(self.timeout), rx.recv()).await
-                    {
-                        Ok(res) => res.map_err(|_| TraceabilityError::InternalTrace2eError),
-                        Err(_) => Err(TraceabilityError::ConsentRequestTimeout),
+                (Some(notif_feed), None) => {
+                    let (tx, mut rx) = broadcast::channel(100);
+                    self.decision_channels.insert(key.clone(), tx);
+
+                    notif_feed.send(key.1).map_err(|_| TraceabilityError::InternalTrace2eError)?;
+
+                    if self.timeout > 0 {
+                        tokio::time::timeout(Duration::from_millis(self.timeout), rx.recv())
+                            .await
+                            .map_err(|_| TraceabilityError::ConsentRequestTimeout)?
+                            .map_err(|_| TraceabilityError::InternalTrace2eError)
+                    } else {
+                        rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
                     }
+                }
+                (_, _) => {
+                    // No notifications feed, so nobody will ever know about this consent request
+                    // and it will never be granted
+                    Ok(false)
                 }
             }
         }
-    }
-
-    /// Internal method to list pending requests
-    #[allow(clippy::type_complexity)]
-    fn pending_requests(
-        &self,
-    ) -> Vec<((Resource, Option<String>, Resource), broadcast::Sender<bool>)> {
-        self.states
-            .iter()
-            .filter_map(|entry| match entry.value() {
-                ConsentState::Pending { tx } => {
-                    let ConsentKey(src, node, dst) = entry.key().clone();
-                    Some(((src, node, dst), tx.clone()))
-                }
-                ConsentState::Decided(_) => None,
-            })
-            .collect()
     }
 
     /// Internal method to set consent
@@ -146,31 +138,22 @@ impl ConsentService {
         destination: (Option<String>, Resource),
         consent: bool,
     ) {
-        let key = ConsentKey(source, destination.0, destination.1);
-        // Read-first: only upgrade to mutable if the state is Pending.
-        match self.states.entry(key.clone()) {
-            Entry::Occupied(entry) => {
-                match entry.get() {
-                    ConsentState::Decided(prev_consent) if *prev_consent != consent => {
-                        if let Some(mut entry) = self.states.get_mut(&key) {
-                            *entry = ConsentState::Decided(consent);
-                        }
-                    }
-                    ConsentState::Pending { tx } => {
-                        if let Some(mut entry) = self.states.get_mut(&key) {
-                            // Notify waiters, then transition to Decided.
-                            tx.send(consent).unwrap();
-                            *entry = ConsentState::Decided(consent);
-                        }
-                    }
-                    _ => {
-                        // Already decided; ignore
-                    }
-                }
+        let key = ConsentKey(source, Destination(destination.0, destination.1));
+        if self.states.insert(key.clone(), consent).is_none() {
+            if let Some((_, decision_feed)) = self.decision_channels.remove(&key) {
+                decision_feed.send(consent).unwrap();
             }
-            Entry::Vacant(vac) => {
-                // No pending request; just insert the decided state.
-                vac.insert(ConsentState::Decided(consent));
+        }
+    }
+
+    /// Internal method to subscribe to consent request notifications
+    fn take_resource_ownership(&self, resource: Resource) -> broadcast::Receiver<Destination> {
+        match self.notifications_channels.entry(resource.clone()) {
+            Entry::Occupied(entry) => entry.get().subscribe(),
+            Entry::Vacant(entry) => {
+                let (tx, rx) = broadcast::channel(100);
+                entry.insert(tx);
+                rx
             }
         }
     }
@@ -192,25 +175,24 @@ impl Service<ConsentRequest> for ConsentService {
                 ConsentRequest::RequestConsent { source, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[consent] RequestConsent: source: {:?}, destination: {:?}",
+                        "[consent] RequestConsent from source: {:?} to destination: {:?}",
                         source, destination
                     );
-                    let consent = this.get_consent(source, destination).await?;
-                    Ok(ConsentResponse::Consent(consent))
-                }
-                ConsentRequest::PendingRequests => {
-                    #[cfg(feature = "trace2e_tracing")]
-                    info!("[consent] PendingRequests");
-                    Ok(ConsentResponse::PendingRequests(this.pending_requests()))
+                    this.get_consent(source, destination).await.map(ConsentResponse::Consent)
                 }
                 ConsentRequest::SetConsent { source, destination, consent } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[consent] SetConsent: source: {:?}, destination: {:?}, consent: {:?}",
-                        source, destination, consent
+                        "[consent] SetConsent {} from source: {:?} to destination: {:?}",
+                        consent, source, destination
                     );
                     this.set_consent(source, destination, consent);
                     Ok(ConsentResponse::Ack)
+                }
+                ConsentRequest::TakeResourceOwnership(resource) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[consent] TakeResourceOwnership for resource: {:?}", resource);
+                    Ok(ConsentResponse::Notifications(this.take_resource_ownership(resource)))
                 }
             }
         })
@@ -220,125 +202,94 @@ impl Service<ConsentRequest> for ConsentService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
-    use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 
     #[tokio::test]
-    #[ignore] // TODO: fix this test
-    async fn unit_consent_service_pending_then_set() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-        let mut service = ConsentService::default();
-        let source = Resource::new_process_mock(0);
-        let dest = (Some("10.0.0.1".to_string()), Resource::new_file("/tmp/x".to_string()));
-
-        // Start a RequestConsent that will await a decision
-        let mut svc_for_req = service.clone();
-        let src_clone = source.clone();
-        let dest_clone = dest.clone();
-        let waiter = tokio::spawn(async move {
-            svc_for_req
-                .call(ConsentRequest::RequestConsent { source: src_clone, destination: dest_clone })
-                .await
-        });
-
-        // Give time for the pending entry to be created
-        tokio::time::sleep(Duration::from_millis(5)).await;
-
-        // Check that we have exactly one pending request
-        let pending =
-            service.call(ConsentRequest::PendingRequests).await.expect("pending requests call ok");
-        if let ConsentResponse::PendingRequests(list) = pending {
-            assert_eq!(list.len(), 1);
-            let ((s, n, d), _tx) = &list[0];
-            assert_eq!(s, &source);
-            assert_eq!(n, &dest.0);
-            assert_eq!(d, &dest.1);
-        } else {
-            panic!("Expected PendingRequests response");
-        }
-
-        // Decide consent and ensure waiter completes
-        let res = service
-            .call(ConsentRequest::SetConsent {
-                source: source.clone(),
-                destination: dest.clone(),
-                consent: true,
-            })
-            .await
-            .expect("set consent ok");
-        assert!(matches!(res, ConsentResponse::Ack));
-
-        let waited = waiter.await.unwrap().unwrap();
-        assert!(matches!(waited, ConsentResponse::Consent(true)));
+    async fn test_consent_service_no_ownership() {
+        let mut consent_service = ConsentService::new(0);
+        let resource = Resource::new_process_mock(0);
+        let destination = Resource::new_file("/tmp/test.txt".to_string());
+        let request = ConsentRequest::RequestConsent {
+            source: resource.clone(),
+            destination: (None, destination.clone()),
+        };
+        let response = consent_service.call(request).await.unwrap();
+        // No ownership, so no consent can be granted
+        assert!(matches!(response, ConsentResponse::Consent(false)));
     }
 
     #[tokio::test]
-    #[ignore] // TODO: fix this test
-    async fn unit_consent_service_decided_returns_immediately() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-        let mut service = ConsentService::default();
-        let source = Resource::new_process_mock(1);
-        let dest = (None, Resource::new_file("/tmp/y".to_string()));
-
-        // First request will create pending, so set consent before awaiting a second request
-        let mut svc_for_req = service.clone();
-        let src_clone = source.clone();
-        let dest_clone = dest.clone();
-        let waiter = tokio::spawn(async move {
-            svc_for_req
-                .call(ConsentRequest::RequestConsent { source: src_clone, destination: dest_clone })
-                .await
+    async fn test_consent_service_with_ownership_with_decision_on_notification() {
+        let mut consent_service = ConsentService::new(0);
+        let resource = Resource::new_process_mock(0);
+        let destination = Resource::new_file("/tmp/test.txt".to_string());
+        let request = ConsentRequest::TakeResourceOwnership(resource.clone());
+        let ownership_response = consent_service.call(request).await.unwrap();
+        let ConsentResponse::Notifications(mut notifications_feed) = ownership_response else {
+            panic!("Expected Notifications");
+        };
+        let resource_clone = resource.clone();
+        let destination_clone = destination.clone();
+        let mut consent_service_clone = consent_service.clone();
+        tokio::task::spawn(async move {
+            assert!(matches!(
+                consent_service_clone.call(ConsentRequest::RequestConsent {
+                    source: resource_clone,
+                    destination: (None, destination_clone),
+                }).await.unwrap(),
+                ConsentResponse::Consent(true)
+            ));
         });
-        tokio::time::sleep(Duration::from_millis(5)).await;
-        service
-            .call(ConsentRequest::SetConsent {
-                source: source.clone(),
-                destination: dest.clone(),
-                consent: false,
-            })
-            .await
-            .expect("set consent ok");
-        // First waiter should get false
-        assert!(matches!(waiter.await.unwrap().unwrap(), ConsentResponse::Consent(false)));
 
-        // Second request should return immediately with the decided value
-        let immediate = service
-            .call(ConsentRequest::RequestConsent { source, destination: dest })
-            .await
-            .unwrap();
-        assert!(matches!(immediate, ConsentResponse::Consent(false)));
+        assert_eq!(notifications_feed.recv().await.unwrap(), Destination(None, destination.clone()));
+        consent_service.call(ConsentRequest::SetConsent {
+            source: resource,
+            destination: (None, destination),
+            consent: true,
+        }).await.unwrap();
     }
 
     #[tokio::test]
-    async fn unit_consent_service_times_out_with_layer() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
+    async fn test_consent_service_with_ownership_with_decision_timeout() {
+        let mut consent_service = ConsentService::new(1);
+        let resource = Resource::new_process_mock(0);
+        let destination = Resource::new_file("/tmp/test.txt".to_string());
+        let request = ConsentRequest::TakeResourceOwnership(resource.clone());
+        let ownership_response = consent_service.call(request).await.unwrap();
+        let ConsentResponse::Notifications(mut notifications_feed) =
+            ownership_response
+        else {
+            panic!("Expected Notifications");
+        };
 
-        // Wrap with a larger timeout tower layer
-        let mut svc = ServiceBuilder::new()
-            .layer(TimeoutLayer::new(Duration::from_millis(2)))
-            .service(ConsentService::new(1));
+        // Spawn a task to check the consent request timeout before the decision is sent
+        let resource_clone = resource.clone();
+        let destination_clone = destination.clone();
+        let mut consent_service_clone = consent_service.clone();
+        tokio::task::spawn(async move {
+            assert!(matches!(
+                consent_service_clone.call(ConsentRequest::RequestConsent {
+                    source: resource_clone,
+                    destination: (None, destination_clone),
+                }).await.unwrap_err(),
+                TraceabilityError::ConsentRequestTimeout
+            ));
+        });
 
-        let source = Resource::new_process_mock(2);
-        let destination = (None, Resource::new_file("/tmp/timeout.txt".to_string()));
+        tokio::time::sleep(Duration::from_millis(2)).await;
+        assert_eq!(notifications_feed.recv().await.unwrap(), Destination(None, destination.clone()));
+        consent_service.call(ConsentRequest::SetConsent {
+            source: resource.clone(),
+            destination: (None, destination.clone()),
+            consent: true,
+        }).await.unwrap();
 
-        // This call should pend internally and then error with ConsentRequestTimeout
-        let result = svc.call(ConsentRequest::RequestConsent { source, destination }).await;
-
-        match result {
-            Ok(_) => panic!("expected timeout error, got Ok"),
-            Err(err) => {
-                // TimeoutLayer boxes inner errors; downcast to our TraceabilityError
-                if let Some(te) = err.downcast_ref::<TraceabilityError>() {
-                    assert_eq!(*te, TraceabilityError::ConsentRequestTimeout);
-                } else if err.is::<tower::timeout::error::Elapsed>() {
-                    panic!("outer TimeoutLayer elapsed before inner consent timeout");
-                } else {
-                    panic!("unexpected error: {err}");
-                }
-            }
-        }
+        // Check the consent request timeout after the decision is sent
+        assert!(matches!(
+            consent_service.call(ConsentRequest::RequestConsent {
+                source: resource,
+                destination: (None, destination),
+            }).await.unwrap(),
+            ConsentResponse::Consent(true)
+        ));
     }
 }
