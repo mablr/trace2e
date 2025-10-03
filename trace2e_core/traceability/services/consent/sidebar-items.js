@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ConsentRequest","ConsentResponse"],"struct":["ConsentService"]};
+window.SIDEBAR_ITEMS = {"enum":["ConsentRequest","ConsentResponse"],"struct":["ConsentService","Destination"]};
