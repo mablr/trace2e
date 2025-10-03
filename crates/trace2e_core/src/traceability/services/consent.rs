@@ -233,20 +233,29 @@ mod tests {
         let mut consent_service_clone = consent_service.clone();
         tokio::task::spawn(async move {
             assert!(matches!(
-                consent_service_clone.call(ConsentRequest::RequestConsent {
-                    source: resource_clone,
-                    destination: (None, destination_clone),
-                }).await.unwrap(),
+                consent_service_clone
+                    .call(ConsentRequest::RequestConsent {
+                        source: resource_clone,
+                        destination: (None, destination_clone),
+                    })
+                    .await
+                    .unwrap(),
                 ConsentResponse::Consent(true)
             ));
         });
 
-        assert_eq!(notifications_feed.recv().await.unwrap(), Destination(None, destination.clone()));
-        consent_service.call(ConsentRequest::SetConsent {
-            source: resource,
-            destination: (None, destination),
-            consent: true,
-        }).await.unwrap();
+        assert_eq!(
+            notifications_feed.recv().await.unwrap(),
+            Destination(None, destination.clone())
+        );
+        consent_service
+            .call(ConsentRequest::SetConsent {
+                source: resource,
+                destination: (None, destination),
+                consent: true,
+            })
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -256,9 +265,7 @@ mod tests {
         let destination = Resource::new_file("/tmp/test.txt".to_string());
         let request = ConsentRequest::TakeResourceOwnership(resource.clone());
         let ownership_response = consent_service.call(request).await.unwrap();
-        let ConsentResponse::Notifications(mut notifications_feed) =
-            ownership_response
-        else {
+        let ConsentResponse::Notifications(mut notifications_feed) = ownership_response else {
             panic!("Expected Notifications");
         };
 
@@ -268,28 +275,40 @@ mod tests {
         let mut consent_service_clone = consent_service.clone();
         tokio::task::spawn(async move {
             assert!(matches!(
-                consent_service_clone.call(ConsentRequest::RequestConsent {
-                    source: resource_clone,
-                    destination: (None, destination_clone),
-                }).await.unwrap_err(),
+                consent_service_clone
+                    .call(ConsentRequest::RequestConsent {
+                        source: resource_clone,
+                        destination: (None, destination_clone),
+                    })
+                    .await
+                    .unwrap_err(),
                 TraceabilityError::ConsentRequestTimeout
             ));
         });
 
         tokio::time::sleep(Duration::from_millis(2)).await;
-        assert_eq!(notifications_feed.recv().await.unwrap(), Destination(None, destination.clone()));
-        consent_service.call(ConsentRequest::SetConsent {
-            source: resource.clone(),
-            destination: (None, destination.clone()),
-            consent: true,
-        }).await.unwrap();
+        assert_eq!(
+            notifications_feed.recv().await.unwrap(),
+            Destination(None, destination.clone())
+        );
+        consent_service
+            .call(ConsentRequest::SetConsent {
+                source: resource.clone(),
+                destination: (None, destination.clone()),
+                consent: true,
+            })
+            .await
+            .unwrap();
 
         // Check the consent request timeout after the decision is sent
         assert!(matches!(
-            consent_service.call(ConsentRequest::RequestConsent {
-                source: resource,
-                destination: (None, destination),
-            }).await.unwrap(),
+            consent_service
+                .call(ConsentRequest::RequestConsent {
+                    source: resource,
+                    destination: (None, destination),
+                })
+                .await
+                .unwrap(),
             ConsentResponse::Consent(true)
         ));
     }
