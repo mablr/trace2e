@@ -141,7 +141,8 @@ impl ConsentService {
         let key = ConsentKey(source, Destination(destination.0, destination.1));
         if self.states.insert(key.clone(), consent).is_none() {
             if let Some((_, decision_feed)) = self.decision_channels.remove(&key) {
-                decision_feed.send(consent).unwrap();
+                // Ignore send errors as the receiver might have been dropped due to timeout
+                let _ = decision_feed.send(consent);
             }
         }
     }
