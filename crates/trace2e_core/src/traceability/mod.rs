@@ -3,36 +3,6 @@
 //! This module provides a complete traceability solution for distributed systems,
 //! enabling comprehensive data provenance tracking, policy enforcement, and compliance
 //! monitoring across process boundaries and network connections.
-//!
-//! ## Core Architecture
-//!
-//! The traceability system is built around three main API layers:
-//!
-//! ### Process-to-Middleware (P2M) API
-//! Primary interface for application processes to register resources and request
-//! I/O operations with traceability guarantees. Handles resource enrollment,
-//! authorization requests, and completion reporting.
-//!
-//! ### Middleware-to-Middleware (M2M) API  
-//! Enables communication between distributed middleware instances for cross-node
-//! policy evaluation, flow coordination, and provenance synchronization.
-//!
-//! ### Operator-to-Middleware (O2M) API
-//! Administrative interface for policy management, compliance configuration,
-//! and provenance analysis by external operators and organizations.
-//!
-//! ## Main Components
-//!
-//! ### Core Services
-//! - **Sequencer**: Manages flow ordering and resource reservations to prevent race conditions
-//! - **Provenance**: Tracks data provenance across operations
-//! - **Compliance**: Enforces organizational policies and regulatory requirements
-//!
-//! ### Infrastructure Primitives
-//! - **Validation**: Validates incoming requests and resource accessibility
-//! - **Naming**: Provides unified resource identification and naming conventions
-//! - **Error Handling**: Comprehensive error types and handling for operational monitoring
-
 pub mod api;
 pub mod error;
 pub mod infrastructure;
