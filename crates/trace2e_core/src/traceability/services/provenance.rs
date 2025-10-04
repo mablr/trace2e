@@ -1,3 +1,6 @@
+//! Provenance service for tracking resource references across nodes.
+//!
+//! Provides async helpers to get/update provenance and a tower::Service implementation.
 use std::{
     collections::{HashMap, HashSet},
     pin::Pin,

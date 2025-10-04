@@ -6,7 +6,7 @@
 //! - **Sequencer**: Flow coordination and resource reservation management
 //! - **Provenance**: Data lineage tracking across resources and nodes
 //! - **Compliance**: Policy management and enforcement
-//! - **Consent**: User consent management for data flows
+//! - **Consent**: Consent management for data flows
 
 pub mod compliance;
 pub mod consent;

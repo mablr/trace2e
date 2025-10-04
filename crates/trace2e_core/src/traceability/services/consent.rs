@@ -1,4 +1,4 @@
-//! Consent service for managing user/operator consent for outgoing data flows.
+//! Consent service for managing consent for outgoing data flows of resources.
 use std::{future::Future, pin::Pin, sync::Arc, task::Poll};
 
 use dashmap::{DashMap, Entry};

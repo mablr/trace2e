@@ -1,3 +1,7 @@
+//! Sequencer service for reserving resources to avoid conflicts while processing flows.
+//!
+//! Includes an optional waiting queue layer and a tower::Service implementation.
+
 use std::{collections::VecDeque, pin::Pin, sync::Arc, task::Poll};
 
 use dashmap::DashMap;
