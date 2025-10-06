@@ -206,6 +206,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_consent_service_no_ownership() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(0);
         let resource = Resource::new_process_mock(0);
         let destination = Resource::new_file("/tmp/test.txt".to_string());
@@ -220,6 +222,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_consent_service_with_ownership_with_decision_on_notification() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(0);
         let resource = Resource::new_process_mock(0);
         let destination = Resource::new_file("/tmp/test.txt".to_string());
@@ -260,6 +264,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_consent_service_with_ownership_with_decision_timeout() {
+        #[cfg(feature = "trace2e_tracing")]
+        crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(1);
         let resource = Resource::new_process_mock(0);
         let destination = Resource::new_file("/tmp/test.txt".to_string());
