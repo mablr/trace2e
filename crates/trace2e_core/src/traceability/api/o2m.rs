@@ -36,7 +36,7 @@ use crate::traceability::{
         ProvenanceResponse,
     },
     error::TraceabilityError,
-    infrastructure::naming::NodeId,
+    infrastructure::naming::NodeId, services::consent::{ConsentRequest, ConsentResponse},
 };
 
 /// O2M (Operator-to-Middleware) API Service
@@ -45,33 +45,41 @@ use crate::traceability::{
 /// providing policy management capabilities and resource reference queries.
 /// It coordinates between provenance and compliance services to serve external requests.
 #[derive(Debug, Clone)]
-pub struct O2mApiService<P, C> {
+pub struct O2mApiService<Provenance, Compliance, Consent> {
     /// Service for tracking resources provenance
-    provenance: P,
+    provenance: Provenance,
     /// Service for policy management and compliance checking
-    compliance: C,
+    compliance: Compliance,
+    #[allow(dead_code)]
+    /// Service for consent management
+    consent: Consent,
 }
 
-impl<P, C> O2mApiService<P, C> {
+impl<Provenance, Compliance, Consent> O2mApiService<Provenance, Compliance, Consent> {
     /// Creates a new O2M API service with the provided provenance and compliance services
-    pub fn new(provenance: P, compliance: C) -> Self {
-        Self { provenance, compliance }
+    pub fn new(provenance: Provenance, compliance: Compliance, consent: Consent) -> Self {
+        Self { provenance, compliance, consent }
     }
 }
 
-impl<P, C> Service<O2mRequest> for O2mApiService<P, C>
+impl<Provenance, Compliance, Consent> Service<O2mRequest> for O2mApiService<Provenance, Compliance, Consent>
 where
-    P: Service<ProvenanceRequest, Response = ProvenanceResponse, Error = TraceabilityError>
+    Provenance: Service<ProvenanceRequest, Response = ProvenanceResponse, Error = TraceabilityError>
         + Clone
         + Send
         + NodeId
         + 'static,
-    P::Future: Send,
-    C: Service<ComplianceRequest, Response = ComplianceResponse, Error = TraceabilityError>
+    Provenance::Future: Send,
+    Compliance: Service<ComplianceRequest, Response = ComplianceResponse, Error = TraceabilityError>
         + Clone
         + Send
         + 'static,
-    C::Future: Send,
+    Compliance::Future: Send,
+    Consent: Service<ConsentRequest, Response = ConsentResponse, Error = TraceabilityError>
+        + Clone
+        + Send
+        + 'static,
+    Consent::Future: Send,
 {
     type Response = O2mResponse;
     type Error = TraceabilityError;
@@ -157,6 +165,7 @@ where
                         provenance.node_id(),
                         resource
                     );
+
                     match compliance
                         .call(ComplianceRequest::EnforceConsent { resource, consent: true })
                         .await?
@@ -175,6 +184,7 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
+
             }
         })
     }

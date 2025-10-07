@@ -42,6 +42,7 @@ pub type P2mApiDefaultStack<M> = api::p2m::P2mApiService<
 pub type O2mApiDefaultStack = api::o2m::O2mApiService<
     services::provenance::ProvenanceService,
     services::compliance::ComplianceService,
+    services::consent::ConsentService,
 >;
 
 /// Initialize a complete middleware stack for production deployment.
@@ -139,7 +140,7 @@ where
         .service(services::sequencer::SequencerService::default());
     let provenance = services::provenance::ProvenanceService::new(node_id);
     let consent = services::consent::ConsentService::new(consent_timeout);
-    let compliance = services::compliance::ComplianceService::new_with_consent(consent);
+    let compliance = services::compliance::ComplianceService::new_with_consent(consent.clone());
 
     let m2m_service: M2mApiDefaultStack =
         api::m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
@@ -158,7 +159,7 @@ where
         api::p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
             .with_resource_validation(enable_resource_validation);
 
-    let o2m_service: O2mApiDefaultStack = api::o2m::O2mApiService::new(provenance, compliance);
+    let o2m_service: O2mApiDefaultStack = api::o2m::O2mApiService::new(provenance, compliance, consent);
 
     (m2m_service, p2m_service, o2m_service)
 }
