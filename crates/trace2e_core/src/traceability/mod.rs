@@ -159,7 +159,8 @@ where
         api::p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
             .with_resource_validation(enable_resource_validation);
 
-    let o2m_service: O2mApiDefaultStack = api::o2m::O2mApiService::new(provenance, compliance, consent);
+    let o2m_service: O2mApiDefaultStack =
+        api::o2m::O2mApiService::new(provenance, compliance, consent);
 
     (m2m_service, p2m_service, o2m_service)
 }

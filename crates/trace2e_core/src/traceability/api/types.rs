@@ -238,6 +238,18 @@ pub enum O2mRequest {
     /// Set the consent flag to enforce consent for data flows, actually requiring explicit permission for each outgoing flow.
     EnforceConsent(Resource),
 
+    /// Give consent decision for a specific data flow operation.
+    ///
+    /// Updates the consent status for a pending data flow operation.
+    SetConsentDecision {
+        /// Source resource providing data
+        source: Resource,
+        /// Destination resource receiving data
+        destination: (Option<String>, Resource),
+        /// Consent decision: true to grant, false to deny
+        decision: bool,
+    },
+
     /// Retrieve the complete provenance lineage for a resource.
     ///
     /// Returns all upstream resources and middleware nodes that have contributed

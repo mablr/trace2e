@@ -36,7 +36,8 @@ use crate::traceability::{
         ProvenanceResponse,
     },
     error::TraceabilityError,
-    infrastructure::naming::NodeId, services::consent::{ConsentRequest, ConsentResponse},
+    infrastructure::naming::NodeId,
+    services::consent::{ConsentRequest, ConsentResponse},
 };
 
 /// O2M (Operator-to-Middleware) API Service
@@ -50,7 +51,6 @@ pub struct O2mApiService<Provenance, Compliance, Consent> {
     provenance: Provenance,
     /// Service for policy management and compliance checking
     compliance: Compliance,
-    #[allow(dead_code)]
     /// Service for consent management
     consent: Consent,
 }
@@ -62,7 +62,8 @@ impl<Provenance, Compliance, Consent> O2mApiService<Provenance, Compliance, Cons
     }
 }
 
-impl<Provenance, Compliance, Consent> Service<O2mRequest> for O2mApiService<Provenance, Compliance, Consent>
+impl<Provenance, Compliance, Consent> Service<O2mRequest>
+    for O2mApiService<Provenance, Compliance, Consent>
 where
     Provenance: Service<ProvenanceRequest, Response = ProvenanceResponse, Error = TraceabilityError>
         + Clone
@@ -92,6 +93,7 @@ where
     fn call(&mut self, request: O2mRequest) -> Self::Future {
         let mut provenance = self.provenance.clone();
         let mut compliance = self.compliance.clone();
+        let mut consent = self.consent.clone();
         Box::pin(async move {
             match request {
                 O2mRequest::GetPolicies(resources) => {
@@ -165,7 +167,13 @@ where
                         provenance.node_id(),
                         resource
                     );
-
+                    match consent
+                        .call(ConsentRequest::TakeResourceOwnership(resource.clone()))
+                        .await?
+                    {
+                        ConsentResponse::Notifications(_) => (), // TODO: handle the stream of consent requests
+                        _ => return Err(TraceabilityError::InternalTrace2eError),
+                    };
                     match compliance
                         .call(ComplianceRequest::EnforceConsent { resource, consent: true })
                         .await?
@@ -184,7 +192,23 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
-
+                O2mRequest::SetConsentDecision { source, destination, decision } => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[o2m-{}] SetConsentDecision: source: {:?}, destination: {:?}, decision: {:?}",
+                        provenance.node_id(),
+                        source,
+                        destination,
+                        decision
+                    );
+                    match consent
+                        .call(ConsentRequest::SetConsent { source, destination, consent: decision })
+                        .await?
+                    {
+                        ConsentResponse::Ack => Ok(O2mResponse::Ack),
+                        _ => Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
             }
         })
     }
