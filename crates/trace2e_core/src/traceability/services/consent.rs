@@ -93,41 +93,31 @@ impl ConsentService {
         let key = ConsentKey(source, Destination(destination.0, destination.1));
         if let Some(consent) = self.states.get(&key) {
             Ok(*consent)
-        } else {
-            match (self.notifications_channels.get(&key.0), self.decision_channels.get(&key)) {
-                (Some(notif_feed), Some(decision_feed)) => {
-                    notif_feed.send(key.1).map_err(|_| TraceabilityError::InternalTrace2eError)?;
-                    let mut receiver = decision_feed.subscribe();
-                    if self.timeout > 0 {
-                        tokio::time::timeout(Duration::from_millis(self.timeout), receiver.recv())
-                            .await
-                            .map_err(|_| TraceabilityError::ConsentRequestTimeout)?
-                            .map_err(|_| TraceabilityError::InternalTrace2eError)
-                    } else {
-                        receiver.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
-                    }
-                }
-                (Some(notif_feed), None) => {
-                    let (tx, mut rx) = broadcast::channel(100);
-                    self.decision_channels.insert(key.clone(), tx);
-
-                    notif_feed.send(key.1).map_err(|_| TraceabilityError::InternalTrace2eError)?;
-
-                    if self.timeout > 0 {
-                        tokio::time::timeout(Duration::from_millis(self.timeout), rx.recv())
-                            .await
-                            .map_err(|_| TraceabilityError::ConsentRequestTimeout)?
-                            .map_err(|_| TraceabilityError::InternalTrace2eError)
-                    } else {
-                        rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
-                    }
-                }
-                (_, _) => {
-                    // No notifications feed, so nobody will ever know about this consent request
-                    // and it will never be granted
-                    Ok(false)
-                }
+        } else if let Some(notif_feed) = self.notifications_channels.get(&key.0) {
+            // Send consent request notification
+            // Then subscribe to decision channel if it exists or create a new one
+            let mut decision_rx = if let Some(decision_feed) = self.decision_channels.get(&key) {
+                notif_feed.send(key.1).map_err(|_| TraceabilityError::InternalTrace2eError)?;
+                decision_feed.subscribe()
+            } else {
+                let (tx, rx) = broadcast::channel(100);
+                self.decision_channels.insert(key.clone(), tx);
+                notif_feed.send(key.1).map_err(|_| TraceabilityError::InternalTrace2eError)?;
+                rx
+            };
+            // Handle timeout
+            if self.timeout > 0 {
+                tokio::time::timeout(Duration::from_millis(self.timeout), decision_rx.recv())
+                    .await
+                    .map_err(|_| TraceabilityError::ConsentRequestTimeout)?
+                    .map_err(|_| TraceabilityError::InternalTrace2eError)
+            } else {
+                decision_rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
             }
+        } else {
+            // No notifications feed, so nobody will ever know about this consent request
+            // and it will never be granted
+            Ok(false)
         }
     }
 
