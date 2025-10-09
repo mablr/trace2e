@@ -31,9 +31,12 @@ use tower::Service;
 use tracing::info;
 
 use crate::traceability::{
-    api::types::{
-        ComplianceRequest, ComplianceResponse, O2mRequest, O2mResponse, ProvenanceRequest,
-        ProvenanceResponse,
+    api::{
+        M2mRequest, M2mResponse,
+        types::{
+            ComplianceRequest, ComplianceResponse, O2mRequest, O2mResponse, ProvenanceRequest,
+            ProvenanceResponse,
+        },
     },
     error::TraceabilityError,
     infrastructure::naming::NodeId,
@@ -46,41 +49,47 @@ use crate::traceability::{
 /// providing policy management capabilities and resource reference queries.
 /// It coordinates between provenance and compliance services to serve external requests.
 #[derive(Debug, Clone)]
-pub struct O2mApiService<Provenance, Compliance, Consent> {
+pub struct O2mApiService<P, C, Consent, M> {
     /// Service for tracking resources provenance
-    provenance: Provenance,
+    provenance: P,
     /// Service for policy management and compliance checking
-    compliance: Compliance,
+    compliance: C,
     /// Service for consent management
     consent: Consent,
+    /// Client service for Middleware-to-Middleware communication
+    m2m: M,
 }
 
-impl<Provenance, Compliance, Consent> O2mApiService<Provenance, Compliance, Consent> {
+impl<P, C, Consent, M> O2mApiService<P, C, Consent, M> {
     /// Creates a new O2M API service with the provided provenance and compliance services
-    pub fn new(provenance: Provenance, compliance: Compliance, consent: Consent) -> Self {
-        Self { provenance, compliance, consent }
+    pub fn new(provenance: P, compliance: C, consent: Consent, m2m: M) -> Self {
+        Self { provenance, compliance, consent, m2m }
     }
 }
 
-impl<Provenance, Compliance, Consent> Service<O2mRequest>
-    for O2mApiService<Provenance, Compliance, Consent>
+impl<P, C, Consent, M> Service<O2mRequest> for O2mApiService<P, C, Consent, M>
 where
-    Provenance: Service<ProvenanceRequest, Response = ProvenanceResponse, Error = TraceabilityError>
+    P: Service<ProvenanceRequest, Response = ProvenanceResponse, Error = TraceabilityError>
         + Clone
         + Send
         + NodeId
         + 'static,
-    Provenance::Future: Send,
-    Compliance: Service<ComplianceRequest, Response = ComplianceResponse, Error = TraceabilityError>
+    P::Future: Send,
+    C: Service<ComplianceRequest, Response = ComplianceResponse, Error = TraceabilityError>
         + Clone
         + Send
         + 'static,
-    Compliance::Future: Send,
+    C::Future: Send,
     Consent: Service<ConsentRequest, Response = ConsentResponse, Error = TraceabilityError>
         + Clone
         + Send
         + 'static,
     Consent::Future: Send,
+    M: Service<M2mRequest, Response = M2mResponse, Error = TraceabilityError>
+        + Clone
+        + Send
+        + 'static,
+    M::Future: Send,
 {
     type Response = O2mResponse;
     type Error = TraceabilityError;

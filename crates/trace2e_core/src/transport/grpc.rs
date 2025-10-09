@@ -249,6 +249,17 @@ impl Service<M2mRequest> for M2mGrpc {
 
                     Ok(M2mResponse::Ack)
                 }
+                M2mRequest::BroadcastDeletion(resource) => {
+                    // Create the protobuf request
+                    let proto_req: proto::primitives::Resource = resource.into();
+
+                    // Make the gRPC call
+                    client.m2m_broadcast_deletion(Request::new(proto_req)).await.map_err(|_| {
+                        TraceabilityError::TransportFailedToContactRemote(remote_ip)
+                    })?;
+
+                    Ok(M2mResponse::Ack)
+                }
             }
         })
     }
@@ -472,6 +483,21 @@ where
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
+
+    /// Handles deletion broadcast requests from remote middleware.
+    ///
+    /// Broadcasts the deletion of a resource to all middleware instances.
+    async fn m2m_broadcast_deletion(
+        &self,
+        request: Request<proto::primitives::Resource>,
+    ) -> Result<Response<proto::messages::Ack>, Status> {
+        let req = request.into_inner();
+        let mut m2m = self.m2m.clone();
+        match m2m.call(req.into()).await? {
+            M2mResponse::Ack => Ok(Response::new(proto::messages::Ack {})),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
 }
 
 // Protocol Buffer type conversion implementations
@@ -527,6 +553,26 @@ impl From<proto::messages::UpdateProvenance> for M2mRequest {
     }
 }
 
+/// Converts Protocol Buffer Resource to internal M2M BroadcastDeletion request.
+impl From<proto::primitives::Resource> for M2mRequest {
+    fn from(req: proto::primitives::Resource) -> Self {
+        M2mRequest::BroadcastDeletion(req.into())
+    }
+}
+
+/// Converts Protocol Buffer Resource to internal Resource type.
+impl From<proto::primitives::Resource> for Resource {
+    fn from(req: proto::primitives::Resource) -> Self {
+        match req.resource {
+            Some(proto::primitives::resource::Resource::Fd(fd)) => Resource::Fd(fd.into()),
+            Some(proto::primitives::resource::Resource::Process(process)) => {
+                Resource::Process(process.into())
+            }
+            None => Resource::None,
+        }
+    }
+}
+
 /// Converts internal Policy to Protocol Buffer DestinationCompliance response.
 impl From<Policy> for proto::messages::DestinationCompliance {
     fn from(policy: Policy) -> Self {
@@ -565,19 +611,6 @@ impl From<(Resource, Policy)> for proto::primitives::MappedPolicy {
         proto::primitives::MappedPolicy {
             resource: Some(resource.into()),
             policy: Some(policy.into()),
-        }
-    }
-}
-
-/// Converts Protocol Buffer Resource to internal Resource type.
-impl From<proto::primitives::Resource> for Resource {
-    fn from(proto_resource: proto::primitives::Resource) -> Self {
-        match proto_resource.resource {
-            Some(proto::primitives::resource::Resource::Fd(fd)) => Resource::Fd(fd.into()),
-            Some(proto::primitives::resource::Resource::Process(process)) => {
-                Resource::Process(process.into())
-            }
-            None => Resource::None,
         }
     }
 }

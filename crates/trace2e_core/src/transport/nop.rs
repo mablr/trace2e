@@ -82,6 +82,7 @@ impl Service<M2mRequest> for M2mNop {
                     M2mResponse::SourceCompliance(HashMap::new())
                 }
                 M2mRequest::UpdateProvenance { .. } => M2mResponse::Ack,
+                M2mRequest::BroadcastDeletion(_) => M2mResponse::Ack,
             })
         })
     }

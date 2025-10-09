@@ -169,6 +169,18 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
+                M2mRequest::BroadcastDeletion(resource) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[m2m-{}] BroadcastDeletion: resource: {:?}",
+                        provenance.node_id(),
+                        resource
+                    );
+                    match compliance.call(ComplianceRequest::SetDeleted(resource)).await? {
+                        ComplianceResponse::PolicyUpdated => Ok(M2mResponse::Ack),
+                        _ => Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
             }
         })
     }

@@ -74,5 +74,6 @@ pub fn eval_remote_ip(req: M2mRequest) -> Result<String, TraceabilityError> {
             _ => Err(TraceabilityError::TransportFailedToEvaluateRemote),
         },
         M2mRequest::GetSourceCompliance { authority_ip, .. } => Ok(authority_ip),
+        M2mRequest::BroadcastDeletion(_) => Ok("*".to_string()),
     }
 }

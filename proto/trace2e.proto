@@ -3,6 +3,7 @@ syntax = "proto3";
 package trace2e;
 
 import "messages.proto";
+import "primitives.proto";
 
 // Single service that handles all middleware operations
 service P2m {
@@ -19,4 +20,5 @@ service M2m {
     rpc M2MDestinationCompliance(messages.GetDestinationCompliance) returns (messages.DestinationCompliance);
     rpc M2MSourceCompliance(messages.GetSourceCompliance) returns (messages.SourceCompliance);
     rpc M2MUpdateProvenance(messages.UpdateProvenance) returns (messages.Ack);
+    rpc M2MBroadcastDeletion(primitives.Resource) returns (messages.Ack);
 }

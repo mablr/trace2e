@@ -35,6 +35,7 @@ use std::{
 };
 
 use dashmap::DashMap;
+use tokio::join;
 use tower::Service;
 
 use crate::{
@@ -62,7 +63,7 @@ use crate::{
 /// A queue of (P2M service, O2M service) tuples for each middleware instance.
 pub async fn spawn_loopback_middlewares(
     ips: Vec<String>,
-) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
+) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mLoopback>)> {
     spawn_loopback_middlewares_with_enrolled_resources(ips, 0, 0, 0).await
 }
 
@@ -82,7 +83,7 @@ pub async fn spawn_loopback_middlewares_with_enrolled_resources(
     process_count: u32,
     per_process_file_count: u32,
     per_process_stream_count: u32,
-) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
+) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mLoopback>)> {
     spawn_loopback_middlewares_with_entropy(
         ips,
         0,
@@ -115,7 +116,7 @@ pub async fn spawn_loopback_middlewares_with_entropy(
     process_count: u32,
     per_process_file_count: u32,
     per_process_stream_count: u32,
-) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack)> {
+) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mLoopback>)> {
     let m2m_loopback = M2mLoopback::new(base_delay_ms, jitter_max_ms);
     let mut middlewares = VecDeque::new();
     for ip in ips {
@@ -217,11 +218,18 @@ impl M2mLoopback {
     pub async fn get_middleware(
         &self,
         ip: String,
-    ) -> Result<M2mApiDefaultStack, TraceabilityError> {
-        self.middlewares
-            .get(&ip)
-            .map(|c| c.to_owned())
-            .ok_or(TraceabilityError::TransportFailedToContactRemote(ip))
+    ) -> Result<Vec<M2mApiDefaultStack>, TraceabilityError> {
+        // Wildcard matches all middleware instances
+        if ip == "*" {
+            Ok(self.middlewares.iter().map(|c| c.to_owned()).collect())
+        } else {
+            Ok(vec![
+                self.middlewares
+                    .get(&ip)
+                    .map(|c| c.to_owned())
+                    .ok_or(TraceabilityError::TransportFailedToContactRemote(ip))?,
+            ])
+        }
     }
 
     /// Calculates the delay to apply based on the configured delay parameters.
@@ -288,7 +296,14 @@ impl Service<M2mRequest> for M2mLoopback {
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         let this = self.clone();
         Box::pin(async move {
-            this.get_middleware(eval_remote_ip(request.clone())?).await?.call(request).await
+            let _ = this
+                .get_middleware(eval_remote_ip(request.clone())?)
+                .await?
+                .iter_mut()
+                .map(|m| m.call(request.clone()))
+                .collect::<Vec<_>>();
+            // don't join so far
+            Ok(M2mResponse::Ack)
         })
     }
 }

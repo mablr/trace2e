@@ -39,10 +39,11 @@ pub type P2mApiDefaultStack<M> = api::p2m::P2mApiService<
 /// Combines provenance and compliance services for administrative operations.
 /// Does not include sequencer as O2M operations are typically read-heavy
 /// and don't require flow coordination.
-pub type O2mApiDefaultStack = api::o2m::O2mApiService<
+pub type O2mApiDefaultStack<M> = api::o2m::O2mApiService<
     services::provenance::ProvenanceService,
     services::compliance::ComplianceService,
     services::consent::ConsentService,
+    M,
 >;
 
 /// Initialize a complete middleware stack for production deployment.
@@ -68,7 +69,7 @@ pub fn init_middleware<M>(
     consent_timeout: u64,
     m2m_client: M,
     enable_resource_validation: bool,
-) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack)
+) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack<M>)
 where
     M: tower::Service<
             api::M2mRequest,
@@ -122,7 +123,7 @@ pub fn init_middleware_with_enrolled_resources<M>(
     _process_count: u32,
     _per_process_file_count: u32,
     _per_process_stream_count: u32,
-) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack)
+) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack<M>)
 where
     M: tower::Service<
             api::M2mRequest,
@@ -146,21 +147,29 @@ where
         api::m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
 
     #[cfg(test)]
-    let p2m_service: P2mApiDefaultStack<M> =
-        api::p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
-            .with_resource_validation(enable_resource_validation)
-            .with_enrolled_resources(
-                _process_count,
-                _per_process_file_count,
-                _per_process_stream_count,
-            );
+    let p2m_service: P2mApiDefaultStack<M> = api::p2m::P2mApiService::new(
+        sequencer,
+        provenance.clone(),
+        compliance.clone(),
+        m2m_client.clone(),
+    )
+    .with_resource_validation(enable_resource_validation)
+    .with_enrolled_resources(
+        _process_count,
+        _per_process_file_count,
+        _per_process_stream_count,
+    );
     #[cfg(not(test))]
-    let p2m_service: P2mApiDefaultStack<M> =
-        api::p2m::P2mApiService::new(sequencer, provenance.clone(), compliance.clone(), m2m_client)
-            .with_resource_validation(enable_resource_validation);
+    let p2m_service: P2mApiDefaultStack<M> = api::p2m::P2mApiService::new(
+        sequencer,
+        provenance.clone(),
+        compliance.clone(),
+        m2m_client.clone(),
+    )
+    .with_resource_validation(enable_resource_validation);
 
-    let o2m_service: O2mApiDefaultStack =
-        api::o2m::O2mApiService::new(provenance, compliance, consent);
+    let o2m_service: O2mApiDefaultStack<M> =
+        api::o2m::O2mApiService::new(provenance, compliance, consent, m2m_client);
 
     (m2m_service, p2m_service, o2m_service)
 }

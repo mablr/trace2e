@@ -157,6 +157,11 @@ pub enum M2mRequest {
         /// Destination resource receiving the data and provenance updates
         destination: Resource,
     },
+
+    /// Broadcast Deletion of a resource
+    ///
+    /// Broadcast the deletion of a resource to all middleware instances.
+    BroadcastDeletion(Resource),
 }
 
 /// Middleware-to-Middleware (M2M) response types.
