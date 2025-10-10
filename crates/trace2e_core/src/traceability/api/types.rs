@@ -238,6 +238,11 @@ pub enum O2mRequest {
     /// preserving its historical provenance for audit trails.
     SetDeleted(Resource),
 
+    /// Broadcast the deletion of a resource to all middleware instances.
+    /// 
+    /// Uses M2M API to broadcast the deletion to all middleware instances.
+    BroadcastDeletion(Resource),
+
     /// Enforce consent for data processing operations on a resource.
     ///
     /// Set the consent flag to enforce consent for data flows, actually requiring explicit permission for each outgoing flow.

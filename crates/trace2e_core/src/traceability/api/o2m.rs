@@ -103,6 +103,7 @@ where
         let mut provenance = self.provenance.clone();
         let mut compliance = self.compliance.clone();
         let mut consent = self.consent.clone();
+        let mut m2m = self.m2m.clone();
         Box::pin(async move {
             match request {
                 O2mRequest::GetPolicies(resources) => {
@@ -166,6 +167,18 @@ where
                     info!("[o2m-{}] SetDeleted: resource: {:?}", provenance.node_id(), resource,);
                     match compliance.call(ComplianceRequest::SetDeleted(resource)).await? {
                         ComplianceResponse::PolicyUpdated => Ok(O2mResponse::Ack),
+                        _ => Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
+                O2mRequest::BroadcastDeletion(resource) => {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!(
+                        "[o2m-{}] BroadcastDeletion: resource: {:?}",
+                        provenance.node_id(),
+                        resource
+                    );
+                    match m2m.call(M2mRequest::BroadcastDeletion(resource)).await? {
+                        M2mResponse::Ack => Ok(O2mResponse::Ack),
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
