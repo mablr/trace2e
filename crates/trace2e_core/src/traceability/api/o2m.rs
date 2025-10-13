@@ -14,10 +14,17 @@
 //! ## Supported Operations
 //!
 //! **Policy Management**: Set and retrieve compliance policies for resources including
-//! confidentiality, integrity, consent, and deletion status.
+//! confidentiality, integrity, consent, and deletion status. The deletion broadcast
+//! capability is only available when using loopback transport layer for M2M communication.
 //!
 //! **Provenance Analysis**: Query complete resource lineage to understand data flows
 //! and dependencies for audit and compliance purposes.
+//!
+//! **Consent Management**: Enforce consent for data flows on a resource by taking
+//! ownership of the resource. Set consent decision for a specific data flow operation.
+//!
+//! *Note: the notification channel for consent requests is returned but not handled by
+//! this service so for now, this will be probably implemented as websocket.*
 //!
 //! ## Administrative Privileges
 //!
