@@ -104,7 +104,7 @@ impl From<bool> for DeletionPolicy {
 /// - **`confidentiality`**: Controls whether the resource contains sensitive data
 /// - **`integrity`**: Numeric trust level (0 = lowest, higher = more trusted)
 /// - **`deleted`**: Tracks deletion status through a multi-phase process
-/// - **`consent`**: WIP...
+/// - **`consent`**: Whether the resource owner consent is required for flows
 ///
 /// # Policy Evaluation
 ///
