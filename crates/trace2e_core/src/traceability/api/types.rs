@@ -239,7 +239,7 @@ pub enum O2mRequest {
     SetDeleted(Resource),
 
     /// Broadcast the deletion of a resource to all middleware instances.
-    /// 
+    ///
     /// Uses M2M API to broadcast the deletion to all middleware instances.
     BroadcastDeletion(Resource),
 
