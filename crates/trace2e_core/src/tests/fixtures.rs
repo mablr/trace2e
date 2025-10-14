@@ -209,8 +209,38 @@ macro_rules! set_integrity {
     };
 }
 
-macro_rules! set_deletion {
-    ($o2m:expr, $resource:expr, $deleted:expr) => {
+macro_rules! set_deleted {
+    ($o2m:expr, $resource:expr) => {
         assert_eq!($o2m.call(O2mRequest::SetDeleted($resource)).await.unwrap(), O2mResponse::Ack)
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! broadcast_deletion {
+    ($o2m:expr, $resource:expr) => {
+        assert_eq!(
+            $o2m.call(O2mRequest::BroadcastDeletion($resource)).await.unwrap(),
+            O2mResponse::Ack
+        )
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! enforce_consent {
+    ($o2m:expr, $resource:expr) => {
+        assert_eq!(
+            $o2m.call(O2mRequest::EnforceConsent($resource)).await.unwrap(),
+            O2mResponse::Ack
+        )
+    };
+}
+
+#[allow(unused_macros)]
+macro_rules! set_consent_decision {
+    ($o2m:expr, $resource:expr, $consent:expr) => {
+        assert_eq!(
+            $o2m.call(O2mRequest::SetConsentDecision($resource)).await.unwrap(),
+            O2mResponse::Ack
+        )
     };
 }

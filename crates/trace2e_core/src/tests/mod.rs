@@ -577,7 +577,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
     );
 
     // Mark the source file as deleted
-    set_deletion!(o2m_1, fd1_1_1.file(), DeletionPolicy::Pending);
+    set_deleted!(o2m_1, fd1_1_1.file());
 
     // Verify the source file is now marked as deleted
     assert_policies!(
