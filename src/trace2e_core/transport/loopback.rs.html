@@ -214,81 +214,93 @@
 <a href=#214 id=214 data-nosnippet>214</a>    ///
 <a href=#215 id=215 data-nosnippet>215</a>    /// Returns `TransportFailedToContactRemote` if no middleware is registered
 <a href=#216 id=216 data-nosnippet>216</a>    /// for the specified IP address.
-<a href=#217 id=217 data-nosnippet>217</a>    </span><span class="kw">pub async fn </span>get_middleware(
-<a href=#218 id=218 data-nosnippet>218</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#219 id=219 data-nosnippet>219</a>        ip: String,
-<a href=#220 id=220 data-nosnippet>220</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;M2mApiDefaultStack, TraceabilityError&gt; {
-<a href=#221 id=221 data-nosnippet>221</a>        <span class="self">self</span>.middlewares
-<a href=#222 id=222 data-nosnippet>222</a>            .get(<span class="kw-2">&amp;</span>ip)
-<a href=#223 id=223 data-nosnippet>223</a>            .map(|c| c.to_owned())
-<a href=#224 id=224 data-nosnippet>224</a>            .ok_or(TraceabilityError::TransportFailedToContactRemote(ip))
-<a href=#225 id=225 data-nosnippet>225</a>    }
-<a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a>    <span class="doccomment">/// Calculates the delay to apply based on the configured delay parameters.
-<a href=#228 id=228 data-nosnippet>228</a>    ///
-<a href=#229 id=229 data-nosnippet>229</a>    /// Combines the base delay with a random jitter component to simulate
-<a href=#230 id=230 data-nosnippet>230</a>    /// realistic network latency characteristics.
-<a href=#231 id=231 data-nosnippet>231</a>    ///
-<a href=#232 id=232 data-nosnippet>232</a>    /// # Returns
-<a href=#233 id=233 data-nosnippet>233</a>    ///
-<a href=#234 id=234 data-nosnippet>234</a>    /// The total delay duration to apply to the current request.
-<a href=#235 id=235 data-nosnippet>235</a>    </span><span class="kw">fn </span>calculate_delay(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-<a href=#236 id=236 data-nosnippet>236</a>        <span class="kw">if </span><span class="self">self</span>.base_delay_ms == <span class="number">0 </span>&amp;&amp; <span class="self">self</span>.jitter_max_ms == <span class="number">0 </span>{
-<a href=#237 id=237 data-nosnippet>237</a>            <span class="kw">return </span>Duration::from_millis(<span class="number">0</span>);
-<a href=#238 id=238 data-nosnippet>238</a>        }
-<a href=#239 id=239 data-nosnippet>239</a>
-<a href=#240 id=240 data-nosnippet>240</a>        <span class="kw">let </span>base = Duration::from_millis(<span class="self">self</span>.base_delay_ms);
-<a href=#241 id=241 data-nosnippet>241</a>        <span class="kw">if </span><span class="self">self</span>.jitter_max_ms == <span class="number">0 </span>{
-<a href=#242 id=242 data-nosnippet>242</a>            <span class="kw">return </span>base;
-<a href=#243 id=243 data-nosnippet>243</a>        }
-<a href=#244 id=244 data-nosnippet>244</a>
-<a href=#245 id=245 data-nosnippet>245</a>        <span class="comment">// Simple entropy based on current time
-<a href=#246 id=246 data-nosnippet>246</a>        </span><span class="kw">let </span>seed = Instant::now().elapsed().as_nanos() <span class="kw">as </span>u64;
-<a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">let </span>jitter_ms = seed % (<span class="self">self</span>.jitter_max_ms + <span class="number">1</span>);
-<a href=#248 id=248 data-nosnippet>248</a>        base + Duration::from_millis(jitter_ms)
-<a href=#249 id=249 data-nosnippet>249</a>    }
-<a href=#250 id=250 data-nosnippet>250</a>}
-<a href=#251 id=251 data-nosnippet>251</a>
-<a href=#252 id=252 data-nosnippet>252</a><span class="kw">impl </span>Service&lt;M2mRequest&gt; <span class="kw">for </span>M2mLoopback {
-<a href=#253 id=253 data-nosnippet>253</a>    <span class="kw">type </span>Response = M2mResponse;
-<a href=#254 id=254 data-nosnippet>254</a>    <span class="kw">type </span>Error = TraceabilityError;
-<a href=#255 id=255 data-nosnippet>255</a>    <span class="kw">type </span>Future = Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Response, <span class="self">Self</span>::Error&gt;&gt; + Send&gt;&gt;;
-<a href=#256 id=256 data-nosnippet>256</a>
-<a href=#257 id=257 data-nosnippet>257</a>    <span class="kw">fn </span>poll_ready(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cx: <span class="kw-2">&amp;mut </span>std::task::Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; Poll&lt;<span class="prelude-ty">Result</span>&lt;(), <span class="self">Self</span>::Error&gt;&gt; {
-<a href=#258 id=258 data-nosnippet>258</a>        <span class="kw">let </span>now = Instant::now();
-<a href=#259 id=259 data-nosnippet>259</a>        <span class="kw">let </span>delay = <span class="self">self</span>.calculate_delay();
+<a href=#217 id=217 data-nosnippet>217</a>    </span><span class="kw">pub async fn </span>get_middleware(<span class="kw-2">&amp;</span><span class="self">self</span>, ip: String) -&gt; Vec&lt;M2mApiDefaultStack&gt; {
+<a href=#218 id=218 data-nosnippet>218</a>        <span class="comment">// Wildcard matches all middleware instances
+<a href=#219 id=219 data-nosnippet>219</a>        </span><span class="kw">if </span>ip == <span class="string">"*" </span>{
+<a href=#220 id=220 data-nosnippet>220</a>            <span class="self">self</span>.middlewares.iter().map(|c| c.to_owned()).collect()
+<a href=#221 id=221 data-nosnippet>221</a>        } <span class="kw">else </span>{
+<a href=#222 id=222 data-nosnippet>222</a>            <span class="comment">// TODO: make this cleaner/idiomatic
+<a href=#223 id=223 data-nosnippet>223</a>            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(middleware) = <span class="self">self</span>.middlewares.get(<span class="kw-2">&amp;</span>ip).map(|c| c.to_owned()) {
+<a href=#224 id=224 data-nosnippet>224</a>                <span class="macro">vec!</span>[middleware]
+<a href=#225 id=225 data-nosnippet>225</a>            } <span class="kw">else </span>{
+<a href=#226 id=226 data-nosnippet>226</a>                <span class="macro">vec!</span>[]
+<a href=#227 id=227 data-nosnippet>227</a>            }
+<a href=#228 id=228 data-nosnippet>228</a>        }
+<a href=#229 id=229 data-nosnippet>229</a>    }
+<a href=#230 id=230 data-nosnippet>230</a>
+<a href=#231 id=231 data-nosnippet>231</a>    <span class="doccomment">/// Calculates the delay to apply based on the configured delay parameters.
+<a href=#232 id=232 data-nosnippet>232</a>    ///
+<a href=#233 id=233 data-nosnippet>233</a>    /// Combines the base delay with a random jitter component to simulate
+<a href=#234 id=234 data-nosnippet>234</a>    /// realistic network latency characteristics.
+<a href=#235 id=235 data-nosnippet>235</a>    ///
+<a href=#236 id=236 data-nosnippet>236</a>    /// # Returns
+<a href=#237 id=237 data-nosnippet>237</a>    ///
+<a href=#238 id=238 data-nosnippet>238</a>    /// The total delay duration to apply to the current request.
+<a href=#239 id=239 data-nosnippet>239</a>    </span><span class="kw">fn </span>calculate_delay(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+<a href=#240 id=240 data-nosnippet>240</a>        <span class="kw">if </span><span class="self">self</span>.base_delay_ms == <span class="number">0 </span>&amp;&amp; <span class="self">self</span>.jitter_max_ms == <span class="number">0 </span>{
+<a href=#241 id=241 data-nosnippet>241</a>            <span class="kw">return </span>Duration::from_millis(<span class="number">0</span>);
+<a href=#242 id=242 data-nosnippet>242</a>        }
+<a href=#243 id=243 data-nosnippet>243</a>
+<a href=#244 id=244 data-nosnippet>244</a>        <span class="kw">let </span>base = Duration::from_millis(<span class="self">self</span>.base_delay_ms);
+<a href=#245 id=245 data-nosnippet>245</a>        <span class="kw">if </span><span class="self">self</span>.jitter_max_ms == <span class="number">0 </span>{
+<a href=#246 id=246 data-nosnippet>246</a>            <span class="kw">return </span>base;
+<a href=#247 id=247 data-nosnippet>247</a>        }
+<a href=#248 id=248 data-nosnippet>248</a>
+<a href=#249 id=249 data-nosnippet>249</a>        <span class="comment">// Simple entropy based on current time
+<a href=#250 id=250 data-nosnippet>250</a>        </span><span class="kw">let </span>seed = Instant::now().elapsed().as_nanos() <span class="kw">as </span>u64;
+<a href=#251 id=251 data-nosnippet>251</a>        <span class="kw">let </span>jitter_ms = seed % (<span class="self">self</span>.jitter_max_ms + <span class="number">1</span>);
+<a href=#252 id=252 data-nosnippet>252</a>        base + Duration::from_millis(jitter_ms)
+<a href=#253 id=253 data-nosnippet>253</a>    }
+<a href=#254 id=254 data-nosnippet>254</a>}
+<a href=#255 id=255 data-nosnippet>255</a>
+<a href=#256 id=256 data-nosnippet>256</a><span class="kw">impl </span>Service&lt;M2mRequest&gt; <span class="kw">for </span>M2mLoopback {
+<a href=#257 id=257 data-nosnippet>257</a>    <span class="kw">type </span>Response = M2mResponse;
+<a href=#258 id=258 data-nosnippet>258</a>    <span class="kw">type </span>Error = TraceabilityError;
+<a href=#259 id=259 data-nosnippet>259</a>    <span class="kw">type </span>Future = Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Response, <span class="self">Self</span>::Error&gt;&gt; + Send&gt;&gt;;
 <a href=#260 id=260 data-nosnippet>260</a>
-<a href=#261 id=261 data-nosnippet>261</a>        <span class="kw">if </span>delay.is_zero() {
-<a href=#262 id=262 data-nosnippet>262</a>            <span class="kw">return </span>Poll::Ready(<span class="prelude-val">Ok</span>(()));
-<a href=#263 id=263 data-nosnippet>263</a>        }
+<a href=#261 id=261 data-nosnippet>261</a>    <span class="kw">fn </span>poll_ready(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cx: <span class="kw-2">&amp;mut </span>std::task::Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; Poll&lt;<span class="prelude-ty">Result</span>&lt;(), <span class="self">Self</span>::Error&gt;&gt; {
+<a href=#262 id=262 data-nosnippet>262</a>        <span class="kw">let </span>now = Instant::now();
+<a href=#263 id=263 data-nosnippet>263</a>        <span class="kw">let </span>delay = <span class="self">self</span>.calculate_delay();
 <a href=#264 id=264 data-nosnippet>264</a>
-<a href=#265 id=265 data-nosnippet>265</a>        <span class="comment">// Check if we need to wait based on last call time
-<a href=#266 id=266 data-nosnippet>266</a>        </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>last_time) = <span class="self">self</span>.last_call_time.lock() {
-<a href=#267 id=267 data-nosnippet>267</a>            <span class="kw">match </span><span class="kw-2">*</span>last_time {
-<a href=#268 id=268 data-nosnippet>268</a>                <span class="prelude-val">Some</span>(last) <span class="kw">if </span>now.duration_since(last) &lt; delay =&gt; {
-<a href=#269 id=269 data-nosnippet>269</a>                    <span class="comment">// Still need to wait
-<a href=#270 id=270 data-nosnippet>270</a>                    </span><span class="kw">let </span>waker = cx.waker().clone();
-<a href=#271 id=271 data-nosnippet>271</a>                    <span class="kw">let </span>remaining = delay - now.duration_since(last);
-<a href=#272 id=272 data-nosnippet>272</a>                    tokio::spawn(<span class="kw">async move </span>{
-<a href=#273 id=273 data-nosnippet>273</a>                        tokio::time::sleep(remaining).<span class="kw">await</span>;
-<a href=#274 id=274 data-nosnippet>274</a>                        waker.wake();
-<a href=#275 id=275 data-nosnippet>275</a>                    });
-<a href=#276 id=276 data-nosnippet>276</a>                    <span class="kw">return </span>Poll::Pending;
-<a href=#277 id=277 data-nosnippet>277</a>                }
-<a href=#278 id=278 data-nosnippet>278</a>                <span class="kw">_ </span>=&gt; {
-<a href=#279 id=279 data-nosnippet>279</a>                    <span class="comment">// Update last call time
-<a href=#280 id=280 data-nosnippet>280</a>                    </span><span class="kw-2">*</span>last_time = <span class="prelude-val">Some</span>(now);
+<a href=#265 id=265 data-nosnippet>265</a>        <span class="kw">if </span>delay.is_zero() {
+<a href=#266 id=266 data-nosnippet>266</a>            <span class="kw">return </span>Poll::Ready(<span class="prelude-val">Ok</span>(()));
+<a href=#267 id=267 data-nosnippet>267</a>        }
+<a href=#268 id=268 data-nosnippet>268</a>
+<a href=#269 id=269 data-nosnippet>269</a>        <span class="comment">// Check if we need to wait based on last call time
+<a href=#270 id=270 data-nosnippet>270</a>        </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>last_time) = <span class="self">self</span>.last_call_time.lock() {
+<a href=#271 id=271 data-nosnippet>271</a>            <span class="kw">match </span><span class="kw-2">*</span>last_time {
+<a href=#272 id=272 data-nosnippet>272</a>                <span class="prelude-val">Some</span>(last) <span class="kw">if </span>now.duration_since(last) &lt; delay =&gt; {
+<a href=#273 id=273 data-nosnippet>273</a>                    <span class="comment">// Still need to wait
+<a href=#274 id=274 data-nosnippet>274</a>                    </span><span class="kw">let </span>waker = cx.waker().clone();
+<a href=#275 id=275 data-nosnippet>275</a>                    <span class="kw">let </span>remaining = delay - now.duration_since(last);
+<a href=#276 id=276 data-nosnippet>276</a>                    tokio::spawn(<span class="kw">async move </span>{
+<a href=#277 id=277 data-nosnippet>277</a>                        tokio::time::sleep(remaining).<span class="kw">await</span>;
+<a href=#278 id=278 data-nosnippet>278</a>                        waker.wake();
+<a href=#279 id=279 data-nosnippet>279</a>                    });
+<a href=#280 id=280 data-nosnippet>280</a>                    <span class="kw">return </span>Poll::Pending;
 <a href=#281 id=281 data-nosnippet>281</a>                }
-<a href=#282 id=282 data-nosnippet>282</a>            }
-<a href=#283 id=283 data-nosnippet>283</a>        }
-<a href=#284 id=284 data-nosnippet>284</a>
-<a href=#285 id=285 data-nosnippet>285</a>        Poll::Ready(<span class="prelude-val">Ok</span>(()))
-<a href=#286 id=286 data-nosnippet>286</a>    }
-<a href=#287 id=287 data-nosnippet>287</a>
-<a href=#288 id=288 data-nosnippet>288</a>    <span class="kw">fn </span>call(<span class="kw-2">&amp;mut </span><span class="self">self</span>, request: M2mRequest) -&gt; <span class="self">Self</span>::Future {
-<a href=#289 id=289 data-nosnippet>289</a>        <span class="kw">let </span>this = <span class="self">self</span>.clone();
-<a href=#290 id=290 data-nosnippet>290</a>        Box::pin(<span class="kw">async move </span>{
-<a href=#291 id=291 data-nosnippet>291</a>            this.get_middleware(eval_remote_ip(request.clone())<span class="question-mark">?</span>).<span class="kw">await</span><span class="question-mark">?</span>.call(request).<span class="kw">await
-<a href=#292 id=292 data-nosnippet>292</a>        </span>})
-<a href=#293 id=293 data-nosnippet>293</a>    }
-<a href=#294 id=294 data-nosnippet>294</a>}</code></pre></div></section></main></body></html>
+<a href=#282 id=282 data-nosnippet>282</a>                <span class="kw">_ </span>=&gt; {
+<a href=#283 id=283 data-nosnippet>283</a>                    <span class="comment">// Update last call time
+<a href=#284 id=284 data-nosnippet>284</a>                    </span><span class="kw-2">*</span>last_time = <span class="prelude-val">Some</span>(now);
+<a href=#285 id=285 data-nosnippet>285</a>                }
+<a href=#286 id=286 data-nosnippet>286</a>            }
+<a href=#287 id=287 data-nosnippet>287</a>        }
+<a href=#288 id=288 data-nosnippet>288</a>
+<a href=#289 id=289 data-nosnippet>289</a>        Poll::Ready(<span class="prelude-val">Ok</span>(()))
+<a href=#290 id=290 data-nosnippet>290</a>    }
+<a href=#291 id=291 data-nosnippet>291</a>
+<a href=#292 id=292 data-nosnippet>292</a>    <span class="kw">fn </span>call(<span class="kw-2">&amp;mut </span><span class="self">self</span>, request: M2mRequest) -&gt; <span class="self">Self</span>::Future {
+<a href=#293 id=293 data-nosnippet>293</a>        <span class="kw">let </span>this = <span class="self">self</span>.clone();
+<a href=#294 id=294 data-nosnippet>294</a>        Box::pin(<span class="kw">async move </span>{
+<a href=#295 id=295 data-nosnippet>295</a>            <span class="kw">let </span><span class="kw-2">mut </span>middleware_response = <span class="prelude-val">None</span>;
+<a href=#296 id=296 data-nosnippet>296</a>            <span class="comment">// TODO: avoid sequential calls to improve performance
+<a href=#297 id=297 data-nosnippet>297</a>            </span><span class="kw">for </span><span class="kw-2">mut </span>middleware <span class="kw">in </span>this.get_middleware(eval_remote_ip(request.clone())<span class="question-mark">?</span>).<span class="kw">await </span>{
+<a href=#298 id=298 data-nosnippet>298</a>                <span class="kw">let </span>r = middleware.call(request.clone()).<span class="kw">await</span>;
+<a href=#299 id=299 data-nosnippet>299</a>                <span class="kw">if </span>middleware_response.is_none() {
+<a href=#300 id=300 data-nosnippet>300</a>                    middleware_response = <span class="prelude-val">Some</span>(r);
+<a href=#301 id=301 data-nosnippet>301</a>                }
+<a href=#302 id=302 data-nosnippet>302</a>            }
+<a href=#303 id=303 data-nosnippet>303</a>            middleware_response.unwrap_or(<span class="prelude-val">Err</span>(TraceabilityError::InternalTrace2eError))
+<a href=#304 id=304 data-nosnippet>304</a>        })
+<a href=#305 id=305 data-nosnippet>305</a>    }
+<a href=#306 id=306 data-nosnippet>306</a>}</code></pre></div></section></main></body></html>
