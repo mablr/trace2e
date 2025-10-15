@@ -214,18 +214,11 @@ impl M2mLoopback {
     ///
     /// Returns `TransportFailedToContactRemote` if no middleware is registered
     /// for the specified IP address.
-    pub async fn get_middleware(&self, ip: String) -> Vec<M2mApiDefaultStack> {
-        // Wildcard matches all middleware instances
-        if ip == "*" {
-            self.middlewares.iter().map(|c| c.to_owned()).collect()
-        } else {
-            // TODO: make this cleaner/idiomatic
-            if let Some(middleware) = self.middlewares.get(&ip).map(|c| c.to_owned()) {
-                vec![middleware]
-            } else {
-                vec![]
-            }
-        }
+    pub fn get_middleware(&self, ip: String) -> Result<M2mApiDefaultStack, TraceabilityError> {
+        self.middlewares
+            .get(&ip)
+            .map(|c| c.to_owned())
+            .ok_or(TraceabilityError::TransportFailedToContactRemote(ip))
     }
 
     /// Calculates the delay to apply based on the configured delay parameters.
@@ -291,16 +284,20 @@ impl Service<M2mRequest> for M2mLoopback {
 
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         let this = self.clone();
-        Box::pin(async move {
-            let mut middleware_response = None;
-            // TODO: avoid sequential calls to improve performance
-            for mut middleware in this.get_middleware(eval_remote_ip(request.clone())?).await {
-                let r = middleware.call(request.clone()).await;
-                if middleware_response.is_none() {
-                    middleware_response = Some(r);
-                }
+        let request_clone = request.clone();
+        match request_clone {
+            M2mRequest::BroadcastDeletion(_) => {
+                Box::pin(async move {
+                    // TODO: avoid sequential calls to improve performance
+                    for mut middleware in this.middlewares.iter_mut() {
+                        middleware.call(request_clone.clone()).await?;
+                    }
+                    Ok(M2mResponse::Ack)
+                })
             }
-            middleware_response.unwrap_or(Err(TraceabilityError::InternalTrace2eError))
-        })
+            _ => Box::pin(async move {
+                this.get_middleware(eval_remote_ip(request.clone())?)?.call(request).await
+            }),
+        }
     }
 }
