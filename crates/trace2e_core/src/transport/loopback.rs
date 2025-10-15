@@ -217,18 +217,11 @@ impl M2mLoopback {
     pub async fn get_middleware(
         &self,
         ip: String,
-    ) -> Result<Vec<M2mApiDefaultStack>, TraceabilityError> {
-        // Wildcard matches all middleware instances
-        if ip == "*" {
-            Ok(self.middlewares.iter().map(|c| c.to_owned()).collect())
-        } else {
-            Ok(vec![
-                self.middlewares
-                    .get(&ip)
-                    .map(|c| c.to_owned())
-                    .ok_or(TraceabilityError::TransportFailedToContactRemote(ip))?,
-            ])
-        }
+    ) -> Result<M2mApiDefaultStack, TraceabilityError> {
+        self.middlewares
+            .get(&ip)
+            .map(|c| c.to_owned())
+            .ok_or(TraceabilityError::TransportFailedToContactRemote(ip))
     }
 
     /// Calculates the delay to apply based on the configured delay parameters.
@@ -295,13 +288,7 @@ impl Service<M2mRequest> for M2mLoopback {
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         let this = self.clone();
         Box::pin(async move {
-            let _ = this
-                .get_middleware(eval_remote_ip(request.clone())?)
-                .await?
-                .iter_mut()
-                .map(async |m| m.call(request.clone()).await)
-                .collect::<Vec<_>>();
-            Ok(M2mResponse::Ack)
+            this.get_middleware(eval_remote_ip(request.clone())?).await?.call(request).await
         })
     }
 }
