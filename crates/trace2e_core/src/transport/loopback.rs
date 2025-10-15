@@ -214,18 +214,13 @@ impl M2mLoopback {
     ///
     /// Returns `TransportFailedToContactRemote` if no middleware is registered
     /// for the specified IP address.
-    pub async fn get_middleware(
-        &self,
-        ip: String,
-    ) -> Vec<M2mApiDefaultStack> {
+    pub async fn get_middleware(&self, ip: String) -> Vec<M2mApiDefaultStack> {
         // Wildcard matches all middleware instances
         if ip == "*" {
             self.middlewares.iter().map(|c| c.to_owned()).collect()
-        } else { // TODO: make this cleaner/idiomatic
-            if let Some(middleware) = self.middlewares
-                .get(&ip)
-                .map(|c| c.to_owned())
-            {
+        } else {
+            // TODO: make this cleaner/idiomatic
+            if let Some(middleware) = self.middlewares.get(&ip).map(|c| c.to_owned()) {
                 vec![middleware]
             } else {
                 vec![]
@@ -299,10 +294,7 @@ impl Service<M2mRequest> for M2mLoopback {
         Box::pin(async move {
             let mut middleware_response = None;
             // TODO: avoid sequential calls to improve performance
-            for mut middleware in this
-                .get_middleware(eval_remote_ip(request.clone())?)
-                .await
-            {
+            for mut middleware in this.get_middleware(eval_remote_ip(request.clone())?).await {
                 let r = middleware.call(request.clone()).await;
                 if middleware_response.is_none() {
                     middleware_response = Some(r);
