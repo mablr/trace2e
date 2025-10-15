@@ -300,7 +300,7 @@ impl Service<M2mRequest> for M2mLoopback {
                     middleware_response = Some(r);
                 }
             }
-            middleware_response.unwrap_or_else(|| Err(TraceabilityError::InternalTrace2eError))
+            middleware_response.unwrap_or(Err(TraceabilityError::InternalTrace2eError))
         })
     }
 }
