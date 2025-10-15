@@ -217,11 +217,20 @@ impl M2mLoopback {
     pub async fn get_middleware(
         &self,
         ip: String,
-    ) -> Result<M2mApiDefaultStack, TraceabilityError> {
-        self.middlewares
-            .get(&ip)
-            .map(|c| c.to_owned())
-            .ok_or(TraceabilityError::TransportFailedToContactRemote(ip))
+    ) -> Vec<M2mApiDefaultStack> {
+        // Wildcard matches all middleware instances
+        if ip == "*" {
+            self.middlewares.iter().map(|c| c.to_owned()).collect()
+        } else { // TODO: make this cleaner/idiomatic
+            if let Some(middleware) = self.middlewares
+                .get(&ip)
+                .map(|c| c.to_owned())
+            {
+                vec![middleware]
+            } else {
+                vec![]
+            }
+        }
     }
 
     /// Calculates the delay to apply based on the configured delay parameters.
@@ -288,7 +297,18 @@ impl Service<M2mRequest> for M2mLoopback {
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         let this = self.clone();
         Box::pin(async move {
-            this.get_middleware(eval_remote_ip(request.clone())?).await?.call(request).await
+            let mut middleware_response = None;
+            // TODO: avoid sequential calls to improve performance
+            for mut middleware in this
+                .get_middleware(eval_remote_ip(request.clone())?)
+                .await
+            {
+                let r = middleware.call(request.clone()).await;
+                if middleware_response.is_none() {
+                    middleware_response = Some(r);
+                }
+            }
+            middleware_response.unwrap_or_else(|| Err(TraceabilityError::InternalTrace2eError))
         })
     }
 }
