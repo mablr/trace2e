@@ -39,12 +39,13 @@ use tower::Service;
 
 use crate::{
     traceability::{
-        api::{M2mRequest, M2mResponse}, error::TraceabilityError, init_middleware_with_enrolled_resources, M2mApiDefaultStack, O2mApiDefaultStack, P2mApiDefaultStack
+        M2mApiDefaultStack, O2mApiDefaultStack, P2mApiDefaultStack,
+        api::{M2mRequest, M2mResponse},
+        error::TraceabilityError,
+        init_middleware_with_enrolled_resources,
     },
-    transport::{eval_remote_ip, nop::M2mNop},
+    transport::eval_remote_ip,
 };
-#[cfg(feature = "trace2e_tracing")]
-use tracing::debug;
 
 /// Spawns multiple loopback middleware instances with no pre-enrolled resources.
 ///
@@ -61,7 +62,7 @@ use tracing::debug;
 /// A queue of (P2M service, O2M service) tuples for each middleware instance.
 pub async fn spawn_loopback_middlewares(
     ips: Vec<String>,
-) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mNop>)> {
+) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mLoopback>)> {
     spawn_loopback_middlewares_with_enrolled_resources(ips, 0, 0, 0).await
 }
 
@@ -81,7 +82,7 @@ pub async fn spawn_loopback_middlewares_with_enrolled_resources(
     process_count: u32,
     per_process_file_count: u32,
     per_process_stream_count: u32,
-) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mNop>)> {
+) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mLoopback>)> {
     spawn_loopback_middlewares_with_entropy(
         ips,
         0,
@@ -114,7 +115,7 @@ pub async fn spawn_loopback_middlewares_with_entropy(
     process_count: u32,
     per_process_file_count: u32,
     per_process_stream_count: u32,
-) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mNop>)> {
+) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mLoopback>)> {
     let m2m_loopback = M2mLoopback::new(base_delay_ms, jitter_max_ms);
     let mut middlewares = VecDeque::new();
     for ip in ips {
@@ -221,8 +222,6 @@ impl M2mLoopback {
         if ip == "*" {
             Ok(self.middlewares.iter().map(|c| c.to_owned()).collect())
         } else {
-            #[cfg(feature = "trace2e_tracing")]
-            debug!("[m2m-loopback] Getting middleware for IP: {}", ip);
             Ok(vec![
                 self.middlewares
                     .get(&ip)

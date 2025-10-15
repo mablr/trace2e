@@ -11,8 +11,6 @@ pub mod services;
 // re-export types for convenience
 pub use api::types;
 
-use crate::transport::nop::M2mNop;
-
 /// Standard M2M API service stack with default component configuration.
 ///
 /// Combines sequencer, provenance, and compliance services using the default
@@ -71,7 +69,7 @@ pub fn init_middleware<M>(
     consent_timeout: u64,
     m2m_client: M,
     enable_resource_validation: bool,
-) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack<M2mNop>)
+) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack<M>)
 where
     M: tower::Service<
             api::M2mRequest,
@@ -125,7 +123,7 @@ pub fn init_middleware_with_enrolled_resources<M>(
     _process_count: u32,
     _per_process_file_count: u32,
     _per_process_stream_count: u32,
-) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack<M2mNop>)
+) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack<M>)
 where
     M: tower::Service<
             api::M2mRequest,
@@ -153,7 +151,7 @@ where
         sequencer,
         provenance.clone(),
         compliance.clone(),
-        m2m_client,
+        m2m_client.clone(),
     )
     .with_resource_validation(enable_resource_validation)
     .with_enrolled_resources(
@@ -166,12 +164,12 @@ where
         sequencer,
         provenance.clone(),
         compliance.clone(),
-        m2m_client,
+        m2m_client.clone(),
     )
     .with_resource_validation(enable_resource_validation);
 
-    let o2m_service: O2mApiDefaultStack<M2mNop> =
-        api::o2m::O2mApiService::new(provenance, compliance, consent, M2mNop);
+    let o2m_service: O2mApiDefaultStack<M> =
+        api::o2m::O2mApiService::new(provenance, compliance, consent, m2m_client);
 
     (m2m_service, p2m_service, o2m_service)
 }
