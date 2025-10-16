@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ConfidentialityPolicy","DeletionPolicy"],"struct":["ComplianceService","Policy"]};
+window.SIDEBAR_ITEMS = {"enum":["ConfidentialityPolicy","DeletionPolicy","PurposePolicy"],"struct":["ComplianceService","Policy"]};
