@@ -70,7 +70,7 @@ use crate::{
         api::types::{M2mRequest, M2mResponse, P2mRequest, P2mResponse},
         error::TraceabilityError,
         infrastructure::naming::{Fd, File, Process, Resource, Stream},
-        services::compliance::{ConfidentialityPolicy, Policy},
+        services::compliance::{ConfidentialityPolicy, Policy, PurposePolicy},
     },
     transport::eval_remote_ip,
 };
@@ -710,6 +710,30 @@ impl From<Policy> for proto::primitives::Policy {
             integrity: policy.get_integrity(),
             deleted: policy.is_deleted(),
             consent: policy.get_consent(),
+            purposes: policy.get_purposes().into_iter().map(|p| p.into()).collect(),
+        }
+    }
+}
+
+impl From<PurposePolicy> for proto::primitives::Purpose {
+    fn from(purpose: PurposePolicy) -> Self {
+        proto::primitives::Purpose {
+            purpose: Some(match purpose {
+                PurposePolicy::Localized(localized) => {
+                    proto::primitives::purpose::Purpose::Localized(localized)
+                }
+            }),
+        }
+    }
+}
+
+impl From<proto::primitives::Purpose> for PurposePolicy {
+    fn from(purpose: proto::primitives::Purpose) -> Self {
+        match purpose.purpose {
+            Some(proto::primitives::purpose::Purpose::Localized(localized)) => {
+                PurposePolicy::Localized(localized)
+            }
+            _ => unimplemented!(),
         }
     }
 }
@@ -726,6 +750,7 @@ impl From<proto::primitives::Policy> for Policy {
             proto_policy.integrity,
             proto_policy.deleted.into(),
             proto_policy.consent,
+            proto_policy.purposes.into_iter().map(|p| p.into()).collect(),
         )
     }
 }

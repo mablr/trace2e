@@ -35,7 +35,7 @@ fn bench_compliance_set_policy(c: &mut Criterion) {
             let mut compliance = ComplianceService::default();
             let process = create_test_process(0);
             let policy =
-                Policy::new(ConfidentialityPolicy::Secret, 5, DeletionPolicy::NotDeleted, true);
+                Policy::new(ConfidentialityPolicy::Secret, 5, DeletionPolicy::NotDeleted, true, HashSet::new());
 
             let _ = black_box(
                 compliance.call(ComplianceRequest::SetPolicy { resource: process, policy }).await,

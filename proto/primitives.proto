@@ -13,6 +13,14 @@ enum Confidentiality {
     CONFIDENTIALITY_SECRET = 1;
 }
 
+
+message Purpose {
+    oneof purpose {
+        string localized = 1;
+        // TODO: Add other purpose types here
+    }
+}
+
 // Basic resource types
 message File {
     string path = 1;
@@ -49,6 +57,7 @@ message Policy {
     uint32 integrity = 2;
     bool deleted = 3;
     bool consent = 4;
+    repeated Purpose purposes = 5;
 }
 
 message MappedPolicy {
