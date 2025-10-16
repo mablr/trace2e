@@ -452,10 +452,7 @@ impl ComplianceService<ConsentService> {
                     // Destination node id is currently unknown here; use None.
                     let mut consent = self.consent.clone();
 
-                    // TODO: add timeout handling for consent requests
                     // TODO: make this non-blocking and avoid awaiting inside the loop
-                    // TODO: handle consent requests through M2M service for remote sources
-                    // TODO: handle consent decisions through O2M service
                     let _ = consent
                         .call(ConsentRequest::RequestConsent {
                             source: source.clone(),
