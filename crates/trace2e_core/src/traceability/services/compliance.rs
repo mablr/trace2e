@@ -446,6 +446,7 @@ impl ComplianceService<ConsentService> {
         // TODO: implement node based policies
         for (node, source_policy_batch) in source_policies {
             for (source, source_policy) in source_policy_batch {
+                // TODO: implement purpose check that may short-circuit the consent check
                 if source_policy.get_consent() {
                     // If any source policy requests consent, ensure consent is granted
                     // for the (source, destination) pair before evaluating other policies.
