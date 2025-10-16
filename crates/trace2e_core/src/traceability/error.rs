@@ -64,7 +64,7 @@ pub enum TraceabilityError {
     #[error("Traceability error, policy not found (resource: {0:?})")]
     PolicyNotFound(Resource),
 
-    #[error("Traceability error, failed to contact remote middleware (IP: {0})")]
+    #[error("Traceability error, failed to contact remote middleware ({0})")]
     TransportFailedToContactRemote(String),
 
     #[error("Traceability error, transport layer failed to evaluate remote IP")]

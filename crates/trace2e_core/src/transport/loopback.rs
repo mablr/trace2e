@@ -288,10 +288,30 @@ impl Service<M2mRequest> for M2mLoopback {
         match request_clone {
             M2mRequest::BroadcastDeletion(_) => {
                 Box::pin(async move {
-                    // TODO: avoid sequential calls to improve performance
-                    for mut middleware in this.middlewares.iter_mut() {
-                        middleware.call(request_clone.clone()).await?;
+                    // Spawn all middleware calls concurrently
+                    let mut handles = Vec::new();
+                    for entry in this.middlewares.iter() {
+                        let mut middleware = entry.value().clone();
+                        let request = request_clone.clone();
+                        let handle = tokio::spawn(async move { middleware.call(request).await });
+                        handles.push(handle);
                     }
+
+                    // Collect all results and check for any errors
+                    for handle in handles {
+                        match handle.await {
+                            Ok(result) => {
+                                result?; // Check for service errors, ignore the response for the moment
+                            }
+                            Err(_) => {
+                                return Err(TraceabilityError::TransportFailedToContactRemote(
+                                    "BroadcastDeletion join failed".to_string(),
+                                ));
+                            }
+                        }
+                    }
+
+                    // All middleware calls succeeded, return Ack
                     Ok(M2mResponse::Ack)
                 })
             }
