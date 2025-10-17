@@ -70,7 +70,7 @@
 <a href=#70 id=70 data-nosnippet>70</a>        api::types::{M2mRequest, M2mResponse, P2mRequest, P2mResponse},
 <a href=#71 id=71 data-nosnippet>71</a>        error::TraceabilityError,
 <a href=#72 id=72 data-nosnippet>72</a>        infrastructure::naming::{Fd, File, Process, Resource, Stream},
-<a href=#73 id=73 data-nosnippet>73</a>        services::compliance::{ConfidentialityPolicy, Policy, PurposePolicy},
+<a href=#73 id=73 data-nosnippet>73</a>        services::compliance::{ConfidentialityPolicy, Policy},
 <a href=#74 id=74 data-nosnippet>74</a>    },
 <a href=#75 id=75 data-nosnippet>75</a>    transport::eval_remote_ip,
 <a href=#76 id=76 data-nosnippet>76</a>};
@@ -710,47 +710,22 @@
 <a href=#710 id=710 data-nosnippet>710</a>            integrity: policy.get_integrity(),
 <a href=#711 id=711 data-nosnippet>711</a>            deleted: policy.is_deleted(),
 <a href=#712 id=712 data-nosnippet>712</a>            consent: policy.get_consent(),
-<a href=#713 id=713 data-nosnippet>713</a>            purposes: policy.get_purposes().into_iter().map(|p| p.into()).collect(),
-<a href=#714 id=714 data-nosnippet>714</a>        }
-<a href=#715 id=715 data-nosnippet>715</a>    }
-<a href=#716 id=716 data-nosnippet>716</a>}
-<a href=#717 id=717 data-nosnippet>717</a>
-<a href=#718 id=718 data-nosnippet>718</a><span class="kw">impl </span>From&lt;PurposePolicy&gt; <span class="kw">for </span>proto::primitives::Purpose {
-<a href=#719 id=719 data-nosnippet>719</a>    <span class="kw">fn </span>from(purpose: PurposePolicy) -&gt; <span class="self">Self </span>{
-<a href=#720 id=720 data-nosnippet>720</a>        proto::primitives::Purpose {
-<a href=#721 id=721 data-nosnippet>721</a>            purpose: <span class="prelude-val">Some</span>(<span class="kw">match </span>purpose {
-<a href=#722 id=722 data-nosnippet>722</a>                PurposePolicy::Localized(localized) =&gt; {
-<a href=#723 id=723 data-nosnippet>723</a>                    proto::primitives::purpose::Purpose::Localized(localized)
-<a href=#724 id=724 data-nosnippet>724</a>                }
-<a href=#725 id=725 data-nosnippet>725</a>            }),
-<a href=#726 id=726 data-nosnippet>726</a>        }
-<a href=#727 id=727 data-nosnippet>727</a>    }
-<a href=#728 id=728 data-nosnippet>728</a>}
-<a href=#729 id=729 data-nosnippet>729</a>
-<a href=#730 id=730 data-nosnippet>730</a><span class="kw">impl </span>From&lt;proto::primitives::Purpose&gt; <span class="kw">for </span>PurposePolicy {
-<a href=#731 id=731 data-nosnippet>731</a>    <span class="kw">fn </span>from(purpose: proto::primitives::Purpose) -&gt; <span class="self">Self </span>{
-<a href=#732 id=732 data-nosnippet>732</a>        <span class="kw">match </span>purpose.purpose {
-<a href=#733 id=733 data-nosnippet>733</a>            <span class="prelude-val">Some</span>(proto::primitives::purpose::Purpose::Localized(localized)) =&gt; {
-<a href=#734 id=734 data-nosnippet>734</a>                PurposePolicy::Localized(localized)
-<a href=#735 id=735 data-nosnippet>735</a>            }
-<a href=#736 id=736 data-nosnippet>736</a>            <span class="kw">_ </span>=&gt; <span class="macro">unimplemented!</span>(),
-<a href=#737 id=737 data-nosnippet>737</a>        }
-<a href=#738 id=738 data-nosnippet>738</a>    }
-<a href=#739 id=739 data-nosnippet>739</a>}
-<a href=#740 id=740 data-nosnippet>740</a>
-<a href=#741 id=741 data-nosnippet>741</a><span class="kw">impl </span>From&lt;proto::primitives::Policy&gt; <span class="kw">for </span>Policy {
-<a href=#742 id=742 data-nosnippet>742</a>    <span class="kw">fn </span>from(proto_policy: proto::primitives::Policy) -&gt; <span class="self">Self </span>{
-<a href=#743 id=743 data-nosnippet>743</a>        Policy::new(
-<a href=#744 id=744 data-nosnippet>744</a>            <span class="kw">match </span>proto_policy.confidentiality {
-<a href=#745 id=745 data-nosnippet>745</a>                x <span class="kw">if </span>x == proto::primitives::Confidentiality::Secret <span class="kw">as </span>i32 =&gt; {
-<a href=#746 id=746 data-nosnippet>746</a>                    ConfidentialityPolicy::Secret
-<a href=#747 id=747 data-nosnippet>747</a>                }
-<a href=#748 id=748 data-nosnippet>748</a>                <span class="kw">_ </span>=&gt; ConfidentialityPolicy::Public,
-<a href=#749 id=749 data-nosnippet>749</a>            },
-<a href=#750 id=750 data-nosnippet>750</a>            proto_policy.integrity,
-<a href=#751 id=751 data-nosnippet>751</a>            proto_policy.deleted.into(),
-<a href=#752 id=752 data-nosnippet>752</a>            proto_policy.consent,
-<a href=#753 id=753 data-nosnippet>753</a>            proto_policy.purposes.into_iter().map(|p| p.into()).collect(),
-<a href=#754 id=754 data-nosnippet>754</a>        )
-<a href=#755 id=755 data-nosnippet>755</a>    }
-<a href=#756 id=756 data-nosnippet>756</a>}</code></pre></div></section></main></body></html>
+<a href=#713 id=713 data-nosnippet>713</a>        }
+<a href=#714 id=714 data-nosnippet>714</a>    }
+<a href=#715 id=715 data-nosnippet>715</a>}
+<a href=#716 id=716 data-nosnippet>716</a>
+<a href=#717 id=717 data-nosnippet>717</a><span class="kw">impl </span>From&lt;proto::primitives::Policy&gt; <span class="kw">for </span>Policy {
+<a href=#718 id=718 data-nosnippet>718</a>    <span class="kw">fn </span>from(proto_policy: proto::primitives::Policy) -&gt; <span class="self">Self </span>{
+<a href=#719 id=719 data-nosnippet>719</a>        Policy::new(
+<a href=#720 id=720 data-nosnippet>720</a>            <span class="kw">match </span>proto_policy.confidentiality {
+<a href=#721 id=721 data-nosnippet>721</a>                x <span class="kw">if </span>x == proto::primitives::Confidentiality::Secret <span class="kw">as </span>i32 =&gt; {
+<a href=#722 id=722 data-nosnippet>722</a>                    ConfidentialityPolicy::Secret
+<a href=#723 id=723 data-nosnippet>723</a>                }
+<a href=#724 id=724 data-nosnippet>724</a>                <span class="kw">_ </span>=&gt; ConfidentialityPolicy::Public,
+<a href=#725 id=725 data-nosnippet>725</a>            },
+<a href=#726 id=726 data-nosnippet>726</a>            proto_policy.integrity,
+<a href=#727 id=727 data-nosnippet>727</a>            proto_policy.deleted.into(),
+<a href=#728 id=728 data-nosnippet>728</a>            proto_policy.consent,
+<a href=#729 id=729 data-nosnippet>729</a>        )
+<a href=#730 id=730 data-nosnippet>730</a>    }
+<a href=#731 id=731 data-nosnippet>731</a>}</code></pre></div></section></main></body></html>
