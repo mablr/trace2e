@@ -30,7 +30,7 @@
 <a href=#30 id=30 data-nosnippet>30</a>
 <a href=#31 id=31 data-nosnippet>31</a><span class="kw">use </span><span class="kw">crate</span>::traceability::{
 <a href=#32 id=32 data-nosnippet>32</a>    infrastructure::naming::Resource,
-<a href=#33 id=33 data-nosnippet>33</a>    services::compliance::{ConfidentialityPolicy, Policy},
+<a href=#33 id=33 data-nosnippet>33</a>    services::{compliance::{ConfidentialityPolicy, Policy}, consent::Destination},
 <a href=#34 id=34 data-nosnippet>34</a>};
 <a href=#35 id=35 data-nosnippet>35</a>
 <a href=#36 id=36 data-nosnippet>36</a><span class="doccomment">/// Process-to-Middleware (P2M) request types.
@@ -255,7 +255,7 @@
 <a href=#255 id=255 data-nosnippet>255</a>        <span class="doccomment">/// Source resource providing data
 <a href=#256 id=256 data-nosnippet>256</a>        </span>source: Resource,
 <a href=#257 id=257 data-nosnippet>257</a>        <span class="doccomment">/// Destination resource receiving data
-<a href=#258 id=258 data-nosnippet>258</a>        </span>destination: (<span class="prelude-ty">Option</span>&lt;String&gt;, Resource),
+<a href=#258 id=258 data-nosnippet>258</a>        </span>destination: Destination,
 <a href=#259 id=259 data-nosnippet>259</a>        <span class="doccomment">/// Consent decision: true to grant, false to deny
 <a href=#260 id=260 data-nosnippet>260</a>        </span>decision: bool,
 <a href=#261 id=261 data-nosnippet>261</a>    },

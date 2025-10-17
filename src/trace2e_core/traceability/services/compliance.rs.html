@@ -38,7 +38,7 @@
 <a href=#38 id=38 data-nosnippet>38</a>    api::types::{ComplianceRequest, ComplianceResponse},
 <a href=#39 id=39 data-nosnippet>39</a>    error::TraceabilityError,
 <a href=#40 id=40 data-nosnippet>40</a>    infrastructure::naming::Resource,
-<a href=#41 id=41 data-nosnippet>41</a>    services::consent::{ConsentRequest, ConsentResponse, ConsentService},
+<a href=#41 id=41 data-nosnippet>41</a>    services::consent::{ConsentRequest, ConsentResponse, ConsentService, Destination},
 <a href=#42 id=42 data-nosnippet>42</a>};
 <a href=#43 id=43 data-nosnippet>43</a>
 <a href=#44 id=44 data-nosnippet>44</a><span class="doccomment">/// Confidentiality policy defines the level of confidentiality of a resource.
@@ -421,7 +421,7 @@
 <a href=#421 id=421 data-nosnippet>421</a>                    </span><span class="kw">let _ </span>= consent
 <a href=#422 id=422 data-nosnippet>422</a>                        .call(ConsentRequest::RequestConsent {
 <a href=#423 id=423 data-nosnippet>423</a>                            source: source.clone(),
-<a href=#424 id=424 data-nosnippet>424</a>                            destination: (<span class="prelude-val">Some</span>(node.clone()), destination.clone()),
+<a href=#424 id=424 data-nosnippet>424</a>                            destination: Destination::new(<span class="prelude-val">Some</span>(node.clone()), <span class="prelude-val">Some</span>(destination.clone())),
 <a href=#425 id=425 data-nosnippet>425</a>                        })
 <a href=#426 id=426 data-nosnippet>426</a>                        .<span class="kw">await
 <a href=#427 id=427 data-nosnippet>427</a>                        </span>.map_err(|<span class="kw">_</span>| TraceabilityError::InternalTrace2eError)
