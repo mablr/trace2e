@@ -38,7 +38,7 @@ use crate::traceability::{
     api::types::{ComplianceRequest, ComplianceResponse},
     error::TraceabilityError,
     infrastructure::naming::Resource,
-    services::consent::{ConsentRequest, ConsentResponse, ConsentService},
+    services::consent::{ConsentRequest, ConsentResponse, ConsentService, Destination},
 };
 
 /// Confidentiality policy defines the level of confidentiality of a resource.
@@ -421,7 +421,7 @@ impl ComplianceService<ConsentService> {
                     let _ = consent
                         .call(ConsentRequest::RequestConsent {
                             source: source.clone(),
-                            destination: (Some(node.clone()), destination.clone()),
+                            destination: Destination::new(Some(node.clone()), Some(destination.clone())),
                         })
                         .await
                         .map_err(|_| TraceabilityError::InternalTrace2eError)

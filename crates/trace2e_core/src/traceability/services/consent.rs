@@ -21,7 +21,7 @@ pub enum ConsentRequest {
         /// Source resource providing data
         source: Resource,
         /// Destination resource receiving data
-        destination: (Option<String>, Resource),
+        destination: Destination,
     },
     /// Take ownership of a resource.
     ///
@@ -35,7 +35,7 @@ pub enum ConsentRequest {
         /// Source resource providing data
         source: Resource,
         /// Destination resource receiving data
-        destination: (Option<String>, Resource),
+        destination: Destination,
         /// Consent decision: true to grant, false to deny
         consent: bool,
     },
@@ -55,8 +55,23 @@ pub enum ConsentResponse {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct Destination(Option<String>, Resource);
+pub enum Destination {
+    LocalResource(Resource),
+    RemoteResource(String, Resource),
+    RemoteNode(String),
+    None, // Convenience for no destination
+}
 
+impl Destination {
+    pub fn new(node_id: Option<String>, resource: Option<Resource>) -> Self {
+        match (node_id, resource) {
+            (Some(node_id), Some(resource)) => Self::RemoteResource(node_id, resource),
+            (Some(node_id), None) => Self::RemoteNode(node_id),
+            (None, Some(resource)) => Self::LocalResource(resource),
+            (None, None) => Self::None,
+        }
+    }
+}
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 struct ConsentKey(Resource, Destination);
 
@@ -88,9 +103,9 @@ impl ConsentService {
     async fn get_consent(
         &self,
         source: Resource,
-        destination: (Option<String>, Resource),
+        destination: Destination,
     ) -> Result<bool, TraceabilityError> {
-        let key = ConsentKey(source, Destination(destination.0, destination.1));
+        let key = ConsentKey(source, destination);
         if let Some(consent) = self.states.get(&key) {
             Ok(*consent)
         } else if let Some(notif_feed) = self.notifications_channels.get(&key.0) {
@@ -125,10 +140,10 @@ impl ConsentService {
     fn set_consent(
         &self,
         source: Resource,
-        destination: (Option<String>, Resource),
+        destination: Destination,
         consent: bool,
     ) {
-        let key = ConsentKey(source, Destination(destination.0, destination.1));
+        let key = ConsentKey(source, destination);
         if self.states.insert(key.clone(), consent).is_none()
             && let Some((_, decision_feed)) = self.decision_channels.remove(&key)
         {
@@ -203,7 +218,7 @@ mod tests {
         let destination = Resource::new_file("/tmp/test.txt".to_string());
         let request = ConsentRequest::RequestConsent {
             source: resource.clone(),
-            destination: (None, destination.clone()),
+            destination: Destination::new(None, Some(destination.clone())),
         };
         let response = consent_service.call(request).await.unwrap();
         // No ownership, so no consent can be granted
@@ -216,7 +231,7 @@ mod tests {
         crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(0);
         let resource = Resource::new_process_mock(0);
-        let destination = Resource::new_file("/tmp/test.txt".to_string());
+        let destination = Destination::new(None, Some(Resource::new_file("/tmp/test.txt".to_string())));
         let request = ConsentRequest::TakeResourceOwnership(resource.clone());
         let ownership_response = consent_service.call(request).await.unwrap();
         let ConsentResponse::Notifications(mut notifications_feed) = ownership_response else {
@@ -230,7 +245,7 @@ mod tests {
                 consent_service_clone
                     .call(ConsentRequest::RequestConsent {
                         source: resource_clone,
-                        destination: (None, destination_clone),
+                        destination: destination_clone,
                     })
                     .await
                     .unwrap(),
@@ -240,12 +255,12 @@ mod tests {
 
         assert_eq!(
             notifications_feed.recv().await.unwrap(),
-            Destination(None, destination.clone())
+            destination.clone()
         );
         consent_service
             .call(ConsentRequest::SetConsent {
                 source: resource,
-                destination: (None, destination),
+                destination: destination,
                 consent: true,
             })
             .await
@@ -258,7 +273,7 @@ mod tests {
         crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(1);
         let resource = Resource::new_process_mock(0);
-        let destination = Resource::new_file("/tmp/test.txt".to_string());
+        let destination = Destination::new(None, Some(Resource::new_file("/tmp/test.txt".to_string())));
         let request = ConsentRequest::TakeResourceOwnership(resource.clone());
         let ownership_response = consent_service.call(request).await.unwrap();
         let ConsentResponse::Notifications(mut notifications_feed) = ownership_response else {
@@ -274,7 +289,7 @@ mod tests {
                 consent_service_clone
                     .call(ConsentRequest::RequestConsent {
                         source: resource_clone,
-                        destination: (None, destination_clone),
+                        destination: destination_clone,
                     })
                     .await
                     .unwrap_err(),
@@ -285,12 +300,12 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(2)).await;
         assert_eq!(
             notifications_feed.recv().await.unwrap(),
-            Destination(None, destination.clone())
+            destination.clone()
         );
         consent_service
             .call(ConsentRequest::SetConsent {
                 source: resource.clone(),
-                destination: (None, destination.clone()),
+                destination: destination.clone(),
                 consent: true,
             })
             .await
@@ -301,7 +316,7 @@ mod tests {
             consent_service
                 .call(ConsentRequest::RequestConsent {
                     source: resource,
-                    destination: (None, destination),
+                    destination: destination,
                 })
                 .await
                 .unwrap(),

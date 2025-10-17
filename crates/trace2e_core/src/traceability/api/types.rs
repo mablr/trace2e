@@ -30,7 +30,7 @@ use std::collections::{HashMap, HashSet};
 
 use crate::traceability::{
     infrastructure::naming::Resource,
-    services::compliance::{ConfidentialityPolicy, Policy},
+    services::{compliance::{ConfidentialityPolicy, Policy}, consent::Destination},
 };
 
 /// Process-to-Middleware (P2M) request types.
@@ -255,7 +255,7 @@ pub enum O2mRequest {
         /// Source resource providing data
         source: Resource,
         /// Destination resource receiving data
-        destination: (Option<String>, Resource),
+        destination: Destination,
         /// Consent decision: true to grant, false to deny
         decision: bool,
     },
