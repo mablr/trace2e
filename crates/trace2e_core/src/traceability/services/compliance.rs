@@ -94,13 +94,6 @@ impl From<bool> for DeletionPolicy {
     }
 }
 
-/// Purpose policy
-#[derive(PartialEq, Debug, Clone, Eq, Hash)]
-#[non_exhaustive]
-pub enum PurposePolicy {
-    Localized(String),
-}
-
 /// Policy for a resource that controls compliance checking for data flows.
 ///
 /// A `Policy` combines multiple dimensions of access control and resource management
@@ -122,7 +115,7 @@ pub enum PurposePolicy {
 /// 4. All parties have given consent
 ///
 /// This policy is used to check the compliance of input/output flows of the associated resource.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Policy {
     /// Confidentiality level of the resource
     confidentiality: ConfidentialityPolicy,
@@ -132,8 +125,6 @@ pub struct Policy {
     deleted: DeletionPolicy,
     /// Whether the resource owner consent is required for flows
     consent: bool,
-    /// Purpose of the resource
-    purposes: HashSet<PurposePolicy>,
 }
 
 impl Default for Policy {
@@ -143,7 +134,6 @@ impl Default for Policy {
             integrity: 0,
             deleted: DeletionPolicy::NotDeleted,
             consent: false,
-            purposes: HashSet::new(),
         }
     }
 }
@@ -162,9 +152,8 @@ impl Policy {
         integrity: u32,
         deleted: DeletionPolicy,
         consent: bool,
-        purposes: HashSet<PurposePolicy>,
     ) -> Self {
-        Self { confidentiality, integrity, deleted, consent, purposes }
+        Self { confidentiality, integrity, deleted, consent }
     }
 
     /// Returns true if the resource contains confidential data.
@@ -285,31 +274,6 @@ impl Policy {
         } else {
             ComplianceResponse::PolicyNotUpdated
         }
-    }
-
-    /// Adds a purpose to the resource.
-    ///
-    /// Returns `PolicyUpdated` if the purpose was successfully added,
-    /// or `PolicyNotUpdated` if the resource is deleted and cannot be modified.
-    pub fn add_purpose(&mut self, purpose: PurposePolicy) -> ComplianceResponse {
-        self.purposes.insert(purpose);
-        ComplianceResponse::PolicyUpdated
-    }
-
-    /// Removes a purpose from the resource.
-    ///
-    /// Returns `PolicyUpdated` if the purpose was successfully removed,
-    /// or `PolicyNotUpdated` if the resource is deleted and cannot be modified.
-    pub fn remove_purpose(&mut self, purpose: PurposePolicy) -> ComplianceResponse {
-        self.purposes.remove(&purpose);
-        ComplianceResponse::PolicyUpdated
-    }
-
-    /// Returns purposes of the resource.
-    ///
-    /// Returns purposes of the resource.
-    pub fn get_purposes(&self) -> HashSet<PurposePolicy> {
-        self.purposes.clone()
     }
 }
 
@@ -776,33 +740,15 @@ mod tests {
 
     // Helper functions to reduce test code duplication
     fn create_public_policy(integrity: u32) -> Policy {
-        Policy::new(
-            ConfidentialityPolicy::Public,
-            integrity,
-            DeletionPolicy::NotDeleted,
-            false,
-            HashSet::new(),
-        )
+        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::NotDeleted, false)
     }
 
     fn create_secret_policy(integrity: u32) -> Policy {
-        Policy::new(
-            ConfidentialityPolicy::Secret,
-            integrity,
-            DeletionPolicy::NotDeleted,
-            false,
-            HashSet::new(),
-        )
+        Policy::new(ConfidentialityPolicy::Secret, integrity, DeletionPolicy::NotDeleted, false)
     }
 
     fn create_deleted_policy(integrity: u32) -> Policy {
-        Policy::new(
-            ConfidentialityPolicy::Public,
-            integrity,
-            DeletionPolicy::Pending,
-            false,
-            HashSet::new(),
-        )
+        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::Pending, false)
     }
 
     fn init_tracing() {
@@ -1209,13 +1155,8 @@ mod tests {
         let cache_policy_map = ComplianceService::init_cache();
         let process = Resource::new_process_mock(0);
 
-        let policy = Policy::new(
-            ConfidentialityPolicy::Secret,
-            7,
-            DeletionPolicy::NotDeleted,
-            true,
-            HashSet::new(),
-        );
+        let policy =
+            Policy::new(ConfidentialityPolicy::Secret, 7, DeletionPolicy::NotDeleted, true);
 
         // Set policy first
         cache_policy_map.set_policy(process.clone(), policy.clone());
@@ -1241,7 +1182,6 @@ mod tests {
             integrity: 3,
             deleted: DeletionPolicy::NotDeleted,
             consent: true,
-            purposes: HashSet::new(),
         };
 
         // Set policy only for process1
