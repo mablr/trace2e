@@ -30,7 +30,10 @@ use std::collections::{HashMap, HashSet};
 
 use crate::traceability::{
     infrastructure::naming::Resource,
-    services::{compliance::{ConfidentialityPolicy, Policy}, consent::Destination},
+    services::{
+        compliance::{ConfidentialityPolicy, Policy},
+        consent::Destination,
+    },
 };
 
 /// Process-to-Middleware (P2M) request types.

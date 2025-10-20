@@ -137,12 +137,7 @@ impl ConsentService {
     }
 
     /// Internal method to set consent
-    fn set_consent(
-        &self,
-        source: Resource,
-        destination: Destination,
-        consent: bool,
-    ) {
+    fn set_consent(&self, source: Resource, destination: Destination, consent: bool) {
         let key = ConsentKey(source, destination);
         if self.states.insert(key.clone(), consent).is_none()
             && let Some((_, decision_feed)) = self.decision_channels.remove(&key)
@@ -231,7 +226,8 @@ mod tests {
         crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(0);
         let resource = Resource::new_process_mock(0);
-        let destination = Destination::new(None, Some(Resource::new_file("/tmp/test.txt".to_string())));
+        let destination =
+            Destination::new(None, Some(Resource::new_file("/tmp/test.txt".to_string())));
         let request = ConsentRequest::TakeResourceOwnership(resource.clone());
         let ownership_response = consent_service.call(request).await.unwrap();
         let ConsentResponse::Notifications(mut notifications_feed) = ownership_response else {
@@ -253,16 +249,9 @@ mod tests {
             ));
         });
 
-        assert_eq!(
-            notifications_feed.recv().await.unwrap(),
-            destination.clone()
-        );
+        assert_eq!(notifications_feed.recv().await.unwrap(), destination.clone());
         consent_service
-            .call(ConsentRequest::SetConsent {
-                source: resource,
-                destination: destination,
-                consent: true,
-            })
+            .call(ConsentRequest::SetConsent { source: resource, destination, consent: true })
             .await
             .unwrap();
     }
@@ -273,7 +262,8 @@ mod tests {
         crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(1);
         let resource = Resource::new_process_mock(0);
-        let destination = Destination::new(None, Some(Resource::new_file("/tmp/test.txt".to_string())));
+        let destination =
+            Destination::new(None, Some(Resource::new_file("/tmp/test.txt".to_string())));
         let request = ConsentRequest::TakeResourceOwnership(resource.clone());
         let ownership_response = consent_service.call(request).await.unwrap();
         let ConsentResponse::Notifications(mut notifications_feed) = ownership_response else {
@@ -298,10 +288,7 @@ mod tests {
         });
 
         tokio::time::sleep(Duration::from_millis(2)).await;
-        assert_eq!(
-            notifications_feed.recv().await.unwrap(),
-            destination.clone()
-        );
+        assert_eq!(notifications_feed.recv().await.unwrap(), destination.clone());
         consent_service
             .call(ConsentRequest::SetConsent {
                 source: resource.clone(),
@@ -314,10 +301,7 @@ mod tests {
         // Check the consent request timeout after the decision is sent
         assert!(matches!(
             consent_service
-                .call(ConsentRequest::RequestConsent {
-                    source: resource,
-                    destination: destination,
-                })
+                .call(ConsentRequest::RequestConsent { source: resource, destination })
                 .await
                 .unwrap(),
             ConsentResponse::Consent(true)

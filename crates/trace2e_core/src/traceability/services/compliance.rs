@@ -422,10 +422,7 @@ impl ComplianceService<ConsentService> {
 
                     consent_tasks.spawn(async move {
                         consent_service
-                            .call(ConsentRequest::RequestConsent {
-                                source,
-                                destination: dest,
-                            })
+                            .call(ConsentRequest::RequestConsent { source, destination: dest })
                             .await
                     });
                 }
@@ -476,7 +473,7 @@ impl ComplianceService<ConsentService> {
             match consent_response {
                 ConsentResponse::Consent(true) => continue,
                 ConsentResponse::Consent(false) => {
-                    return Err(TraceabilityError::DirectPolicyViolation)
+                    return Err(TraceabilityError::DirectPolicyViolation);
                 }
                 _ => return Err(TraceabilityError::InternalTrace2eError),
             }
