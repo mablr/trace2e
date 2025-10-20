@@ -30,6 +30,7 @@ use std::{
 };
 
 use dashmap::DashMap;
+use tokio::task::JoinSet;
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
 use tracing::info;
@@ -406,32 +407,29 @@ impl ComplianceService<ConsentService> {
     ) -> Result<ComplianceResponse, TraceabilityError> {
         let destination_policy = self.get_policy(&destination)?;
 
+        // Collect all consent requests from source policies
+        let mut consent_tasks = JoinSet::new();
+
         // Merge local and remote source policies, ignoring the node
         // TODO: implement node based policies
         for (node, source_policy_batch) in source_policies {
             for (source, source_policy) in source_policy_batch {
+                // Spawn consent request tasks in parallel
                 if source_policy.get_consent() {
-                    // If any source policy requests consent, ensure consent is granted
-                    // for the (source, destination) pair before evaluating other policies.
-                    // Destination node id is currently unknown here; use None.
-                    let mut consent = self.consent.clone();
+                    let mut consent_service = self.consent.clone();
+                    let source = source.clone();
+                    let dest = Destination::new(Some(node.clone()), Some(destination.clone()));
 
-                    // TODO: make this non-blocking and avoid awaiting inside the loop
-                    let _ = consent
-                        .call(ConsentRequest::RequestConsent {
-                            source: source.clone(),
-                            destination: Destination::new(Some(node.clone()), Some(destination.clone())),
-                        })
-                        .await
-                        .map_err(|_| TraceabilityError::InternalTrace2eError)
-                        .map(|consent| match consent {
-                            ConsentResponse::Consent(true) => Ok(()),
-                            ConsentResponse::Consent(false) => {
-                                Err(TraceabilityError::DirectPolicyViolation)
-                            }
-                            _ => Err(TraceabilityError::InternalTrace2eError),
-                        })?;
+                    consent_tasks.spawn(async move {
+                        consent_service
+                            .call(ConsentRequest::RequestConsent {
+                                source,
+                                destination: dest,
+                            })
+                            .await
+                    });
                 }
+
                 // If the source or destination policy is deleted, the flow is not compliant
                 if source_policy.is_deleted() || destination_policy.is_deleted() {
                     #[cfg(feature = "trace2e_tracing")]
@@ -466,6 +464,21 @@ impl ComplianceService<ConsentService> {
                 {
                     return Err(TraceabilityError::DirectPolicyViolation);
                 }
+            }
+        }
+
+        // Await all consent requests and verify they succeed
+        while let Some(result) = consent_tasks.join_next().await {
+            let consent_response = result
+                .map_err(|_| TraceabilityError::InternalTrace2eError)?
+                .map_err(|_| TraceabilityError::InternalTrace2eError)?;
+
+            match consent_response {
+                ConsentResponse::Consent(true) => continue,
+                ConsentResponse::Consent(false) => {
+                    return Err(TraceabilityError::DirectPolicyViolation)
+                }
+                _ => return Err(TraceabilityError::InternalTrace2eError),
             }
         }
 
