@@ -56,18 +56,16 @@ pub enum ConsentResponse {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Destination {
-    LocalResource(Resource),
-    RemoteResource(String, Resource),
-    RemoteNode(String),
+    Resource(Option<String>, Resource),
+    Node(String),
     None, // Convenience for no destination
 }
 
 impl Destination {
     pub fn new(node_id: Option<String>, resource: Option<Resource>) -> Self {
         match (node_id, resource) {
-            (Some(node_id), Some(resource)) => Self::RemoteResource(node_id, resource),
-            (Some(node_id), None) => Self::RemoteNode(node_id),
-            (None, Some(resource)) => Self::LocalResource(resource),
+            (node_id, Some(resource)) => Self::Resource(node_id, resource),
+            (Some(node_id), None) => Self::Node(node_id),
             (None, None) => Self::None,
         }
     }
@@ -76,6 +74,7 @@ impl Destination {
 struct ConsentKey(Resource, Destination);
 
 #[derive(Default, Debug, Clone)]
+
 pub struct ConsentService {
     timeout: u64,
     /// Unified store of consent states keyed by (source, node_id, destination)
