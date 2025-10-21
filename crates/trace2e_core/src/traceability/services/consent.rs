@@ -54,29 +54,47 @@ pub enum ConsentResponse {
     Notifications(broadcast::Receiver<Destination>),
 }
 
-/// Destination for consent requests with hierarchical specificity.
+/// Destination for consent requests with built-in hierarchical structure.
 ///
-/// Destinations form a hierarchy from most to least specific:
-/// - `Resource(Some(node_id), resource)` targets a specific resource on a node
-/// - `Node(node_id)` targets all resources on a node
-/// - `None` no specific destination (convenience variant)
+/// The hierarchy is encoded in the type itself:
+/// - A `Resource` can have a `parent` destination (typically a `Node`)
+/// - This creates a natural traversal from specific to broad scopes
+///
+/// Example: `Resource { resource: file, parent: Some(Node("node1")) }`
+/// represents a file on node1, with node1 as the fallback consent scope.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum Destination {
-    /// A specific resource on a node. node_id acn be None when target is a local resource.
-    Resource(Option<String>, Resource),
-    /// All resources on a specific node.
+    /// A specific resource, optionally with a parent destination for hierarchy.
+    Resource { resource: Resource, parent: Option<Box<Self>> },
+    /// A node destination.
     Node(String),
-    /// No specific destination (convenience variant).
-    None,
 }
 
 impl Destination {
+    /// Create a new destination from optional node_id and resource.
     pub fn new(node_id: Option<String>, resource: Option<Resource>) -> Self {
         match (node_id, resource) {
-            (node_id, Some(resource)) => Self::Resource(node_id, resource),
+            (Some(node_id), Some(resource)) => {
+                Self::Resource { resource, parent: Some(Box::new(Self::Node(node_id))) }
+            }
+            (None, Some(resource)) => Self::Resource { resource, parent: None },
             (Some(node_id), None) => Self::Node(node_id),
-            (None, None) => Self::None,
+            (None, None) => panic!("Cannot create Destination with no node_id and no resource"),
         }
+    }
+
+    /// Iterator over the hierarchy from most specific to least specific.
+    ///
+    /// Example hierarchy traversal:
+    /// ```text
+    /// Resource { resource: file, parent: Some(Node("node1")) }
+    ///   -> yields: Resource(file), Node("node1")
+    /// ```
+    fn hierarchy(&self) -> impl Iterator<Item = &Destination> {
+        std::iter::successors(Some(self), |dest| match dest {
+            Destination::Resource { parent, .. } => parent.as_deref(),
+            Destination::Node(_) => None,
+        })
     }
 }
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -107,50 +125,19 @@ impl ConsentService {
         }
     }
 
-    /// Get hierarchical consent keys from most specific to least specific.
-    ///
-    /// For a resource destination, returns: [Resource-level, Node-level]
-    /// For a node destination, returns: [Node-level]
-    fn get_consent_hierarchy(
-        &self,
-        source: &Resource,
-        destination: &Destination,
-    ) -> Vec<ConsentKey> {
-        match destination {
-            Destination::Resource(Some(node_id), resource) => {
-                vec![
-                    ConsentKey(
-                        source.clone(),
-                        Destination::Resource(Some(node_id.clone()), resource.clone()),
-                    ),
-                    ConsentKey(source.clone(), Destination::Node(node_id.clone())),
-                ]
-            }
-            Destination::Resource(None, resource) => {
-                vec![ConsentKey(source.clone(), Destination::Resource(None, resource.clone()))]
-            }
-            Destination::Node(node_id) => {
-                vec![ConsentKey(source.clone(), Destination::Node(node_id.clone()))]
-            }
-            Destination::None => {
-                vec![] // No specific destination, so no hierarchy
-            }
-        }
-    }
-
     /// Check for existing consent decisions in the hierarchy.
     /// Returns the most specific consent decision if found.
+    ///
+    /// Traverses from most specific (resource) to least specific (node).
     fn check_consent_hierarchy(
         &self,
         source: &Resource,
         destination: &Destination,
     ) -> Option<bool> {
-        for key in self.get_consent_hierarchy(source, destination) {
-            if let Some(consent) = self.states.get(&key) {
-                return Some(*consent);
-            }
-        }
-        None
+        destination.hierarchy().find_map(|dest| {
+            let key = ConsentKey(source.clone(), dest.clone());
+            self.states.get(&key).map(|v| *v)
+        })
     }
 
     /// Internal method to get consent
@@ -389,7 +376,7 @@ mod tests {
         consent_service
             .call(ConsentRequest::SetConsent {
                 source: source.clone(),
-                destination: Destination::Resource(Some(node_id.clone()), resource.clone()),
+                destination: Destination::new(Some(node_id.clone()), Some(resource.clone())),
                 consent: true,
             })
             .await
@@ -399,7 +386,7 @@ mod tests {
         let response = consent_service
             .call(ConsentRequest::RequestConsent {
                 source: source.clone(),
-                destination: Destination::Resource(Some(node_id), resource),
+                destination: Destination::new(Some(node_id), Some(resource)),
             })
             .await
             .unwrap();
@@ -430,7 +417,7 @@ mod tests {
         let response = consent_service
             .call(ConsentRequest::RequestConsent {
                 source: source.clone(),
-                destination: Destination::Resource(Some(node_id), resource),
+                destination: Destination::new(Some(node_id), Some(resource)),
             })
             .await
             .unwrap();
@@ -462,7 +449,7 @@ mod tests {
         consent_service
             .call(ConsentRequest::SetConsent {
                 source: source.clone(),
-                destination: Destination::Resource(Some(node_id.clone()), resource2.clone()),
+                destination: Destination::new(Some(node_id.clone()), Some(resource2.clone())),
                 consent: false,
             })
             .await
@@ -472,7 +459,7 @@ mod tests {
         let response1 = consent_service
             .call(ConsentRequest::RequestConsent {
                 source: source.clone(),
-                destination: Destination::Resource(Some(node_id.clone()), resource1),
+                destination: Destination::new(Some(node_id.clone()), Some(resource1)),
             })
             .await
             .unwrap();
@@ -482,7 +469,7 @@ mod tests {
         let response2 = consent_service
             .call(ConsentRequest::RequestConsent {
                 source,
-                destination: Destination::Resource(Some(node_id), resource2),
+                destination: Destination::new(Some(node_id), Some(resource2)),
             })
             .await
             .unwrap();
