@@ -12,7 +12,7 @@ use crate::traceability::{error::TraceabilityError, infrastructure::naming::Reso
 /// Consent service request types.
 ///
 /// API for the consent service, which manages user consent for data flow operations.
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ConsentRequest {
     /// Request consent for a data flow operation.
     ///

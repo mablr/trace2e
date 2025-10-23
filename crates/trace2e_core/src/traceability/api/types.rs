@@ -105,7 +105,7 @@ pub enum P2mRequest {
 /// Process-to-Middleware (P2M) response types.
 ///
 /// Responses sent from the middleware back to application processes following P2M requests.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum P2mResponse {
     /// Authorization granted for an I/O operation with a unique grant identifier.
     ///
@@ -170,7 +170,7 @@ pub enum M2mRequest {
 /// Middleware-to-Middleware (M2M) response types.
 ///
 /// Responses sent between middleware instances for distributed coordination and policy exchange.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum M2mResponse {
     /// Compliance policies for requested source resources.
     ///
@@ -274,7 +274,7 @@ pub enum O2mRequest {
 ///
 /// Responses sent to operators and administrators following policy management and
 /// provenance query requests.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum O2mResponse {
     /// Current compliance policies for the requested resources.
     ///
@@ -326,7 +326,7 @@ pub enum SequencerRequest {
 /// Sequencer service response types.
 ///
 /// Responses from the sequencer service confirming flow reservation and release operations.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum SequencerResponse {
     /// Confirmation that the requested flow has been successfully reserved.
     ///
@@ -385,7 +385,7 @@ pub enum ProvenanceRequest {
 /// Provenance service response types.
 ///
 /// Responses from the provenance service containing lineage data and update confirmations.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ProvenanceResponse {
     /// Complete provenance lineage for the requested resource.
     ///
@@ -491,7 +491,7 @@ pub enum ComplianceRequest {
 ///
 /// Responses from the compliance service containing authorization decisions, policy data,
 /// and update confirmations.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ComplianceResponse {
     /// Authorization granted for the requested data flow operation.
     ///
