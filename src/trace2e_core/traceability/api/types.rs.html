@@ -105,7 +105,7 @@
 <a href=#105 id=105 data-nosnippet>105</a><span class="doccomment">/// Process-to-Middleware (P2M) response types.
 <a href=#106 id=106 data-nosnippet>106</a>///
 <a href=#107 id=107 data-nosnippet>107</a>/// Responses sent from the middleware back to application processes following P2M requests.
-<a href=#108 id=108 data-nosnippet>108</a></span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq)]
+<a href=#108 id=108 data-nosnippet>108</a></span><span class="attr">#[derive(Debug, Clone, PartialEq)]
 <a href=#109 id=109 data-nosnippet>109</a></span><span class="kw">pub enum </span>P2mResponse {
 <a href=#110 id=110 data-nosnippet>110</a>    <span class="doccomment">/// Authorization granted for an I/O operation with a unique grant identifier.
 <a href=#111 id=111 data-nosnippet>111</a>    ///
@@ -170,7 +170,7 @@
 <a href=#170 id=170 data-nosnippet>170</a><span class="doccomment">/// Middleware-to-Middleware (M2M) response types.
 <a href=#171 id=171 data-nosnippet>171</a>///
 <a href=#172 id=172 data-nosnippet>172</a>/// Responses sent between middleware instances for distributed coordination and policy exchange.
-<a href=#173 id=173 data-nosnippet>173</a></span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq)]
+<a href=#173 id=173 data-nosnippet>173</a></span><span class="attr">#[derive(Debug, Clone, PartialEq)]
 <a href=#174 id=174 data-nosnippet>174</a></span><span class="kw">pub enum </span>M2mResponse {
 <a href=#175 id=175 data-nosnippet>175</a>    <span class="doccomment">/// Compliance policies for requested source resources.
 <a href=#176 id=176 data-nosnippet>176</a>    ///
@@ -274,7 +274,7 @@
 <a href=#274 id=274 data-nosnippet>274</a>///
 <a href=#275 id=275 data-nosnippet>275</a>/// Responses sent to operators and administrators following policy management and
 <a href=#276 id=276 data-nosnippet>276</a>/// provenance query requests.
-<a href=#277 id=277 data-nosnippet>277</a></span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq)]
+<a href=#277 id=277 data-nosnippet>277</a></span><span class="attr">#[derive(Debug, Clone, PartialEq)]
 <a href=#278 id=278 data-nosnippet>278</a></span><span class="kw">pub enum </span>O2mResponse {
 <a href=#279 id=279 data-nosnippet>279</a>    <span class="doccomment">/// Current compliance policies for the requested resources.
 <a href=#280 id=280 data-nosnippet>280</a>    ///
@@ -326,7 +326,7 @@
 <a href=#326 id=326 data-nosnippet>326</a><span class="doccomment">/// Sequencer service response types.
 <a href=#327 id=327 data-nosnippet>327</a>///
 <a href=#328 id=328 data-nosnippet>328</a>/// Responses from the sequencer service confirming flow reservation and release operations.
-<a href=#329 id=329 data-nosnippet>329</a></span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq)]
+<a href=#329 id=329 data-nosnippet>329</a></span><span class="attr">#[derive(Debug, Clone, PartialEq)]
 <a href=#330 id=330 data-nosnippet>330</a></span><span class="kw">pub enum </span>SequencerResponse {
 <a href=#331 id=331 data-nosnippet>331</a>    <span class="doccomment">/// Confirmation that the requested flow has been successfully reserved.
 <a href=#332 id=332 data-nosnippet>332</a>    ///
@@ -385,7 +385,7 @@
 <a href=#385 id=385 data-nosnippet>385</a><span class="doccomment">/// Provenance service response types.
 <a href=#386 id=386 data-nosnippet>386</a>///
 <a href=#387 id=387 data-nosnippet>387</a>/// Responses from the provenance service containing lineage data and update confirmations.
-<a href=#388 id=388 data-nosnippet>388</a></span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq)]
+<a href=#388 id=388 data-nosnippet>388</a></span><span class="attr">#[derive(Debug, Clone, PartialEq)]
 <a href=#389 id=389 data-nosnippet>389</a></span><span class="kw">pub enum </span>ProvenanceResponse {
 <a href=#390 id=390 data-nosnippet>390</a>    <span class="doccomment">/// Complete provenance lineage for the requested resource.
 <a href=#391 id=391 data-nosnippet>391</a>    ///
@@ -491,7 +491,7 @@
 <a href=#491 id=491 data-nosnippet>491</a>///
 <a href=#492 id=492 data-nosnippet>492</a>/// Responses from the compliance service containing authorization decisions, policy data,
 <a href=#493 id=493 data-nosnippet>493</a>/// and update confirmations.
-<a href=#494 id=494 data-nosnippet>494</a></span><span class="attr">#[derive(Debug, Clone, Eq, PartialEq)]
+<a href=#494 id=494 data-nosnippet>494</a></span><span class="attr">#[derive(Debug, Clone, PartialEq)]
 <a href=#495 id=495 data-nosnippet>495</a></span><span class="kw">pub enum </span>ComplianceResponse {
 <a href=#496 id=496 data-nosnippet>496</a>    <span class="doccomment">/// Authorization granted for the requested data flow operation.
 <a href=#497 id=497 data-nosnippet>497</a>    ///
