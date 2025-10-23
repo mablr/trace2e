@@ -28,6 +28,8 @@
 
 use std::collections::{HashMap, HashSet};
 
+use tokio::sync::broadcast;
+
 use crate::traceability::{
     infrastructure::naming::Resource,
     services::{
@@ -274,7 +276,7 @@ pub enum O2mRequest {
 ///
 /// Responses sent to operators and administrators following policy management and
 /// provenance query requests.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum O2mResponse {
     /// Current compliance policies for the requested resources.
     ///
@@ -293,6 +295,27 @@ pub enum O2mResponse {
     /// Maps node IDs to sets of resources, showing the complete ancestry
     /// and data flow history for traceability analysis.
     References(HashMap<String, HashSet<Resource>>),
+
+    /// Consent requests notifications channel.
+    ///
+    /// A channel for receiving consent requests notifications for a specific resource.
+    Notifications(broadcast::Receiver<Destination>),
+}
+
+impl PartialEq for O2mResponse {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (O2mResponse::Policies(policies), O2mResponse::Policies(other_policies)) => {
+                policies == other_policies
+            }
+            (O2mResponse::References(references), O2mResponse::References(other_references)) => {
+                references == other_references
+            }
+            (O2mResponse::Notifications(_), O2mResponse::Notifications(_))
+            | (O2mResponse::Ack, O2mResponse::Ack) => true,
+            _ => false,
+        }
+    }
 }
 
 /// Sequencer service request types.
