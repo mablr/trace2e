@@ -196,18 +196,20 @@ where
                         provenance.node_id(),
                         resource
                     );
-                    match consent
+                    let notifications = match consent
                         .call(ConsentRequest::TakeResourceOwnership(resource.clone()))
                         .await?
                     {
-                        ConsentResponse::Notifications(_) => (), // TODO: handle the stream of consent requests
+                        ConsentResponse::Notifications(notifications) => notifications,
                         _ => return Err(TraceabilityError::InternalTrace2eError),
                     };
                     match compliance
                         .call(ComplianceRequest::EnforceConsent { resource, consent: true })
                         .await?
                     {
-                        ComplianceResponse::PolicyUpdated => Ok(O2mResponse::Ack),
+                        ComplianceResponse::PolicyUpdated => {
+                            Ok(O2mResponse::Notifications(notifications))
+                        }
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
