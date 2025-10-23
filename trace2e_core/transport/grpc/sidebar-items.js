@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["DEFAULT_GRPC_PORT"],"mod":["proto"],"struct":["M2mGrpc","M2mHandler","P2mHandler"]};
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_GRPC_PORT"],"mod":["proto"],"struct":["M2mGrpc","M2mHandler","O2mHandler","P2mHandler"]};
