@@ -4,8 +4,11 @@ use tonic_reflection::server::Builder;
 use trace2e_core::{
     traceability::init_middleware,
     transport::grpc::{
-        DEFAULT_GRPC_PORT, M2mGrpc, M2mHandler, P2mHandler,
-        proto::{MIDDLEWARE_DESCRIPTOR_SET, m2m_server::M2mServer, p2m_server::P2mServer},
+        DEFAULT_GRPC_PORT, M2mGrpc, M2mHandler, O2mHandler, P2mHandler,
+        proto::{
+            MIDDLEWARE_DESCRIPTOR_SET, m2m_server::M2mServer, o2m_server::O2mServer,
+            p2m_server::P2mServer,
+        },
     },
 };
 
@@ -43,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let address = format!("{}:{}", args.address, args.port).parse().unwrap();
 
-    let (m2m_service, p2m_service, _) = init_middleware(
+    let (m2m_service, p2m_service, o2m_service) = init_middleware(
         args.address.clone(),
         None,
         args.consent_timeout,
@@ -53,7 +56,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut server_builder = Server::builder()
         .add_service(P2mServer::new(P2mHandler::new(p2m_service)))
-        .add_service(M2mServer::new(M2mHandler::new(m2m_service)));
+        .add_service(M2mServer::new(M2mHandler::new(m2m_service)))
+        .add_service(O2mServer::new(O2mHandler::new(o2m_service)));
 
     if args.reflection {
         let reflection_service = Builder::configure()

@@ -60,3 +60,53 @@ message UpdateProvenance {
     repeated primitives.References source_prov = 1;
     primitives.Resource destination = 2;
 }
+
+// O2M specific messages
+message GetPoliciesRequest {
+    repeated primitives.Resource resources = 1;
+}
+
+message GetPoliciesResponse {
+    repeated primitives.MappedPolicy policies = 1;
+}
+
+message SetPolicyRequest {
+    primitives.Resource resource = 1;
+    primitives.Policy policy = 2;
+}
+
+message SetConfidentialityRequest {
+    primitives.Resource resource = 1;
+    primitives.Confidentiality confidentiality = 2;
+}
+
+message SetIntegrityRequest {
+    primitives.Resource resource = 1;
+    uint32 integrity = 2;
+}
+
+message SetDeletedRequest {
+    primitives.Resource resource = 1;
+}
+
+message EnforceConsentRequest {
+    primitives.Resource resource = 1;
+}
+
+message ConsentNotification {
+    string log_message = 1;
+}
+
+message SetConsentDecisionRequest {
+    primitives.Resource source = 1;
+    primitives.Resource destination = 2;
+    bool decision = 3;
+}
+
+message GetReferencesRequest {
+    primitives.Resource resource = 1;
+}
+
+message GetReferencesResponse {
+    repeated primitives.References references = 1;
+}

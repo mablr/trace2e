@@ -45,6 +45,7 @@ use std::{
 };
 
 use dashmap::DashMap;
+use tokio_stream::{StreamExt, wrappers::BroadcastStream};
 use tonic::{Request, Response, Status, transport::Channel};
 use tower::Service;
 
@@ -67,10 +68,13 @@ pub mod proto {
 
 use crate::{
     traceability::{
-        api::types::{M2mRequest, M2mResponse, P2mRequest, P2mResponse},
+        api::types::{M2mRequest, M2mResponse, O2mRequest, O2mResponse, P2mRequest, P2mResponse},
         error::TraceabilityError,
         infrastructure::naming::{Fd, File, Process, Resource, Stream},
-        services::compliance::{ConfidentialityPolicy, Policy},
+        services::{
+            compliance::{ConfidentialityPolicy, Policy},
+            consent::Destination,
+        },
     },
     transport::eval_remote_ip,
 };
@@ -500,6 +504,190 @@ where
     }
 }
 
+/// gRPC server handler for operator-to-middleware operations.
+///
+/// `O2mHandler` implements the gRPC server-side logic for administrative
+/// operations including policy management, provenance queries, and consent
+/// management by operators and compliance officers.
+///
+/// ## Type Parameters
+///
+/// * `O2mApi` - Service handling operator-to-middleware requests
+pub struct O2mHandler<O2mApi> {
+    /// Operator-to-middleware service handler.
+    o2m: O2mApi,
+}
+
+impl<O2mApi> O2mHandler<O2mApi> {
+    /// Creates a new O2M handler with the specified service handler.
+    ///
+    /// # Arguments
+    ///
+    /// * `o2m` - Service for handling operator-to-middleware requests
+    pub fn new(o2m: O2mApi) -> Self {
+        Self { o2m }
+    }
+}
+
+/// Implementation of the O2M gRPC service protocol.
+///
+/// This implementation provides the server-side handlers for all operator-facing
+/// endpoints including policy configuration and provenance analysis.
+#[tonic::async_trait]
+impl<O2mApi> proto::o2m_server::O2m for O2mHandler<O2mApi>
+where
+    O2mApi: Service<O2mRequest, Response = O2mResponse, Error = TraceabilityError>
+        + Clone
+        + Sync
+        + Send
+        + 'static,
+    O2mApi::Future: Send,
+{
+    /// Handles policy retrieval requests from operators.
+    ///
+    /// Returns the current compliance policies for the specified set of resources.
+    async fn o2m_get_policies(
+        &self,
+        request: Request<proto::messages::GetPoliciesRequest>,
+    ) -> Result<Response<proto::messages::GetPoliciesResponse>, Status> {
+        let req = request.into_inner();
+        let mut o2m = self.o2m.clone();
+        match o2m.call(req.into()).await? {
+            O2mResponse::Policies(policies) => Ok(Response::new(policies.into())),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+
+    /// Handles policy update requests from operators.
+    ///
+    /// Sets a complete compliance policy for a specific resource.
+    async fn o2m_set_policy(
+        &self,
+        request: Request<proto::messages::SetPolicyRequest>,
+    ) -> Result<Response<proto::messages::Ack>, Status> {
+        let req = request.into_inner();
+        let mut o2m = self.o2m.clone();
+        match o2m.call(req.into()).await? {
+            O2mResponse::Ack => Ok(Response::new(proto::messages::Ack {})),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+
+    /// Handles confidentiality setting requests from operators.
+    ///
+    /// Updates the confidentiality policy for a specific resource.
+    async fn o2m_set_confidentiality(
+        &self,
+        request: Request<proto::messages::SetConfidentialityRequest>,
+    ) -> Result<Response<proto::messages::Ack>, Status> {
+        let req = request.into_inner();
+        let mut o2m = self.o2m.clone();
+        match o2m.call(req.into()).await? {
+            O2mResponse::Ack => Ok(Response::new(proto::messages::Ack {})),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+
+    /// Handles integrity setting requests from operators.
+    ///
+    /// Updates the integrity level for a specific resource.
+    async fn o2m_set_integrity(
+        &self,
+        request: Request<proto::messages::SetIntegrityRequest>,
+    ) -> Result<Response<proto::messages::Ack>, Status> {
+        let req = request.into_inner();
+        let mut o2m = self.o2m.clone();
+        match o2m.call(req.into()).await? {
+            O2mResponse::Ack => Ok(Response::new(proto::messages::Ack {})),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+
+    /// Handles deletion marking requests from operators.
+    ///
+    /// Marks a resource as deleted for compliance tracking purposes.
+    async fn o2m_set_deleted(
+        &self,
+        request: Request<proto::messages::SetDeletedRequest>,
+    ) -> Result<Response<proto::messages::Ack>, Status> {
+        let req = request.into_inner();
+        let mut o2m = self.o2m.clone();
+        match o2m.call(req.into()).await? {
+            O2mResponse::Ack => Ok(Response::new(proto::messages::Ack {})),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+
+    type O2MEnforceConsentStream = Pin<
+        Box<
+            dyn tokio_stream::Stream<Item = Result<proto::messages::ConsentNotification, Status>>
+                + Send,
+        >,
+    >;
+
+    /// Handles consent enforcement requests from operators.
+    ///
+    /// Enables consent enforcement for a resource and returns a stream of
+    /// consent request notifications that can be monitored by the operator.
+    async fn o2m_enforce_consent(
+        &self,
+        request: Request<proto::messages::EnforceConsentRequest>,
+    ) -> Result<Response<Self::O2MEnforceConsentStream>, Status> {
+        let req = request.into_inner();
+        let mut o2m = self.o2m.clone();
+        match o2m.call(req.into()).await? {
+            O2mResponse::Notifications(receiver) => {
+                // Convert the broadcast receiver into a stream of consent notifications
+                let stream = BroadcastStream::new(receiver).map(|result| {
+                    match result {
+                        Ok(destination) => {
+                            // Format destination as human-readable log message
+                            let log_message =
+                                format!("Consent request for destination: {:?}", destination);
+                            Ok(proto::messages::ConsentNotification { log_message })
+                        }
+                        Err(e) => {
+                            Err(Status::internal(format!("Notification stream error: {}", e)))
+                        }
+                    }
+                });
+                Ok(Response::new(Box::pin(stream)))
+            }
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+
+    /// Handles consent decision requests from operators.
+    ///
+    /// Sets the consent decision for a specific data flow operation.
+    async fn o2m_set_consent_decision(
+        &self,
+        request: Request<proto::messages::SetConsentDecisionRequest>,
+    ) -> Result<Response<proto::messages::Ack>, Status> {
+        let req = request.into_inner();
+        let mut o2m = self.o2m.clone();
+        match o2m.call(req.into()).await? {
+            O2mResponse::Ack => Ok(Response::new(proto::messages::Ack {})),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+
+    /// Handles provenance query requests from operators.
+    ///
+    /// Returns the complete provenance lineage for a specific resource.
+    async fn o2m_get_references(
+        &self,
+        request: Request<proto::messages::GetReferencesRequest>,
+    ) -> Result<Response<proto::messages::GetReferencesResponse>, Status> {
+        let req = request.into_inner();
+        let mut o2m = self.o2m.clone();
+        match o2m.call(req.into()).await? {
+            O2mResponse::References(references) => Ok(Response::new(references.into())),
+            _ => Err(Status::internal("Internal traceability API error")),
+        }
+    }
+}
+
 // Protocol Buffer type conversion implementations
 //
 // The following implementations provide bidirectional conversion between
@@ -727,5 +915,111 @@ impl From<proto::primitives::Policy> for Policy {
             proto_policy.deleted.into(),
             proto_policy.consent,
         )
+    }
+}
+
+// O2M Protocol Buffer conversions
+
+/// Converts Protocol Buffer GetPoliciesRequest to internal O2M request.
+impl From<proto::messages::GetPoliciesRequest> for O2mRequest {
+    fn from(req: proto::messages::GetPoliciesRequest) -> Self {
+        O2mRequest::GetPolicies(req.resources.into_iter().map(|r| r.into()).collect())
+    }
+}
+
+/// Converts Protocol Buffer SetPolicyRequest to internal O2M request.
+impl From<proto::messages::SetPolicyRequest> for O2mRequest {
+    fn from(req: proto::messages::SetPolicyRequest) -> Self {
+        O2mRequest::SetPolicy {
+            resource: req.resource.map(|r| r.into()).unwrap_or_default(),
+            policy: req.policy.map(|p| p.into()).unwrap_or_default(),
+        }
+    }
+}
+
+/// Converts Protocol Buffer SetConfidentialityRequest to internal O2M request.
+impl From<proto::messages::SetConfidentialityRequest> for O2mRequest {
+    fn from(req: proto::messages::SetConfidentialityRequest) -> Self {
+        O2mRequest::SetConfidentiality {
+            resource: req.resource.map(|r| r.into()).unwrap_or_default(),
+            confidentiality: match req.confidentiality {
+                x if x == proto::primitives::Confidentiality::Secret as i32 => {
+                    ConfidentialityPolicy::Secret
+                }
+                _ => ConfidentialityPolicy::Public,
+            },
+        }
+    }
+}
+
+/// Converts Protocol Buffer SetIntegrityRequest to internal O2M request.
+impl From<proto::messages::SetIntegrityRequest> for O2mRequest {
+    fn from(req: proto::messages::SetIntegrityRequest) -> Self {
+        O2mRequest::SetIntegrity {
+            resource: req.resource.map(|r| r.into()).unwrap_or_default(),
+            integrity: req.integrity,
+        }
+    }
+}
+
+/// Converts Protocol Buffer SetDeletedRequest to internal O2M request.
+impl From<proto::messages::SetDeletedRequest> for O2mRequest {
+    fn from(req: proto::messages::SetDeletedRequest) -> Self {
+        O2mRequest::SetDeleted(req.resource.map(|r| r.into()).unwrap_or_default())
+    }
+}
+
+/// Converts Protocol Buffer EnforceConsentRequest to internal O2M request.
+impl From<proto::messages::EnforceConsentRequest> for O2mRequest {
+    fn from(req: proto::messages::EnforceConsentRequest) -> Self {
+        O2mRequest::EnforceConsent(req.resource.map(|r| r.into()).unwrap_or_default())
+    }
+}
+
+/// Converts Protocol Buffer SetConsentDecisionRequest to internal O2M request.
+impl From<proto::messages::SetConsentDecisionRequest> for O2mRequest {
+    fn from(req: proto::messages::SetConsentDecisionRequest) -> Self {
+        O2mRequest::SetConsentDecision {
+            source: req.source.map(|r| r.into()).unwrap_or_default(),
+            destination: Destination::Resource {
+                resource: req.destination.map(|r| r.into()).unwrap_or_default(),
+                parent: None,
+            },
+            decision: req.decision,
+        }
+    }
+}
+
+/// Converts Protocol Buffer GetReferencesRequest to internal O2M request.
+impl From<proto::messages::GetReferencesRequest> for O2mRequest {
+    fn from(req: proto::messages::GetReferencesRequest) -> Self {
+        O2mRequest::GetReferences(req.resource.map(|r| r.into()).unwrap_or_default())
+    }
+}
+
+/// Converts internal resource-policy map to Protocol Buffer GetPoliciesResponse.
+impl From<HashMap<Resource, Policy>> for proto::messages::GetPoliciesResponse {
+    fn from(policies: HashMap<Resource, Policy>) -> Self {
+        proto::messages::GetPoliciesResponse {
+            policies: policies
+                .into_iter()
+                .map(|(resource, policy)| proto::primitives::MappedPolicy {
+                    resource: Some(resource.into()),
+                    policy: Some(policy.into()),
+                })
+                .collect(),
+        }
+    }
+}
+
+/// Converts internal provenance references to Protocol Buffer GetReferencesResponse.
+impl From<HashMap<String, HashSet<Resource>>> for proto::messages::GetReferencesResponse {
+    fn from(references: HashMap<String, HashSet<Resource>>) -> Self {
+        proto::messages::GetReferencesResponse {
+            references: references
+                .into_iter()
+                .map(|(node, resources)| (node, resources).into())
+                .collect(),
+        }
     }
 }

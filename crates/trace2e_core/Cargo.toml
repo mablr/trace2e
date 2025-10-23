@@ -12,6 +12,7 @@ prost.workspace = true
 sysinfo = { workspace = true }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio-stream = { workspace = true, features = ["sync"] }
 tonic.workspace = true
 tower = { workspace = true, features = ["filter", "timeout", "util"] }
 tracing = { workspace = true, optional = true }

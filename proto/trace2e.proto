@@ -22,3 +22,15 @@ service M2m {
     rpc M2MUpdateProvenance(messages.UpdateProvenance) returns (messages.Ack);
     rpc M2MBroadcastDeletion(primitives.Resource) returns (messages.Ack);
 }
+
+service O2m {
+    // Operator to Middleware operations
+    rpc O2MGetPolicies(messages.GetPoliciesRequest) returns (messages.GetPoliciesResponse);
+    rpc O2MSetPolicy(messages.SetPolicyRequest) returns (messages.Ack);
+    rpc O2MSetConfidentiality(messages.SetConfidentialityRequest) returns (messages.Ack);
+    rpc O2MSetIntegrity(messages.SetIntegrityRequest) returns (messages.Ack);
+    rpc O2MSetDeleted(messages.SetDeletedRequest) returns (messages.Ack);
+    rpc O2MEnforceConsent(messages.EnforceConsentRequest) returns (stream messages.ConsentNotification);
+    rpc O2MSetConsentDecision(messages.SetConsentDecisionRequest) returns (messages.Ack);
+    rpc O2MGetReferences(messages.GetReferencesRequest) returns (messages.GetReferencesResponse);
+}
