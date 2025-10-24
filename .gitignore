@@ -7,3 +7,4 @@ target/
 .venv
 flamegraph.svg
 perf.data*
+.research/
