@@ -29,6 +29,14 @@
 //! - Destination compliance policy retrieval
 //! - Source compliance policy retrieval
 //! - Provenance information updates
+//! 
+//! ### Operator-to-Middleware (O2M)
+//! - Policy management
+//! - Confidentiality management
+//! - Integrity management
+//! - Deletion management
+//! - Consent management
+//! - Provenance information retrieval
 //!
 //! ## Protocol Buffer Integration
 //!
