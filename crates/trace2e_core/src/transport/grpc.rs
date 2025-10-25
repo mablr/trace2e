@@ -8,7 +8,9 @@
 //! ## Components
 //!
 //! - **M2mGrpc**: Client service for making outbound gRPC calls to remote middleware
-//! - **Trace2eRouter**: Server implementation that routes incoming gRPC requests
+//! - **P2mHandler**: Server implementation that routes incoming gRPC requests for P2M operations
+//! - **M2mHandler**: Server implementation that routes incoming gRPC requests for M2M operations
+//! - **O2mHandler**: Server implementation that routes incoming gRPC requests for O2M operations
 //! - **Protocol Buffer Conversions**: Type conversions between internal and protobuf types
 //!
 //! ## Connection Management
@@ -29,7 +31,7 @@
 //! - Destination compliance policy retrieval
 //! - Source compliance policy retrieval
 //! - Provenance information updates
-//! 
+//!
 //! ### Operator-to-Middleware (O2M)
 //! - Policy management
 //! - Confidentiality management
