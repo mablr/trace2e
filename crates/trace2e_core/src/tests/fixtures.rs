@@ -81,14 +81,14 @@ impl StreamMapping {
 macro_rules! local_enroll {
     ($p2m:expr, $mapping:expr) => {
         assert_eq!(
-            $p2m.call(P2mRequest::LocalEnroll {
+            $p2m.call(crate::traceability::api::P2mRequest::LocalEnroll {
                 pid: $mapping.pid(),
                 fd: $mapping.fd(),
                 path: $mapping.file_path(),
             })
             .await
             .unwrap(),
-            P2mResponse::Ack
+            crate::traceability::api::P2mResponse::Ack
         )
     };
 }
@@ -96,7 +96,7 @@ macro_rules! local_enroll {
 macro_rules! remote_enroll {
     ($p2m:expr, $mapping:expr) => {
         assert_eq!(
-            $p2m.call(P2mRequest::RemoteEnroll {
+            $p2m.call(crate::traceability::api::P2mRequest::RemoteEnroll {
                 pid: $mapping.pid(),
                 fd: $mapping.fd(),
                 local_socket: $mapping.stream_local_socket(),
@@ -104,7 +104,7 @@ macro_rules! remote_enroll {
             })
             .await
             .unwrap(),
-            P2mResponse::Ack
+            crate::traceability::api::P2mResponse::Ack
         )
     };
 }
@@ -112,10 +112,14 @@ macro_rules! remote_enroll {
 macro_rules! write_request {
     ($p2m:expr, $mapping:expr) => {
         match $p2m
-            .call(P2mRequest::IoRequest { pid: $mapping.pid(), fd: $mapping.fd(), output: true })
+            .call(crate::traceability::api::P2mRequest::IoRequest {
+                pid: $mapping.pid(),
+                fd: $mapping.fd(),
+                output: true,
+            })
             .await
         {
-            Ok(P2mResponse::Grant(flow_id)) => flow_id,
+            Ok(crate::traceability::api::P2mResponse::Grant(flow_id)) => flow_id,
             _ => u128::MAX, // This means there was a policy violation or an error
         }
     };
@@ -124,10 +128,14 @@ macro_rules! write_request {
 macro_rules! read_request {
     ($p2m:expr, $mapping:expr) => {
         match $p2m
-            .call(P2mRequest::IoRequest { pid: $mapping.pid(), fd: $mapping.fd(), output: false })
+            .call(crate::traceability::api::P2mRequest::IoRequest {
+                pid: $mapping.pid(),
+                fd: $mapping.fd(),
+                output: false,
+            })
             .await
         {
-            Ok(P2mResponse::Grant(flow_id)) => flow_id,
+            Ok(crate::traceability::api::P2mResponse::Grant(flow_id)) => flow_id,
             _ => u128::MAX, // This means there was a policy violation or an error
         }
     };
@@ -139,7 +147,7 @@ macro_rules! io_report {
         // flow_id
         assert_ne!($flow_id, u128::MAX);
         assert_eq!(
-            $p2m.call(P2mRequest::IoReport {
+            $p2m.call(crate::traceability::api::P2mRequest::IoReport {
                 pid: $mapping.pid(),
                 fd: $mapping.fd(),
                 grant_id: $flow_id,
@@ -147,7 +155,7 @@ macro_rules! io_report {
             })
             .await
             .unwrap(),
-            P2mResponse::Ack
+            crate::traceability::api::P2mResponse::Ack
         )
     };
 }
@@ -169,8 +177,10 @@ macro_rules! write {
 macro_rules! assert_provenance {
     ($o2m:expr, $resource:expr, $provenance:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::GetReferences($resource)).await.unwrap(),
-            O2mResponse::References($provenance)
+            $o2m.call(crate::traceability::api::O2mRequest::GetReferences($resource))
+                .await
+                .unwrap(),
+            crate::traceability::api::O2mResponse::References($provenance)
         )
     };
 }
@@ -178,8 +188,10 @@ macro_rules! assert_provenance {
 macro_rules! assert_policies {
     ($o2m:expr, $resource_set:expr, $policy_set:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::GetPolicies($resource_set)).await.unwrap(),
-            O2mResponse::Policies($policy_set)
+            $o2m.call(crate::traceability::api::O2mRequest::GetPolicies($resource_set))
+                .await
+                .unwrap(),
+            crate::traceability::api::O2mResponse::Policies($policy_set)
         )
     };
 }
@@ -187,13 +199,13 @@ macro_rules! assert_policies {
 macro_rules! set_confidentiality {
     ($o2m:expr, $resource:expr, $confidentiality:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::SetConfidentiality {
+            $o2m.call(crate::traceability::api::O2mRequest::SetConfidentiality {
                 resource: $resource,
                 confidentiality: $confidentiality,
             })
             .await
             .unwrap(),
-            O2mResponse::Ack
+            crate::traceability::api::O2mResponse::Ack
         )
     };
 }
@@ -201,17 +213,25 @@ macro_rules! set_confidentiality {
 macro_rules! set_integrity {
     ($o2m:expr, $resource:expr, $integrity:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::SetIntegrity { resource: $resource, integrity: $integrity })
-                .await
-                .unwrap(),
-            O2mResponse::Ack
+            $o2m.call(crate::traceability::api::O2mRequest::SetIntegrity {
+                resource: $resource,
+                integrity: $integrity
+            })
+            .await
+            .unwrap(),
+            crate::traceability::api::O2mResponse::Ack
         )
     };
 }
 
 macro_rules! set_deleted {
     ($o2m:expr, $resource:expr) => {
-        assert_eq!($o2m.call(O2mRequest::SetDeleted($resource)).await.unwrap(), O2mResponse::Ack)
+        assert_eq!(
+            $o2m.call(crate::traceability::api::O2mRequest::SetDeleted($resource))
+                .await
+                .unwrap(),
+            crate::traceability::api::O2mResponse::Ack
+        )
     };
 }
 
@@ -219,8 +239,10 @@ macro_rules! set_deleted {
 macro_rules! broadcast_deletion {
     ($o2m:expr, $resource:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::BroadcastDeletion($resource)).await.unwrap(),
-            O2mResponse::Ack
+            $o2m.call(crate::traceability::api::O2mRequest::BroadcastDeletion($resource))
+                .await
+                .unwrap(),
+            crate::traceability::api::O2mResponse::Ack
         )
     };
 }
@@ -229,8 +251,10 @@ macro_rules! broadcast_deletion {
 macro_rules! enforce_consent {
     ($o2m:expr, $resource:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::EnforceConsent($resource)).await.unwrap(),
-            O2mResponse::Ack
+            $o2m.call(crate::traceability::api::O2mRequest::EnforceConsent($resource))
+                .await
+                .unwrap(),
+            crate::traceability::api::O2mResponse::Ack
         )
     };
 }
@@ -239,8 +263,10 @@ macro_rules! enforce_consent {
 macro_rules! set_consent_decision {
     ($o2m:expr, $resource:expr, $consent:expr) => {
         assert_eq!(
-            $o2m.call(O2mRequest::SetConsentDecision($resource)).await.unwrap(),
-            O2mResponse::Ack
+            $o2m.call(crate::traceability::api::O2mRequest::SetConsentDecision($resource))
+                .await
+                .unwrap(),
+            crate::traceability::api::O2mResponse::Ack
         )
     };
 }
