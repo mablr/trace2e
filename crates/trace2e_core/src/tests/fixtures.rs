@@ -227,9 +227,7 @@ macro_rules! set_integrity {
 macro_rules! set_deleted {
     ($o2m:expr, $resource:expr) => {
         assert_eq!(
-            $o2m.call(crate::traceability::api::O2mRequest::SetDeleted($resource))
-                .await
-                .unwrap(),
+            $o2m.call(crate::traceability::api::O2mRequest::SetDeleted($resource)).await.unwrap(),
             crate::traceability::api::O2mResponse::Ack
         )
     };
