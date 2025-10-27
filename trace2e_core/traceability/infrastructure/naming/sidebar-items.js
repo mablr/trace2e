@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Fd","Resource"],"struct":["File","Process","Stream"],"trait":["NodeId"]};
+window.SIDEBAR_ITEMS = {"enum":["Fd","Resource"],"struct":["File","LocalizedResource","Process","Stream"],"trait":["NodeId"]};
