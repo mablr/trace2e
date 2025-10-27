@@ -93,19 +93,28 @@ async fn integration_consent_notification_local_and_remote_io() {
     // Check the notifications we received
     let (notification_count, destinations) = notifications_task.await.unwrap();
 
-    // We should have received at least one notification
+    // We should have received 2 notifications
     assert!(
-        notification_count >= 1,
-        "Expected at least 1 consent notification, got {}",
+        notification_count == 2,
+        "Expected 2 consent notifications, got {}",
         notification_count
     );
 
-    // Verify we got destination notifications (for the stream write)
-    let has_node_or_resource = destinations.iter().any(|dest| match dest {
-        Destination::Resource { .. } => true,
-        Destination::Node(_) => true,
-    });
-    assert!(has_node_or_resource, "Expected at least one destination notification");
+    // Verify the destinations are the expected ones
+    assert_eq!(
+        destinations[0],
+        Destination::Resource {
+            resource: fd1_1_1.process(),
+            parent: Some(Box::new(Destination::Node("10.0.0.1".to_string())))
+        }
+    );
+    assert_eq!(
+        destinations[1],
+        Destination::Resource {
+            resource: stream1_2.stream(),
+            parent: Some(Box::new(Destination::Node("10.0.0.1".to_string())))
+        }
+    );
 }
 
 #[tokio::test]
