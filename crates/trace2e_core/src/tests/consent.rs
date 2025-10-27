@@ -161,24 +161,21 @@ async fn integration_consent_decision_on_remote_io() {
         let mut granted_destinations = Vec::new();
 
         // Wait for notifications and auto-grant consent
-        loop {
-            match timeout(Duration::from_millis(150), notifications.recv()).await {
-                Ok(Ok(destination)) => {
-                    #[cfg(feature = "trace2e_tracing")]
-                    info!("Received consent notification for destination: {:?}", destination);
-                    granted_destinations.push(destination.clone());
+        while let Ok(Ok(destination)) =
+            timeout(Duration::from_millis(150), notifications.recv()).await
+        {
+            #[cfg(feature = "trace2e_tracing")]
+            info!("Received consent notification for destination: {:?}", destination);
+            granted_destinations.push(destination.clone());
 
-                    // Auto-grant consent immediately
-                    let _ = o2m_consent
-                        .call(O2mRequest::SetConsentDecision {
-                            source: fd1_file.clone(),
-                            destination,
-                            decision: true,
-                        })
-                        .await;
-                }
-                _ => break, // Timeout or channel closed
-            }
+            // Auto-grant consent immediately
+            let _ = o2m_consent
+                .call(O2mRequest::SetConsentDecision {
+                    source: fd1_file.clone(),
+                    destination,
+                    decision: true,
+                })
+                .await;
         }
 
         granted_destinations
