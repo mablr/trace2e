@@ -32,7 +32,7 @@
 //! enforcement and provenance tracking across the network.
 
 use std::{
-    collections::HashMap, future::Future, pin::Pin, sync::Arc, task::Poll, time::SystemTime,
+    collections::{HashMap, HashSet}, future::Future, pin::Pin, sync::Arc, task::Poll, time::SystemTime,
 };
 
 use dashmap::DashMap;
@@ -47,7 +47,7 @@ use crate::traceability::{
     },
     error::TraceabilityError,
     infrastructure::{
-        naming::{NodeId, Resource},
+        naming::{LocalizedResource, NodeId, Resource},
         validation::ResourceValidator,
     },
 };
@@ -382,8 +382,8 @@ where
                                             references
                                         );
                                         // Get local source policies
-                                        let mut source_policies = if let Some(local_references) =
-                                            references.remove(&provenance.node_id())
+                                        let mut source_policies = if let local_references =
+                                            references.iter().filter(|r| *r.node_id() == provenance.node_id()).map(|r| r.resource().to_owned()).collect::<HashSet<_>>() && !local_references.is_empty()
                                         {
                                             match compliance
                                                 .call(ComplianceRequest::GetPolicies(
@@ -392,10 +392,7 @@ where
                                                 .await?
                                             {
                                                 ComplianceResponse::Policies(policies) => {
-                                                    HashMap::from([(
-                                                        provenance.node_id(),
-                                                        policies,
-                                                    )])
+                                                    policies.iter().map(|(r, p)| LocalizedResource::new(provenance.node_id(), r.to_owned())).collect::<HashSet<_>>()
                                                 }
                                                 _ => {
                                                     return Err(
@@ -404,7 +401,7 @@ where
                                                 }
                                             }
                                         } else {
-                                            HashMap::new()
+                                            HashSet::new()
                                         };
                                         // Get remote source policies
                                         // Collect all futures without awaiting them
@@ -450,32 +447,32 @@ where
                                         return Err(TraceabilityError::InternalTrace2eError);
                                     }
                                 };
-                                match compliance
-                                    .call(ComplianceRequest::EvalPolicies {
-                                        source_policies,
-                                        destination: destination.clone(),
-                                    })
-                                    .await
-                                {
-                                    Ok(ComplianceResponse::Grant) => {
-                                        flow_map.insert(flow_id, (source, destination));
-                                        Ok(P2mResponse::Grant(flow_id))
-                                    }
-                                    Err(TraceabilityError::DirectPolicyViolation) => {
-                                        // Release the flow if the policy is violated
-                                        #[cfg(feature = "trace2e_tracing")]
-                                        info!(
-                                            "[p2m-{}] Release flow: {:?} as it is not compliant",
-                                            provenance.node_id(),
-                                            flow_id
-                                        );
-                                        sequencer
-                                            .call(SequencerRequest::ReleaseFlow { destination })
-                                            .await?;
-                                        Err(TraceabilityError::DirectPolicyViolation)
-                                    }
-                                    _ => Err(TraceabilityError::InternalTrace2eError),
-                                }
+                                // match compliance
+                                //     .call(ComplianceRequest::EvalPolicies {
+                                //         source_policies,
+                                //         destination: destination.clone(),
+                                //     })
+                                //     .await
+                                // {
+                                //     Ok(ComplianceResponse::Grant) => {
+                                //         flow_map.insert(flow_id, (source, destination));
+                                //         Ok(P2mResponse::Grant(flow_id))
+                                //     }
+                                //     Err(TraceabilityError::DirectPolicyViolation) => {
+                                //         // Release the flow if the policy is violated
+                                //         #[cfg(feature = "trace2e_tracing")]
+                                //         info!(
+                                //             "[p2m-{}] Release flow: {:?} as it is not compliant",
+                                //             provenance.node_id(),
+                                //             flow_id
+                                //         );
+                                //         sequencer
+                                //             .call(SequencerRequest::ReleaseFlow { destination })
+                                //             .await?;
+                                //         Err(TraceabilityError::DirectPolicyViolation)
+                                //     }
+                                //     _ => Err(TraceabilityError::InternalTrace2eError),
+                                // }
                             }
                             _ => Err(TraceabilityError::InternalTrace2eError),
                         }

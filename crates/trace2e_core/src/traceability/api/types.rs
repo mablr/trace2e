@@ -31,7 +31,7 @@ use std::collections::{HashMap, HashSet};
 use tokio::sync::broadcast;
 
 use crate::traceability::{
-    infrastructure::naming::Resource,
+    infrastructure::naming::{LocalizedResource, Resource},
     services::{
         compliance::{ConfidentialityPolicy, Policy},
         consent::Destination,
@@ -157,8 +157,8 @@ pub enum M2mRequest {
     /// Transfers lineage information from source to destination to maintain complete
     /// provenance chains across distributed systems.
     UpdateProvenance {
-        /// Provenance data from source resources organized by node ID
-        source_prov: HashMap<String, HashSet<Resource>>,
+        /// Provenance data from source resources
+        source_prov: HashSet<LocalizedResource>,
         /// Destination resource receiving the data and provenance updates
         destination: Resource,
     },
@@ -294,7 +294,7 @@ pub enum O2mResponse {
     ///
     /// Maps node IDs to sets of resources, showing the complete ancestry
     /// and data flow history for traceability analysis.
-    References(HashMap<String, HashSet<Resource>>),
+    References(HashSet<LocalizedResource>),
 
     /// Consent requests notifications channel.
     ///
@@ -376,7 +376,7 @@ pub enum SequencerResponse {
 /// for compliance and data governance purposes.
 #[derive(Debug, Clone)]
 pub enum ProvenanceRequest {
-    /// Retrieve the complete provenance lineage for a resource.
+    /// Retrieve the complete provenance lineage for a resource on the local node.
     ///
     /// Returns all upstream resources and nodes that have contributed data
     /// to the specified resource, enabling full traceability analysis.
@@ -399,7 +399,7 @@ pub enum ProvenanceRequest {
     /// from remote middleware instances and needs to be merged with local records.
     UpdateProvenanceRaw {
         /// Pre-computed provenance data organized by source node ID
-        source_prov: HashMap<String, HashSet<Resource>>,
+        source_prov: HashSet<LocalizedResource>,
         /// Destination resource to receive the provenance updates
         destination: Resource,
     },
@@ -414,7 +414,7 @@ pub enum ProvenanceResponse {
     ///
     /// Maps node IDs to sets of resources, showing all upstream dependencies
     /// and data sources that have contributed to the resource's current state.
-    Provenance(HashMap<String, HashSet<Resource>>),
+    Provenance(HashSet<LocalizedResource>),
 
     /// Confirmation that provenance was successfully updated with new lineage data.
     ///
@@ -440,11 +440,20 @@ pub enum ComplianceRequest {
     /// Compares source resource policies against destination requirements to determine
     /// if the flow should be authorized. Considers confidentiality, integrity, consent,
     /// and other policy constraints.
-    EvalPolicies {
-        /// Policies for source resources organized by authority node ID
-        source_policies: HashMap<String, HashMap<Resource, Policy>>,
+    EvalLocalSourcesLocalDestination {
+        /// Source resources sending data
+        sources: HashSet<Resource>,
         /// Destination resource receiving the data
         destination: Resource,
+    },
+
+    EvalLocalSourcesRemoteDestination {
+        /// Source resources sending data
+        sources: HashSet<Resource>,
+        /// Destination resource receiving the data
+        destination: LocalizedResource,
+        /// Destination node ID
+        destionation_policy: Policy,
     },
 
     /// Retrieve the current compliance policy for a specific resource.

@@ -173,6 +173,36 @@ impl Resource {
     }
 }
 
+/// Unified resource identifier for all trackable entities in the system.
+///
+/// Localized resources are resources that are associated with a specific node in a distributed system.
+/// They are used to identify resources that are local to a specific node and are used to track
+/// resources that are local to a specific node.
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
+pub struct LocalizedResource {
+    /// Node identifier for this localized resource
+    node_id: String,
+    /// Resource for this localized resource
+    resource: Resource,
+}
+
+impl LocalizedResource {
+    /// Creates a new localized resource with the specified node identifier and resource.
+    pub fn new(node_id: String, resource: Resource) -> Self {
+        Self { node_id, resource }
+    }
+
+    /// Returns the node identifier for this localized resource.
+    pub fn node_id(&self) -> &String {
+        &self.node_id
+    }
+
+    /// Returns the resource for this localized resource.
+    pub fn resource(&self) -> &Resource {
+        &self.resource
+    }
+}
+
 /// Trait for services that have a node identifier in distributed systems.
 ///
 /// This trait is implemented by services that participate in distributed

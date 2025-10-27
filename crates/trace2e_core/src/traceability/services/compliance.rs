@@ -38,7 +38,7 @@ use tracing::info;
 use crate::traceability::{
     api::types::{ComplianceRequest, ComplianceResponse},
     error::TraceabilityError,
-    infrastructure::naming::Resource,
+    infrastructure::naming::{LocalizedResource, Resource},
     services::consent::{ConsentRequest, ConsentResponse, ConsentService, Destination},
 };
 
@@ -370,12 +370,12 @@ impl ComplianceService<ConsentService> {
     /// 1. **No Deleted Resources**: Neither source nor destination is deleted or pending deletion
     /// 2. **Integrity Preservation**: Source integrity ≥ destination integrity
     /// 3. **Confidentiality Protection**: Secret data cannot flow to public destinations
-    /// 4. **Consent Required**: Both source and destination must have consent (when enforced)
+    /// 4. **Consent Required**: source resources must have consent (when enforced)
     ///
     /// # Arguments
     ///
-    /// * `source_policies` - Map of node IDs to their resource policies (sources)
-    /// * `destination_policy` - Policy of the destination resource
+    /// * `sources` - Set of source resources
+    /// * `destination` - Destination resource
     ///
     /// # Returns
     ///
@@ -394,73 +394,142 @@ impl ComplianceService<ConsentService> {
     /// - Public (integrity 3) → Public (integrity 5) - integrity violation
     /// - Secret (integrity 5) → Public (integrity 3) - confidentiality leak
     /// - Any resource without consent (when enforced)
-    ///
-    /// # Multi-Node Support
-    ///
-    /// The function supports evaluating flows that involve multiple source nodes,
-    /// checking that ALL source policies are compatible with the destination.
-    /// Node-based policies are not yet implemented.
-    async fn eval_policies(
+    async fn eval_local_sources_local_destination(
         &self,
-        source_policies: HashMap<String, HashMap<Resource, Policy>>,
+        sources: HashSet<Resource>,
         destination: Resource,
     ) -> Result<ComplianceResponse, TraceabilityError> {
         let destination_policy = self.get_policy(&destination)?;
+        let source_policies = self.get_policies(sources)?;
 
         // Collect all consent requests from source policies
         let mut consent_tasks = JoinSet::new();
 
-        // Merge local and remote source policies, ignoring the node
-        // TODO: implement node based policies
-        for (node, source_policy_batch) in source_policies {
-            for (source, source_policy) in source_policy_batch {
-                // Spawn consent request tasks in parallel
-                if source_policy.get_consent() {
-                    let mut consent_service = self.consent.clone();
-                    let source = source.clone();
-                    let dest = Destination::new(Some(node.clone()), Some(destination.clone()));
+        for (source, source_policy) in source_policies {
+            // Spawn consent request tasks in parallel
+            if source_policy.get_consent() {
+                let mut consent_service = self.consent.clone();
+                let source = source.clone();
+                let destination = Destination::new(None, Some(destination.clone()));
+                consent_tasks.spawn(async move {
+                    consent_service
+                        .call(ConsentRequest::RequestConsent { source, destination })
+                        .await
+                });
+            }
 
-                    consent_tasks.spawn(async move {
-                        consent_service
-                            .call(ConsentRequest::RequestConsent { source, destination: dest })
-                            .await
-                    });
-                }
-
-                // If the source or destination policy is deleted, the flow is not compliant
-                if source_policy.is_deleted() || destination_policy.is_deleted() {
+            // If the source or destination policy is deleted, the flow is not compliant
+            if source_policy.is_deleted() || destination_policy.is_deleted() {
+                #[cfg(feature = "trace2e_tracing")]
+                info!(
+                    "[compliance] EvalPolicies: source_policy.deleted: {:?}, destination_policy.deleted: {:?}",
+                    source_policy.is_deleted(),
+                    destination_policy.is_deleted()
+                );
+                #[cfg(feature = "enforcement_mocking")]
+                if source_policy.is_pending_deletion() {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!(
-                        "[compliance] EvalPolicies: source_policy.deleted: {:?}, destination_policy.deleted: {:?}",
-                        source_policy.is_deleted(),
-                        destination_policy.is_deleted()
-                    );
-                    #[cfg(feature = "enforcement_mocking")]
-                    if source_policy.is_pending_deletion() {
-                        #[cfg(feature = "trace2e_tracing")]
-                        info!("[compliance] Enforcing deletion policy for source");
-                    }
-                    #[cfg(feature = "enforcement_mocking")]
-                    if destination_policy.is_pending_deletion() {
-                        #[cfg(feature = "trace2e_tracing")]
-                        info!("[compliance] Enforcing deletion policy for destination");
-                    }
-
-                    return Err(TraceabilityError::DirectPolicyViolation);
+                    info!("[compliance] Enforcing deletion policy for source");
+                }
+                #[cfg(feature = "enforcement_mocking")]
+                if destination_policy.is_pending_deletion() {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[compliance] Enforcing deletion policy for destination");
                 }
 
-                // Integrity check: Source integrity must be greater than or equal to destination
-                // integrity
-                if source_policy.integrity < destination_policy.integrity {
+                return Err(TraceabilityError::DirectPolicyViolation);
+            }
+
+            // Integrity check: Source integrity must be greater than or equal to destination
+            // integrity
+            if source_policy.integrity < destination_policy.integrity {
+                return Err(TraceabilityError::DirectPolicyViolation);
+            }
+
+            // Confidentiality check: Secret data cannot flow to public destinations
+            if source_policy.confidentiality == ConfidentialityPolicy::Secret
+                && destination_policy.confidentiality == ConfidentialityPolicy::Public
+            {
+                return Err(TraceabilityError::DirectPolicyViolation);
+            }
+        }
+
+        // Await all consent requests and verify they succeed
+        while let Some(result) = consent_tasks.join_next().await {
+            let consent_response = result
+                .map_err(|_| TraceabilityError::InternalTrace2eError)?
+                .map_err(|_| TraceabilityError::InternalTrace2eError)?;
+
+            match consent_response {
+                ConsentResponse::Consent(true) => continue,
+                ConsentResponse::Consent(false) => {
                     return Err(TraceabilityError::DirectPolicyViolation);
+                }
+                _ => return Err(TraceabilityError::InternalTrace2eError),
+            }
+        }
+
+        Ok(ComplianceResponse::Grant)
+    }
+
+
+    async fn eval_local_sources_remote_destination(
+        &self,
+        sources: HashSet<Resource>,
+        destination: LocalizedResource,
+        destination_policy: Policy,
+    ) -> Result<ComplianceResponse, TraceabilityError> {
+        let source_policies = self.get_policies(sources)?;
+
+        // Collect all consent requests from source policies
+        let mut consent_tasks = JoinSet::new();
+
+        for (source, source_policy) in source_policies {
+            // Spawn consent request tasks in parallel
+            if source_policy.get_consent() {
+                let mut consent_service = self.consent.clone();
+                let source = source.clone();
+                let destination = Destination::new(Some(destination.node_id().clone()), Some(destination.resource().clone()));
+                consent_tasks.spawn(async move {
+                    consent_service
+                        .call(ConsentRequest::RequestConsent { source, destination })
+                        .await
+                });
+            }
+
+            // If the source or destination policy is deleted, the flow is not compliant
+            if source_policy.is_deleted() || destination_policy.is_deleted() {
+                #[cfg(feature = "trace2e_tracing")]
+                info!(
+                    "[compliance] EvalPolicies: source_policy.deleted: {:?}, destination_policy.deleted: {:?}",
+                    source_policy.is_deleted(),
+                    destination_policy.is_deleted()
+                );
+                #[cfg(feature = "enforcement_mocking")]
+                if source_policy.is_pending_deletion() {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[compliance] Enforcing deletion policy for source");
+                }
+                #[cfg(feature = "enforcement_mocking")]
+                if destination_policy.is_pending_deletion() {
+                    #[cfg(feature = "trace2e_tracing")]
+                    info!("[compliance] Enforcing deletion policy for destination");
                 }
 
-                // Confidentiality check: Secret data cannot flow to public destinations
-                if source_policy.confidentiality == ConfidentialityPolicy::Secret
-                    && destination_policy.confidentiality == ConfidentialityPolicy::Public
-                {
-                    return Err(TraceabilityError::DirectPolicyViolation);
-                }
+                return Err(TraceabilityError::DirectPolicyViolation);
+            }
+
+            // Integrity check: Source integrity must be greater than or equal to destination
+            // integrity
+            if source_policy.integrity < destination_policy.integrity {
+                return Err(TraceabilityError::DirectPolicyViolation);
+            }
+
+            // Confidentiality check: Secret data cannot flow to public destinations
+            if source_policy.confidentiality == ConfidentialityPolicy::Secret
+                && destination_policy.confidentiality == ConfidentialityPolicy::Public
+            {
+                return Err(TraceabilityError::DirectPolicyViolation);
             }
         }
 
@@ -685,13 +754,13 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
         let this = self.clone();
         Box::pin(async move {
             match request {
-                ComplianceRequest::EvalPolicies { source_policies, destination } => {
+                ComplianceRequest::EvalLocalSourcesLocalDestination { sources, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[compliance] CheckCompliance: source_policies: {:?}, destination: {:?}",
                         source_policies, destination
                     );
-                    this.eval_policies(source_policies, destination).await
+                    this.eval_compliance_on_local_resources(source, destination).await
                 }
                 ComplianceRequest::GetPolicy(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
