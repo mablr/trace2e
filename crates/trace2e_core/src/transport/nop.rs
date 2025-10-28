@@ -66,23 +66,21 @@ impl Service<M2mRequest> for M2mNop {
     ///
     /// # Request Handling
     ///
-    /// - **GetDestinationCompliance**: Returns a default policy with public
+    /// - **GetDestinationPolicy**: Returns a default policy with public
     ///   confidentiality, zero integrity, not deleted, and consent given
-    /// - **GetSourceCompliance**: Returns an empty policy map indicating
+    /// - **CheckSourceCompliance**: Returns an empty policy map indicating
     ///   no source policies are available
     /// - **UpdateProvenance**: Acknowledges the request without performing
     ///   any provenance updates
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         Box::pin(async move {
             Ok(match request {
-                M2mRequest::GetDestinationCompliance { .. } => {
-                    M2mResponse::DestinationCompliance(Policy::default())
+                M2mRequest::GetDestinationPolicy { .. } => {
+                    M2mResponse::DestinationPolicy(Policy::default())
                 }
-                M2mRequest::GetSourceCompliance { .. } => {
-                    M2mResponse::SourceCompliance(HashMap::new())
-                }
-                M2mRequest::UpdateProvenance { .. } => M2mResponse::Ack,
-                M2mRequest::BroadcastDeletion(_) => M2mResponse::Ack,
+                M2mRequest::CheckSourceCompliance { .. }
+                | M2mRequest::UpdateProvenance { .. }
+                | M2mRequest::BroadcastDeletion(_) => M2mResponse::Ack,
             })
         })
     }

@@ -169,13 +169,13 @@ pub enum M2mResponse {
     ///
     /// Maps each resource to its current policy, enabling the requesting middleware
     /// to evaluate flow compliance before authorization.
-    SourceCompliance(HashMap<Resource, Policy>),
+    SourcePolicies(HashMap<Resource, Policy>),
 
     /// Compliance policy for a specific destination resource.
     ///
     /// Contains the current policy that will be applied to incoming data flows
     /// to the requested destination resource.
-    DestinationCompliance(Policy),
+    DestinationPolicy(Policy),
 
     /// Acknowledgment of successful request processing.
     ///
@@ -237,7 +237,7 @@ pub enum O2mRequest {
     /// Broadcast the deletion of a resource to all middleware instances.
     ///
     /// Uses M2M API to broadcast the deletion to all middleware instances.
-    BroadcastDeletion(Resource),
+    BroadcastDeletion(LocalizedResource),
 
     /// Enforce consent for data processing operations on a resource.
     ///
@@ -273,7 +273,7 @@ pub enum O2mResponse {
     ///
     /// Maps each requested resource to its current policy configuration,
     /// enabling operators to review and audit policy settings.
-    Policies(HashMap<Resource, Policy>),
+    Policies(HashMap<LocalizedResource, Policy>),
 
     /// Acknowledgment of successful policy update or configuration change.
     ///

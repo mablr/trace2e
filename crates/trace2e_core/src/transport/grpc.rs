@@ -80,7 +80,7 @@ use crate::{
     traceability::{
         api::types::{M2mRequest, M2mResponse, O2mRequest, O2mResponse, P2mRequest, P2mResponse},
         error::TraceabilityError,
-        infrastructure::naming::{Fd, File, Process, Resource, Stream},
+        infrastructure::naming::{Fd, File, LocalizedResource, Process, Resource, Stream},
         services::{
             compliance::{ConfidentialityPolicy, Policy},
             consent::Destination,
@@ -207,52 +207,55 @@ impl Service<M2mRequest> for M2mGrpc {
             let remote_ip = eval_remote_ip(request.clone())?;
             let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
             match request {
-                M2mRequest::GetDestinationCompliance { source, destination } => {
+                M2mRequest::GetDestinationPolicy(destination) => {
                     // Create the protobuf request
-                    let proto_req = proto::messages::GetDestinationCompliance {
-                        source: Some(source.into()),
+                    let proto_req = proto::messages::GetDestinationPolicy {
                         destination: Some(destination.into()),
                     };
 
                     // Make the gRPC call
                     let response = client
-                        .m2m_destination_compliance(Request::new(proto_req))
+                        .m2m_destination_policy(Request::new(proto_req))
                         .await
                         .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
                         .into_inner();
-                    Ok(M2mResponse::DestinationCompliance(
+                    Ok(M2mResponse::DestinationPolicy(
                         response.policy.map(|policy| policy.into()).unwrap_or_default(),
                     ))
                 }
-                M2mRequest::GetSourceCompliance { resources, .. } => {
+                M2mRequest::CheckSourceCompliance { sources, destination } => {
                     // Create the protobuf request
-                    let proto_req = proto::messages::GetSourceCompliance {
-                        resources: resources.into_iter().map(|r| r.into()).collect(),
+                    let proto_req = proto::messages::CheckSourceCompliance {
+                        sources: sources.into_iter().map(|r| r.into()).collect(),
+                        destination: Some(destination.into()),
                     };
 
                     // Make the gRPC call
-                    let response = client
-                        .m2m_source_compliance(Request::new(proto_req))
-                        .await
-                        .map_err(|_| TraceabilityError::TransportFailedToContactRemote(remote_ip))?
-                        .into_inner();
-                    Ok(M2mResponse::SourceCompliance(
-                        response
-                            .policies
-                            .into_iter()
-                            .map(|policy| {
-                                (
-                                    policy.resource.map(|r| r.into()).unwrap_or_default(),
-                                    policy.policy.map(|p| p.into()).unwrap_or_default(),
-                                )
-                            })
-                            .collect(),
-                    ))
+                    match client.m2m_check_source_compliance(Request::new(proto_req)).await {
+                        Ok(response) => Ok(M2mResponse::Ack),
+                        _ => Err(TraceabilityError::InternalTrace2eError), // TODO improve error handling
+                    }
                 }
                 M2mRequest::UpdateProvenance { source_prov, destination } => {
+                    // Group LocalizedResources by node_id
+                    let mut grouped: HashMap<String, Vec<proto::primitives::Resource>> =
+                        HashMap::new();
+                    for lr in source_prov {
+                        grouped
+                            .entry(lr.node_id().clone())
+                            .or_insert_with(Vec::new)
+                            .push(lr.resource().clone().into());
+                    }
+
+                    // Convert to Vec<References>
+                    let source_prov_proto: Vec<proto::primitives::References> = grouped
+                        .into_iter()
+                        .map(|(node, resources)| proto::primitives::References { node, resources })
+                        .collect();
+
                     // Create the protobuf request
                     let proto_req = proto::messages::UpdateProvenance {
-                        source_prov: source_prov.into_iter().map(|s| s.into()).collect(),
+                        source_prov: source_prov_proto,
                         destination: Some(destination.into()),
                     };
 
@@ -692,7 +695,17 @@ where
         let req = request.into_inner();
         let mut o2m = self.o2m.clone();
         match o2m.call(req.into()).await? {
-            O2mResponse::References(references) => Ok(Response::new(references.into())),
+            O2mResponse::References(references) => {
+                // Group LocalizedResources by node_id
+                let mut grouped: HashMap<String, HashSet<Resource>> = HashMap::new();
+                for lr in references {
+                    grouped
+                        .entry(lr.node_id().clone())
+                        .or_insert_with(HashSet::new)
+                        .insert(lr.resource().clone());
+                }
+                Ok(Response::new(grouped.into()))
+            }
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
@@ -741,11 +754,34 @@ impl From<proto::primitives::References> for (String, HashSet<Resource>) {
     }
 }
 
+/// Converts Protocol Buffer References to LocalizedResource.
+impl From<proto::primitives::References> for HashSet<LocalizedResource> {
+    fn from(references: proto::primitives::References) -> Self {
+        references
+            .resources
+            .into_iter()
+            .map(|r| LocalizedResource::new(references.node.clone(), r.into()))
+            .collect()
+    }
+}
+
 /// Converts Protocol Buffer UpdateProvenance request to internal M2M request.
 impl From<proto::messages::UpdateProvenance> for M2mRequest {
     fn from(req: proto::messages::UpdateProvenance) -> Self {
+        // Convert Vec<References> to HashSet<LocalizedResource>
+        let source_prov: HashSet<LocalizedResource> = req
+            .source_prov
+            .into_iter()
+            .flat_map(|refs: proto::primitives::References| {
+                let node_id = refs.node.clone();
+                refs.resources
+                    .into_iter()
+                    .map(move |r| LocalizedResource::new(node_id.clone(), r.into()))
+            })
+            .collect();
+
         M2mRequest::UpdateProvenance {
-            source_prov: req.source_prov.into_iter().map(|s| s.into()).collect(),
+            source_prov,
             destination: req.destination.map(|d| d.into()).unwrap_or_default(),
         }
     }

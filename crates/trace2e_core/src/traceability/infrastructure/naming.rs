@@ -23,7 +23,7 @@
 //! Resources can be constructed using dedicated factory methods that handle system queries
 //! and validation, or using mock variants for testing purposes.
 
-use std::fmt::Debug;
+use std::{fmt::Debug, net::SocketAddr};
 
 use sysinfo::{Pid, System};
 
@@ -164,9 +164,14 @@ impl Resource {
     /// For stream resources, returns a new resource with the local and peer
     /// socket addresses swapped. This is useful for tracking bidirectional
     /// flows. Returns None for non-stream resources.
-    pub fn into_peer_stream(&self) -> Option<Self> {
-        if let Resource::Fd(Fd::Stream(stream)) = self {
-            Some(Self::new_stream(stream.peer_socket.to_owned(), stream.local_socket.to_owned()))
+    pub fn into_localized_peer_stream(&self) -> Option<LocalizedResource> {
+        if let Resource::Fd(Fd::Stream(stream)) = self
+            && let Ok(peer_socket) = stream.peer_socket.parse::<SocketAddr>()
+        {
+            Some(LocalizedResource::new(
+                peer_socket.ip().to_string(),
+                Resource::new_stream(stream.local_socket.to_owned(), stream.peer_socket.to_owned()),
+            ))
         } else {
             None
         }

@@ -124,7 +124,7 @@ where
                             match compliance.call(ComplianceRequest::GetPolicy(destination)).await?
                             {
                                 ComplianceResponse::Policy(policy) => {
-                                    Ok(M2mResponse::DestinationCompliance(policy))
+                                    Ok(M2mResponse::DestinationPolicy(policy))
                                 }
                                 _ => Err(TraceabilityError::InternalTrace2eError),
                             }

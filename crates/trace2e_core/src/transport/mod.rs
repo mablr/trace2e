@@ -64,16 +64,14 @@ pub mod nop;
 /// - The request type doesn't contain routing information
 pub fn eval_remote_ip(req: M2mRequest) -> Result<String, TraceabilityError> {
     match req {
-        M2mRequest::GetDestinationCompliance { destination, .. }
-        | M2mRequest::UpdateProvenance { destination, .. } => match destination {
-            // Local socket is the remote socket of the remote stream
-            Resource::Fd(Fd::Stream(stream)) => match stream.local_socket.parse::<SocketAddr>() {
-                Ok(addr) => Ok(addr.ip().to_string()),
-                Err(_) => Err(TraceabilityError::TransportFailedToEvaluateRemote),
-            },
-            _ => Err(TraceabilityError::TransportFailedToEvaluateRemote),
-        },
-        M2mRequest::GetSourceCompliance { authority_ip, .. } => Ok(authority_ip),
+        M2mRequest::GetDestinationPolicy(destination)
+        | M2mRequest::UpdateProvenance { destination, .. } => Ok(destination.node_id().clone()),
+        M2mRequest::CheckSourceCompliance { sources, .. } => Ok(sources
+            .iter()
+            .next()
+            .ok_or(TraceabilityError::TransportFailedToEvaluateRemote)?
+            .node_id()
+            .clone()),
         M2mRequest::BroadcastDeletion(_) => Ok("*".to_string()),
     }
 }

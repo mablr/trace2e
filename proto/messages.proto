@@ -39,21 +39,17 @@ message Grant {
 }
 
 // M2M specific messages
-message GetDestinationCompliance {
-    primitives.Resource source = 1;
+message GetDestinationPolicy {
     primitives.Resource destination = 2;
 }
 
-message GetSourceCompliance {
-    repeated primitives.Resource resources = 1;
+message CheckSourceCompliance {
+    repeated primitives.Resource sources = 1;
+    primitives.Resource destination = 2;
 }
 
-message DestinationCompliance {
+message DestinationPolicy {
     primitives.Policy policy = 1;
-}
-
-message SourceCompliance {
-    repeated primitives.MappedPolicy policies = 1;
 }
 
 message UpdateProvenance {

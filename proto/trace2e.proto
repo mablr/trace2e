@@ -17,8 +17,8 @@ service P2m {
 
 service M2m {
     // Middleware to Middleware operations
-    rpc M2MDestinationCompliance(messages.GetDestinationCompliance) returns (messages.DestinationCompliance);
-    rpc M2MSourceCompliance(messages.GetSourceCompliance) returns (messages.SourceCompliance);
+    rpc M2MDestinationPolicy(messages.GetDestinationPolicy) returns (messages.DestinationPolicy);
+    rpc M2MCheckSourceCompliance(messages.CheckSourceCompliance) returns (messages.Ack);
     rpc M2MUpdateProvenance(messages.UpdateProvenance) returns (messages.Ack);
     rpc M2MBroadcastDeletion(primitives.Resource) returns (messages.Ack);
 }
