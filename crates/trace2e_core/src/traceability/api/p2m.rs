@@ -32,7 +32,7 @@
 //! enforcement and provenance tracking across the network.
 
 use std::{
-    collections::{HashMap, HashSet}, future::Future, pin::Pin, sync::Arc, task::Poll, time::SystemTime,
+    collections::HashSet, future::Future, pin::Pin, sync::Arc, task::Poll, time::SystemTime,
 };
 
 use dashmap::DashMap;
