@@ -129,27 +129,18 @@ pub enum P2mResponse {
 /// for cross-node data flows and distributed policy enforcement.
 #[derive(Debug, Clone)]
 pub enum M2mRequest {
-    /// Request compliance policies for a destination resource from its authoritative middleware.
-    ///
-    /// Used when a local middleware needs to evaluate whether a data flow to a remote
-    /// resource is permitted. The source middleware queries the destination middleware
-    /// to obtain current policies before authorizing the operation.
-    GetDestinationCompliance {
-        /// Source resource where data originates
-        source: Resource,
-        /// Destination resource where data will be written
-        destination: Resource,
-    },
+    /// Request policy for a destination resource from its authoritative middleware.
+    GetDestinationPolicy(LocalizedResource),
 
     /// Request compliance policies for source resources from their authoritative middleware.
     ///
     /// Used by destination middleware to verify that incoming data flows comply with
     /// source policies and organizational requirements.
-    GetSourceCompliance {
-        /// IP address of the authoritative middleware for the source resources
-        authority_ip: String,
+    CheckSourceCompliance {
         /// Set of source resources to query policies for
-        resources: HashSet<Resource>,
+        sources: HashSet<LocalizedResource>,
+        /// Destination resource and its policy, to be used for compliance checking
+        destination: (LocalizedResource, Policy),
     },
 
     /// Update provenance records on the destination middleware following a cross-node data flow.
@@ -160,13 +151,13 @@ pub enum M2mRequest {
         /// Provenance data from source resources
         source_prov: HashSet<LocalizedResource>,
         /// Destination resource receiving the data and provenance updates
-        destination: Resource,
+        destination: LocalizedResource,
     },
 
     /// Broadcast Deletion of a resource
     ///
     /// Broadcast the deletion of a resource to all middleware instances.
-    BroadcastDeletion(Resource),
+    BroadcastDeletion(LocalizedResource),
 }
 
 /// Middleware-to-Middleware (M2M) response types.

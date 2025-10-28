@@ -64,8 +64,8 @@ pub enum TraceabilityError {
     #[error("Traceability error, destination policy not found")]
     DestinationPolicyNotFound,
 
-    #[error("Traceability error, invalid destination, bad request routing")]
-    InvalidDestination,
+    #[error("Traceability error, not a local resource, bad request routing")]
+    NotLocalResource,
 
     #[error("Traceability error, failed to contact remote middleware ({0})")]
     TransportFailedToContactRemote(String),

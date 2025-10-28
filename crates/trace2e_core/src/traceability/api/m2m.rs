@@ -29,7 +29,7 @@
 //! The service handles these conditions gracefully and provides appropriate error
 //! responses for downstream handling.
 
-use std::{future::Future, pin::Pin, task::Poll};
+use std::{collections::HashSet, future::Future, pin::Pin, task::Poll};
 
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
@@ -41,7 +41,7 @@ use crate::traceability::{
         ProvenanceResponse, SequencerRequest, SequencerResponse,
     },
     error::TraceabilityError,
-    infrastructure::naming::NodeId,
+    infrastructure::naming::{NodeId, Resource},
 };
 
 /// M2M (Middleware-to-Middleware) API Service
@@ -100,17 +100,22 @@ where
         let mut compliance = self.compliance.clone();
         Box::pin(async move {
             match request {
-                M2mRequest::GetDestinationCompliance { source, destination } => {
+                M2mRequest::GetDestinationPolicy(destination) => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[m2m-{}] GetDestinationCompliance: source: {:?}, destination: {:?}",
+                        "[m2m-{}] GetDestinationPolicy: destination: {:?}",
                         provenance.node_id(),
-                        source,
                         destination
                     );
+                    // check if the destination is local
+                    let destination = if *destination.node_id() == provenance.node_id() {
+                        destination.resource().to_owned()
+                    } else {
+                        return Err(TraceabilityError::NotLocalResource);
+                    };
                     match sequencer
                         .call(SequencerRequest::ReserveFlow {
-                            source,
+                            source: Resource::None, // placeholder for remote source resource
                             destination: destination.clone(),
                         })
                         .await?
@@ -127,17 +132,29 @@ where
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
-                M2mRequest::GetSourceCompliance { resources, .. } => {
+                M2mRequest::CheckSourceCompliance { sources, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[m2m-{}] GetSourceCompliance: resources: {:?}",
+                        "[m2m-{}] CheckSourceCompliance: sources: {:?}, destination: {:?}",
                         provenance.node_id(),
-                        resources
+                        sources,
+                        destination
                     );
-                    match compliance.call(ComplianceRequest::GetPolicies(resources)).await? {
-                        ComplianceResponse::Policies(policies) => {
-                            Ok(M2mResponse::SourceCompliance(policies))
-                        }
+                    let sources = sources
+                        .iter()
+                        .filter(|r| *r.node_id() == provenance.node_id())
+                        .map(|r| r.resource().to_owned())
+                        .collect::<HashSet<_>>(); // TODO: return error if remote resources are found
+                    match compliance
+                        .call(ComplianceRequest::EvalCompliance {
+                            sources,
+                            destination: destination.0,
+                            destination_policy: Some(destination.1),
+                        })
+                        .await
+                    {
+                        Ok(ComplianceResponse::Grant) => Ok(M2mResponse::Ack),
+                        Err(e) => Err(e),
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
                 }
@@ -149,6 +166,12 @@ where
                         source_prov,
                         destination
                     );
+                    // check if the destination is local
+                    let destination = if *destination.node_id() == provenance.node_id() {
+                        destination.resource().to_owned()
+                    } else {
+                        return Err(TraceabilityError::NotLocalResource);
+                    };
                     match provenance
                         .call(ProvenanceRequest::UpdateProvenanceRaw {
                             source_prov,
@@ -176,9 +199,17 @@ where
                         provenance.node_id(),
                         resource
                     );
-                    match compliance.call(ComplianceRequest::SetDeleted(resource)).await? {
-                        ComplianceResponse::PolicyUpdated => Ok(M2mResponse::Ack),
-                        _ => Err(TraceabilityError::InternalTrace2eError),
+                    // check if the destination is local
+                    if *resource.node_id() == provenance.node_id() {
+                        match compliance
+                            .call(ComplianceRequest::SetDeleted(resource.resource().to_owned()))
+                            .await?
+                        {
+                            ComplianceResponse::PolicyUpdated => Ok(M2mResponse::Ack),
+                            _ => Err(TraceabilityError::InternalTrace2eError),
+                        }
+                    } else {
+                        Err(TraceabilityError::NotLocalResource)
                     }
                 }
             }
