@@ -308,21 +308,13 @@ impl Policy {
 /// - Unknown resources get default policies automatically
 /// - More forgiving for dynamic resource discovery
 ///
-/// ## Cache Mode
-/// - Used primarily in testing
-/// - Unknown resources cause `PolicyNotFound` errors
-/// - Enforces explicit policy management
-///
 /// # Error Handling
 ///
 /// The service returns `TraceabilityError` for various failure conditions:
-/// - `PolicyNotFound` - Resource not found (in cache mode)
 /// - `DirectPolicyViolation` - Flow violates compliance rules
 /// - `InternalTrace2eError` - Internal service errors
 #[derive(Clone, Debug)]
 pub struct ComplianceService<C = ConsentService> {
-    /// Whether to operate in cache mode (true) or normal mode (false)
-    cache_mode: bool,
     /// Thread-safe storage for resource policies
     policies: Arc<DashMap<Resource, Policy>>,
     /// Consent service
@@ -331,30 +323,13 @@ pub struct ComplianceService<C = ConsentService> {
 
 impl Default for ComplianceService {
     fn default() -> Self {
-        Self {
-            cache_mode: false,
-            policies: Arc::new(DashMap::new()),
-            consent: ConsentService::default(),
-        }
+        Self { policies: Arc::new(DashMap::new()), consent: ConsentService::default() }
     }
 }
 
 impl ComplianceService<ConsentService> {
     pub fn new_with_consent(consent: ConsentService) -> Self {
-        Self { cache_mode: false, policies: Arc::new(DashMap::new()), consent }
-    }
-
-    /// Creates a new PolicyMap in cache mode for testing purposes.
-    ///
-    /// In cache mode, requests for unknown resources will return
-    /// `PolicyNotFound` errors instead of default policies.
-    #[cfg(test)]
-    fn init_cache() -> Self {
-        Self {
-            cache_mode: true,
-            policies: Arc::new(DashMap::new()),
-            consent: ConsentService::default(),
-        }
+        Self { policies: Arc::new(DashMap::new()), consent }
     }
 
     /// Evaluates whether a data flow is compliant with the given policies.
@@ -472,7 +447,6 @@ impl ComplianceService<ConsentService> {
         Ok(ComplianceResponse::Grant)
     }
 
-
     async fn eval_local_sources_remote_destination(
         &self,
         sources: HashSet<Resource>,
@@ -489,7 +463,10 @@ impl ComplianceService<ConsentService> {
             if source_policy.get_consent() {
                 let mut consent_service = self.consent.clone();
                 let source = source.clone();
-                let destination = Destination::new(Some(destination.node_id().clone()), Some(destination.resource().clone()));
+                let destination = Destination::new(
+                    Some(destination.node_id().clone()),
+                    Some(destination.resource().clone()),
+                );
                 consent_tasks.spawn(async move {
                     consent_service
                         .call(ConsentRequest::RequestConsent { source, destination })
@@ -553,39 +530,16 @@ impl ComplianceService<ConsentService> {
 }
 
 impl ComplianceService {
-    /// Retrieves the policy for a specific resource.
-    ///
-    /// # Behavior by Mode
-    ///
-    /// - **Normal mode**: Returns default policy if resource not found
-    /// - **Cache mode**: Returns `PolicyNotFound` error if resource not found
+    /// Retrieves the policy for a specific resource, inserts a default policy and returns it if not found
     ///
     /// # Arguments
     ///
     /// * `resource` - The resource to look up
-    ///
-    /// # Errors
-    ///
-    /// Returns `PolicyNotFound` error in cache mode when the resource is not found.
-    fn get_policy(&self, resource: &Resource) -> Result<Policy, TraceabilityError> {
-        self.policies.get(resource).map(|p| p.to_owned()).map_or(
-            if self.cache_mode {
-                Err(TraceabilityError::PolicyNotFound(resource.to_owned()))
-            } else {
-                Ok(Policy::default())
-            },
-            Ok,
-        )
+    fn get_policy(&self, resource: &Resource) -> Policy {
+        self.policies.entry(resource.clone()).or_insert_with(|| Policy::default()).to_owned()
     }
 
     /// Retrieves policies for a set of resources.
-    ///
-    /// Stream resources are automatically filtered out as they don't have policies.
-    ///
-    /// # Behavior by Mode
-    ///
-    /// - **Normal mode**: Unknown resources get default policies
-    /// - **Cache mode**: Unknown resources cause the entire operation to fail
     ///
     /// # Arguments
     ///
@@ -594,10 +548,6 @@ impl ComplianceService {
     /// # Returns
     ///
     /// A map from resources to their policies, excluding stream resources.
-    ///
-    /// # Errors
-    ///
-    /// Returns `PolicyNotFound` error in cache mode when any resource is not found.
     fn get_policies(
         &self,
         resources: HashSet<Resource>,
@@ -606,13 +556,7 @@ impl ComplianceService {
         for resource in resources {
             // Get the policy from the local policies, streams have no policies
             if resource.is_stream().is_none() {
-                if let Ok(policy) = self.get_policy(&resource) {
-                    policies_set.insert(resource, policy);
-                } else if !self.cache_mode {
-                    policies_set.insert(resource, Policy::default());
-                } else {
-                    return Err(TraceabilityError::PolicyNotFound(resource));
-                }
+                policies_set.insert(resource.clone(), self.get_policy(&resource));
             }
         }
         Ok(policies_set)
@@ -1184,138 +1128,6 @@ mod tests {
                 .await
                 .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
         );
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_cache_mode_policy_not_found() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-
-        let cache_policy_map = ComplianceService::init_cache();
-        let process = Resource::new_process_mock(0);
-
-        // In cache mode, requesting policy for non-existent resource should return PolicyNotFound error
-        assert!(
-            cache_policy_map.get_policies(HashSet::from([process.clone()])).is_err_and(
-                |e| matches!(e, TraceabilityError::PolicyNotFound(res) if res == process)
-            )
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_normal_mode_vs_cache_mode() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-
-        let normal_policy_map = ComplianceService::default();
-        let cache_policy_map = ComplianceService::init_cache();
-        let process = Resource::new_process_mock(0);
-
-        // Normal mode should return default policy when resource not found
-        assert_eq!(
-            normal_policy_map.get_policies(HashSet::from([process.clone()])).unwrap(),
-            HashMap::from([(process.clone(), Policy::default())])
-        );
-
-        // Cache mode should return PolicyNotFound error when resource not found
-        assert!(
-            cache_policy_map.get_policies(HashSet::from([process.clone()])).is_err_and(
-                |e| matches!(e, TraceabilityError::PolicyNotFound(res) if res == process)
-            )
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_cache_mode_with_existing_policies() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-
-        let cache_policy_map = ComplianceService::init_cache();
-        let process = Resource::new_process_mock(0);
-
-        let policy =
-            Policy::new(ConfidentialityPolicy::Secret, 7, DeletionPolicy::NotDeleted, true);
-
-        // Set policy first
-        cache_policy_map.set_policy(process.clone(), policy.clone());
-
-        // Now getting policy should work in cache mode
-        assert_eq!(
-            cache_policy_map.get_policies(HashSet::from([process.clone()])).unwrap(),
-            HashMap::from([(process, policy)])
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_cache_mode_mixed_resources() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-
-        let cache_policy_map = ComplianceService::init_cache();
-        let process1 = Resource::new_process_mock(1);
-        let process2 = Resource::new_process_mock(2);
-
-        let policy1 = Policy {
-            confidentiality: ConfidentialityPolicy::Public,
-            integrity: 3,
-            deleted: DeletionPolicy::NotDeleted,
-            consent: true,
-        };
-
-        // Set policy only for process1
-        cache_policy_map.set_policy(process1.clone(), policy1);
-
-        // Request policies for both processes - should fail because process2 has no policy
-        assert!(
-            cache_policy_map.get_policies(HashSet::from([process1, process2.clone()])).is_err_and(
-                |e| matches!(e, TraceabilityError::PolicyNotFound(res) if res == process2)
-            )
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_cache_mode_empty_request() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-
-        let cache_policy_map = ComplianceService::init_cache();
-
-        // Empty request should work the same in both modes
-        assert_eq!(cache_policy_map.get_policies(HashSet::new()).unwrap(), HashMap::new());
-    }
-
-    #[tokio::test]
-    async fn unit_deletion_policy_state_transitions() {
-        init_tracing();
-
-        // Test 1: Initial state and is_deleted/is_pending methods
-        let mut policy = Policy::default();
-        assert!(!policy.is_deleted());
-        assert!(!policy.is_pending_deletion());
-
-        // Test 2: Transition from NotDeleted to Pending via deletion_request
-        policy.deleted();
-        assert!(policy.is_deleted()); // Pending counts as deleted
-        assert!(policy.is_pending_deletion());
-
-        // Test 3: Multiple calls to deletion_request on Pending should not change state
-        policy.deleted();
-        assert!(policy.is_deleted());
-        assert!(policy.is_pending_deletion());
-
-        // Test 4: Transition from Pending to Deleted via deletion_applied
-        policy.deletion_enforced();
-        assert!(policy.is_deleted());
-        assert!(!policy.is_pending_deletion());
-
-        // Test 5: Multiple calls to deletion_applied on Deleted should not change state
-        policy.deletion_enforced();
-        assert!(policy.is_deleted());
-        assert!(!policy.is_pending_deletion());
-
-        // Test 6: Test From<bool> conversion
-        assert_eq!(DeletionPolicy::from(true), DeletionPolicy::Deleted);
-        assert_eq!(DeletionPolicy::from(false), DeletionPolicy::NotDeleted);
     }
 
     #[tokio::test]
