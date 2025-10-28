@@ -151,12 +151,20 @@ impl Resource {
         matches!(self, Resource::Fd(Fd::File(_)))
     }
 
-    /// Returns the reverse stream resource if this is a stream resource.
+    /// Checks if this resource represents a network stream.
+    ///
+    /// Returns true if the resource is a file descriptor pointing to a stream,
+    /// false for files, processes, or null resources.
+    pub fn is_stream(&self) -> bool {
+        matches!(self, Resource::Fd(Fd::Stream(_)))
+    }
+
+    /// Returns the peer stream resource if this is a stream resource.
     ///
     /// For stream resources, returns a new resource with the local and peer
     /// socket addresses swapped. This is useful for tracking bidirectional
     /// flows. Returns None for non-stream resources.
-    pub fn is_stream(&self) -> Option<Self> {
+    pub fn into_peer_stream(&self) -> Option<Self> {
         if let Resource::Fd(Fd::Stream(stream)) = self {
             Some(Self::new_stream(stream.peer_socket.to_owned(), stream.local_socket.to_owned()))
         } else {

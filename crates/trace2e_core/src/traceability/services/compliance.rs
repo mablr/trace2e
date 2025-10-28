@@ -38,7 +38,7 @@ use tracing::info;
 use crate::traceability::{
     api::types::{ComplianceRequest, ComplianceResponse},
     error::TraceabilityError,
-    infrastructure::naming::{LocalizedResource, Resource},
+    infrastructure::naming::LocalizedResource,
     services::consent::{ConsentRequest, ConsentResponse, ConsentService, Destination},
 };
 
@@ -315,21 +315,37 @@ impl Policy {
 /// - `InternalTrace2eError` - Internal service errors
 #[derive(Clone, Debug)]
 pub struct ComplianceService<C = ConsentService> {
+    /// Node ID
+    node_id: String,
     /// Thread-safe storage for resource policies
-    policies: Arc<DashMap<Resource, Policy>>,
+    policies: Arc<DashMap<LocalizedResource, Policy>>,
     /// Consent service
     consent: C,
 }
 
 impl Default for ComplianceService {
     fn default() -> Self {
-        Self { policies: Arc::new(DashMap::new()), consent: ConsentService::default() }
+        Self {
+            node_id: String::new(),
+            policies: Arc::new(DashMap::new()),
+            consent: ConsentService::default(),
+        }
     }
 }
 
 impl ComplianceService<ConsentService> {
-    pub fn new_with_consent(consent: ConsentService) -> Self {
-        Self { policies: Arc::new(DashMap::new()), consent }
+    /// Creates a new compliance service with the specified node ID and consent service.
+    ///
+    /// # Arguments
+    ///
+    /// * `node_id` - The node ID
+    /// * `consent` - The consent service
+    ///
+    /// # Returns
+    ///
+    /// A new compliance service.
+    pub fn new(node_id: String, consent: ConsentService) -> Self {
+        Self { node_id, policies: Arc::new(DashMap::new()), consent }
     }
 
     /// Evaluates whether a data flow is compliant with the given policies.
@@ -369,90 +385,17 @@ impl ComplianceService<ConsentService> {
     /// - Public (integrity 3) → Public (integrity 5) - integrity violation
     /// - Secret (integrity 5) → Public (integrity 3) - confidentiality leak
     /// - Any resource without consent (when enforced)
-    async fn eval_local_sources_local_destination(
+    async fn eval_compliance(
         &self,
-        sources: HashSet<Resource>,
-        destination: Resource,
-    ) -> Result<ComplianceResponse, TraceabilityError> {
-        let destination_policy = self.get_policy(&destination)?;
-        let source_policies = self.get_policies(sources)?;
-
-        // Collect all consent requests from source policies
-        let mut consent_tasks = JoinSet::new();
-
-        for (source, source_policy) in source_policies {
-            // Spawn consent request tasks in parallel
-            if source_policy.get_consent() {
-                let mut consent_service = self.consent.clone();
-                let source = source.clone();
-                let destination = Destination::new(None, Some(destination.clone()));
-                consent_tasks.spawn(async move {
-                    consent_service
-                        .call(ConsentRequest::RequestConsent { source, destination })
-                        .await
-                });
-            }
-
-            // If the source or destination policy is deleted, the flow is not compliant
-            if source_policy.is_deleted() || destination_policy.is_deleted() {
-                #[cfg(feature = "trace2e_tracing")]
-                info!(
-                    "[compliance] EvalPolicies: source_policy.deleted: {:?}, destination_policy.deleted: {:?}",
-                    source_policy.is_deleted(),
-                    destination_policy.is_deleted()
-                );
-                #[cfg(feature = "enforcement_mocking")]
-                if source_policy.is_pending_deletion() {
-                    #[cfg(feature = "trace2e_tracing")]
-                    info!("[compliance] Enforcing deletion policy for source");
-                }
-                #[cfg(feature = "enforcement_mocking")]
-                if destination_policy.is_pending_deletion() {
-                    #[cfg(feature = "trace2e_tracing")]
-                    info!("[compliance] Enforcing deletion policy for destination");
-                }
-
-                return Err(TraceabilityError::DirectPolicyViolation);
-            }
-
-            // Integrity check: Source integrity must be greater than or equal to destination
-            // integrity
-            if source_policy.integrity < destination_policy.integrity {
-                return Err(TraceabilityError::DirectPolicyViolation);
-            }
-
-            // Confidentiality check: Secret data cannot flow to public destinations
-            if source_policy.confidentiality == ConfidentialityPolicy::Secret
-                && destination_policy.confidentiality == ConfidentialityPolicy::Public
-            {
-                return Err(TraceabilityError::DirectPolicyViolation);
-            }
-        }
-
-        // Await all consent requests and verify they succeed
-        while let Some(result) = consent_tasks.join_next().await {
-            let consent_response = result
-                .map_err(|_| TraceabilityError::InternalTrace2eError)?
-                .map_err(|_| TraceabilityError::InternalTrace2eError)?;
-
-            match consent_response {
-                ConsentResponse::Consent(true) => continue,
-                ConsentResponse::Consent(false) => {
-                    return Err(TraceabilityError::DirectPolicyViolation);
-                }
-                _ => return Err(TraceabilityError::InternalTrace2eError),
-            }
-        }
-
-        Ok(ComplianceResponse::Grant)
-    }
-
-    async fn eval_local_sources_remote_destination(
-        &self,
-        sources: HashSet<Resource>,
+        sources: HashSet<LocalizedResource>,
         destination: LocalizedResource,
-        destination_policy: Policy,
+        destination_policy: Option<Policy>,
     ) -> Result<ComplianceResponse, TraceabilityError> {
+        // Get the destination policy if it is local or use the provided policy
+        let destination_policy = self
+            .get_policy(&destination)
+            .or(destination_policy.ok_or(TraceabilityError::DestinationPolicyNotFound))?;
+
         let source_policies = self.get_policies(sources)?;
 
         // Collect all consent requests from source policies
@@ -462,14 +405,16 @@ impl ComplianceService<ConsentService> {
             // Spawn consent request tasks in parallel
             if source_policy.get_consent() {
                 let mut consent_service = self.consent.clone();
-                let source = source.clone();
                 let destination = Destination::new(
-                    Some(destination.node_id().clone()),
-                    Some(destination.resource().clone()),
+                    Some(destination.node_id().to_owned()),
+                    Some(destination.resource().to_owned()),
                 );
                 consent_tasks.spawn(async move {
                     consent_service
-                        .call(ConsentRequest::RequestConsent { source, destination })
+                        .call(ConsentRequest::RequestConsent {
+                            source: source.resource().to_owned(),
+                            destination,
+                        })
                         .await
                 });
             }
@@ -530,13 +475,26 @@ impl ComplianceService<ConsentService> {
 }
 
 impl ComplianceService {
+    /// Returns true if the resource is local to the node, otherwise returns false
+    fn is_local_resource(&self, resource: &LocalizedResource) -> bool {
+        *resource.node_id() == self.node_id
+    }
+
     /// Retrieves the policy for a specific resource, inserts a default policy and returns it if not found
     ///
     /// # Arguments
     ///
     /// * `resource` - The resource to look up
-    fn get_policy(&self, resource: &Resource) -> Policy {
-        self.policies.entry(resource.clone()).or_insert_with(|| Policy::default()).to_owned()
+    fn get_policy(&self, resource: &LocalizedResource) -> Result<Policy, TraceabilityError> {
+        if self.is_local_resource(resource) {
+            Ok(self
+                .policies
+                .entry(resource.to_owned())
+                .or_insert_with(|| Policy::default())
+                .to_owned())
+        } else {
+            Err(TraceabilityError::NotLocalResource)
+        }
     }
 
     /// Retrieves policies for a set of resources.
@@ -550,13 +508,13 @@ impl ComplianceService {
     /// A map from resources to their policies, excluding stream resources.
     fn get_policies(
         &self,
-        resources: HashSet<Resource>,
-    ) -> Result<HashMap<Resource, Policy>, TraceabilityError> {
+        resources: HashSet<LocalizedResource>,
+    ) -> Result<HashMap<LocalizedResource, Policy>, TraceabilityError> {
         let mut policies_set = HashMap::new();
         for resource in resources {
             // Get the policy from the local policies, streams have no policies
-            if resource.is_stream().is_none() {
-                policies_set.insert(resource.clone(), self.get_policy(&resource));
+            if !resource.resource().is_stream() {
+                policies_set.insert(resource.to_owned(), self.get_policy(&resource)?);
             }
         }
         Ok(policies_set)
@@ -576,9 +534,11 @@ impl ComplianceService {
     ///
     /// - `PolicyUpdated` if the policy was successfully set
     /// - `PolicyNotUpdated` if the resource is deleted and cannot be modified
-    fn set_policy(&self, resource: Resource, policy: Policy) -> ComplianceResponse {
-        // Enforce deleted policy
-        if self.policies.get(&resource).is_some_and(|policy| policy.is_deleted()) {
+    fn set_policy(&self, resource: LocalizedResource, policy: Policy) -> ComplianceResponse {
+        // If the resource is not local or is deleted, return PolicyNotUpdated
+        if !self.is_local_resource(&resource)
+            || self.policies.get(&resource).is_some_and(|policy| policy.is_deleted())
+        {
             return ComplianceResponse::PolicyNotUpdated;
         }
         self.policies.insert(resource, policy);
@@ -596,20 +556,22 @@ impl ComplianceService {
     /// * `confidentiality` - The new confidentiality level
     fn set_confidentiality(
         &self,
-        resource: Resource,
+        resource: LocalizedResource,
         confidentiality: ConfidentialityPolicy,
     ) -> ComplianceResponse {
         let mut response = ComplianceResponse::PolicyNotUpdated;
-        self.policies
-            .entry(resource)
-            .and_modify(|policy| {
-                response = policy.with_confidentiality(confidentiality);
-            })
-            .or_insert_with(|| {
-                let mut policy = Policy::default();
-                response = policy.with_confidentiality(confidentiality);
-                policy
-            });
+        if self.is_local_resource(&resource) {
+            self.policies
+                .entry(resource)
+                .and_modify(|policy| {
+                    response = policy.with_confidentiality(confidentiality);
+                })
+                .or_insert_with(|| {
+                    let mut policy = Policy::default();
+                    response = policy.with_confidentiality(confidentiality);
+                    policy
+                });
+        }
         response
     }
 
@@ -622,18 +584,20 @@ impl ComplianceService {
     ///
     /// * `resource` - The resource to update
     /// * `integrity` - The new integrity level
-    fn set_integrity(&self, resource: Resource, integrity: u32) -> ComplianceResponse {
+    fn set_integrity(&self, resource: LocalizedResource, integrity: u32) -> ComplianceResponse {
         let mut response = ComplianceResponse::PolicyNotUpdated;
-        self.policies
-            .entry(resource)
-            .and_modify(|policy| {
-                response = policy.with_integrity(integrity);
-            })
-            .or_insert_with(|| {
-                let mut policy = Policy::default();
-                response = policy.with_integrity(integrity);
-                policy
-            });
+        if self.is_local_resource(&resource) {
+            self.policies
+                .entry(resource)
+                .and_modify(|policy| {
+                    response = policy.with_integrity(integrity);
+                })
+                .or_insert_with(|| {
+                    let mut policy = Policy::default();
+                    response = policy.with_integrity(integrity);
+                    policy
+                });
+        }
         response
     }
 
@@ -645,18 +609,20 @@ impl ComplianceService {
     /// # Arguments
     ///
     /// * `resource` - The resource to mark for deletion
-    fn set_deleted(&self, resource: Resource) -> ComplianceResponse {
+    fn set_deleted(&self, resource: LocalizedResource) -> ComplianceResponse {
         let mut response = ComplianceResponse::PolicyNotUpdated;
-        self.policies
-            .entry(resource)
-            .and_modify(|policy| {
-                response = policy.deleted();
-            })
-            .or_insert_with(|| {
-                let mut policy = Policy::default();
-                response = policy.deleted();
-                policy
-            });
+        if self.is_local_resource(&resource) {
+            self.policies
+                .entry(resource)
+                .and_modify(|policy| {
+                    response = policy.deleted();
+                })
+                .or_insert_with(|| {
+                    let mut policy = Policy::default();
+                    response = policy.deleted();
+                    policy
+                });
+        }
         response
     }
 
@@ -669,18 +635,20 @@ impl ComplianceService {
     ///
     /// * `resource` - The resource to update
     /// * `consent` - The new consent enforcement value
-    fn enforce_consent(&self, resource: Resource, consent: bool) -> ComplianceResponse {
+    fn enforce_consent(&self, resource: LocalizedResource, consent: bool) -> ComplianceResponse {
         let mut response = ComplianceResponse::PolicyNotUpdated;
-        self.policies
-            .entry(resource)
-            .and_modify(|policy| {
-                response = policy.with_consent(consent);
-            })
-            .or_insert_with(|| {
-                let mut policy = Policy::default();
-                response = policy.with_consent(consent);
-                policy
-            });
+        if self.is_local_resource(&resource) {
+            self.policies
+                .entry(resource)
+                .and_modify(|policy| {
+                    response = policy.with_consent(consent);
+                })
+                .or_insert_with(|| {
+                    let mut policy = Policy::default();
+                    response = policy.with_consent(consent);
+                    policy
+                });
+        }
         response
     }
 }
@@ -698,13 +666,13 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
         let this = self.clone();
         Box::pin(async move {
             match request {
-                ComplianceRequest::EvalLocalSourcesLocalDestination { sources, destination } => {
+                ComplianceRequest::EvalCompliance { sources, destination, destination_policy } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[compliance] CheckCompliance: source_policies: {:?}, destination: {:?}",
-                        source_policies, destination
+                        "[compliance] CheckCompliance: sources: {:?}, destination: {:?}, destination_policy: {:?}",
+                        sources, destination, destination_policy
                     );
-                    this.eval_compliance_on_local_resources(source, destination).await
+                    this.eval_compliance(sources, destination, destination_policy).await
                 }
                 ComplianceRequest::GetPolicy(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
@@ -769,8 +737,8 @@ mod tests {
         Policy::new(ConfidentialityPolicy::Secret, integrity, DeletionPolicy::NotDeleted, false)
     }
 
-    fn create_deleted_policy(integrity: u32) -> Policy {
-        Policy::new(ConfidentialityPolicy::Public, integrity, DeletionPolicy::Pending, false)
+    fn create_deleted_policy() -> Policy {
+        Policy::new(ConfidentialityPolicy::Public, 0, DeletionPolicy::Pending, false)
     }
 
     fn init_tracing() {
@@ -782,7 +750,7 @@ mod tests {
     async fn unit_compliance_set_policy_basic() {
         init_tracing();
         let compliance = ComplianceService::default();
-        let process = Resource::new_process_mock(0);
+        let process = LocalizedResource::new(String::new(), Resource::new_process_mock(0));
 
         let policy = create_secret_policy(5);
 
@@ -826,18 +794,15 @@ mod tests {
                 "confidentiality pass: public -> secret",
             ),
         ];
-        let mock_file = Resource::new_file("/tmp/dest".to_string());
+        let mock_file =
+            LocalizedResource::new(String::new(), Resource::new_file("/tmp/dest".to_string()));
+        let mock_process = LocalizedResource::new(String::new(), Resource::new_process_mock(0));
 
         for (source_policy, dest_policy, should_pass, description) in test_cases {
+            compliance.set_policy(mock_process.clone(), source_policy);
             compliance.set_policy(mock_file.clone(), dest_policy);
             let result = compliance
-                .eval_policies(
-                    HashMap::from([(
-                        String::new(),
-                        HashMap::from([(Resource::new_process_mock(0), source_policy)]),
-                    )]),
-                    mock_file.clone(),
-                )
+                .eval_compliance(HashSet::from([mock_process.clone()]), mock_file.clone(), None)
                 .await;
 
             if should_pass {
@@ -858,25 +823,18 @@ mod tests {
     async fn unit_compliance_default_policies() {
         init_tracing();
         let compliance = ComplianceService::default();
-        let mock_file = Resource::new_file("/tmp/dest".to_string());
-        // Test 1: All default policies should pass
+        let mock_local_file =
+            LocalizedResource::new(String::new(), Resource::new_file("/tmp/dest".to_string()));
+        let mock_process = LocalizedResource::new(String::new(), Resource::new_process_mock(0));
+        let mock_process2 = LocalizedResource::new(String::new(), Resource::new_process_mock(1));
+
+        // Test 1: All default local policies should pass
         assert!(
             compliance
-                .eval_policies(
-                    HashMap::from([
-                        (
-                            String::new(),
-                            HashMap::from([
-                                (Resource::new_process_mock(0), Policy::default()),
-                                (Resource::new_process_mock(1), Policy::default())
-                            ])
-                        ),
-                        (
-                            "10.0.0.1".to_string(),
-                            HashMap::from([(Resource::new_process_mock(0), Policy::default())])
-                        )
-                    ]),
-                    mock_file.clone()
+                .eval_compliance(
+                    HashSet::from([mock_process.clone(), mock_process2.clone()]),
+                    mock_local_file.clone(),
+                    None,
                 )
                 .await
                 .is_ok_and(|r| r == ComplianceResponse::Grant)
@@ -884,21 +842,13 @@ mod tests {
 
         // Test 2: Mixed default and explicit policies - integrity violation
         let dest_policy = create_public_policy(2);
-        compliance.set_policy(mock_file.clone(), dest_policy);
+        compliance.set_policy(mock_local_file.clone(), dest_policy);
         assert!(
             compliance
-                .eval_policies(
-                    HashMap::from([
-                        (
-                            String::new(),
-                            HashMap::from([(Resource::new_process_mock(0), Policy::default())])
-                        ), // integrity: 0
-                        (
-                            "10.0.0.1".to_string(),
-                            HashMap::from([(Resource::new_process_mock(0), Policy::default())])
-                        )
-                    ]),
-                    mock_file // integrity: 2, so 0 < 2 should fail
+                .eval_compliance(
+                    HashSet::from([mock_process.clone(), mock_process2.clone()]),
+                    mock_local_file, // integrity: 2, so 0 < 2 should fail
+                    None,
                 )
                 .await
                 .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
@@ -910,27 +860,31 @@ mod tests {
         init_tracing();
         let mut compliance = ComplianceService::default();
 
-        let file = Resource::new_file("/tmp/dest".to_string());
-        let policy = create_public_policy(3);
-        compliance.set_policy(file.clone(), policy);
+        let mock_process = LocalizedResource::new(String::new(), Resource::new_process_mock(0));
+        let file =
+            LocalizedResource::new(String::new(), Resource::new_file("/tmp/dest".to_string()));
 
-        // Test case 1: Valid policy flow - should grant
-        let grant_request = ComplianceRequest::EvalPolicies {
-            source_policies: HashMap::from([(
-                String::new(),
-                HashMap::from([(Resource::new_process_mock(0), create_public_policy(5))]),
-            )]),
+        // Test case 1: Valid policy flow - should grant (process integrity 5 >= file integrity 3)
+        let process_policy = create_public_policy(5);
+        compliance.set_policy(mock_process.clone(), process_policy);
+        let file_policy = create_public_policy(3);
+        compliance.set_policy(file.clone(), file_policy);
+
+        let grant_request = ComplianceRequest::EvalCompliance {
+            sources: HashSet::from([mock_process.clone()]),
             destination: file.clone(),
+            destination_policy: None,
         };
         assert_eq!(compliance.call(grant_request).await.unwrap(), ComplianceResponse::Grant);
 
-        // Test case 2: Invalid policy flow - should deny
-        let deny_request = ComplianceRequest::EvalPolicies {
-            source_policies: HashMap::from([(
-                String::new(),
-                HashMap::from([(Resource::new_process_mock(0), create_secret_policy(5))]),
-            )]),
+        // Test case 2: Invalid policy flow - should deny (process integrity 2 < file integrity 3)
+        let low_process_policy = create_public_policy(2);
+        compliance.set_policy(mock_process.clone(), low_process_policy);
+
+        let deny_request = ComplianceRequest::EvalCompliance {
+            sources: HashSet::from([mock_process.clone()]),
             destination: file.clone(),
+            destination_policy: None,
         };
         assert_eq!(
             compliance.call(deny_request).await.unwrap_err(),
@@ -938,70 +892,13 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn unit_compliance_service_complex_policy_scenario() {
+    #[test]
+    fn unit_compliance_get_policies_empty() {
         init_tracing();
-        let mut compliance = ComplianceService::default();
-
-        let file = Resource::new_file("/tmp/dest".to_string());
-        let high_policy = create_secret_policy(10);
-        let medium_policy = create_public_policy(5);
-        let low_policy = create_public_policy(1);
-
-        compliance.set_policy(file.clone(), medium_policy.clone());
-
-        // Test 1: High (Secret) -> Medium (Public): Should fail due to confidentiality
-        let request1 = ComplianceRequest::EvalPolicies {
-            source_policies: HashMap::from([
-                (
-                    String::new(),
-                    HashMap::from([(Resource::new_process_mock(0), Policy::default())]),
-                ),
-                (
-                    "10.0.0.1".to_string(),
-                    HashMap::from([(Resource::new_process_mock(0), high_policy.clone())]),
-                ),
-            ]),
-            destination: file.clone(),
-        };
-        assert_eq!(
-            compliance.call(request1).await.unwrap_err(),
-            TraceabilityError::DirectPolicyViolation
-        ); // Secret -> Public fails
-
-        // Test 2: Medium -> Low: Should pass (integrity 5 >= 1, public -> public)
-        compliance.set_policy(file.clone(), low_policy.clone());
-        let request2 = ComplianceRequest::EvalPolicies {
-            source_policies: HashMap::from([(
-                String::new(),
-                HashMap::from([(Resource::new_process_mock(0), medium_policy)]),
-            )]),
-            destination: file.clone(),
-        };
-        assert_eq!(compliance.call(request2).await.unwrap(), ComplianceResponse::Grant);
-
-        // Test 3: Low -> High: Should fail due to integrity (1 < 10)
-        compliance.set_policy(file.clone(), high_policy.clone());
-        let request3 = ComplianceRequest::EvalPolicies {
-            source_policies: HashMap::from([(
-                String::new(),
-                HashMap::from([(Resource::new_process_mock(0), low_policy)]),
-            )]),
-            destination: file,
-        };
-        assert_eq!(
-            compliance.call(request3).await.unwrap_err(),
-            TraceabilityError::DirectPolicyViolation
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_get_policies_empty() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
         let compliance = ComplianceService::default();
-        let process = Resource::new_process_mock(0);
-        let file = Resource::new_file("/tmp/test".to_string());
+        let process = LocalizedResource::new(String::new(), Resource::new_process_mock(0));
+        let file =
+            LocalizedResource::new(String::new(), Resource::new_file("/tmp/test".to_string()));
 
         assert_eq!(
             compliance.get_policies(HashSet::from([process.clone(), file.clone()])).unwrap(),
@@ -1009,14 +906,48 @@ mod tests {
         );
     }
 
-    #[tokio::test]
-    async fn unit_compliance_get_policies_scenarios() {
+    #[test]
+    fn unit_compliance_get_policies_remote() {
+        init_tracing();
+        let compliance = ComplianceService::default();
+        let process = LocalizedResource::new(String::new(), Resource::new_process_mock(0));
+        let file = LocalizedResource::new(
+            "10.0.0.1".to_string(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
+
+        // file is remote, so this will return an error
+        assert!(
+            compliance
+                .get_policies(HashSet::from([process.clone(), file.clone()]))
+                .is_err_and(|e| e == TraceabilityError::NotLocalResource)
+        );
+    }
+
+    #[test]
+    fn unit_compliance_set_policy_remote() {
+        init_tracing();
+        let compliance = ComplianceService::default();
+        let file = LocalizedResource::new(
+            "10.0.0.1".to_string(),
+            Resource::new_file("/tmp/test".to_string()),
+        );
+
+        let file_policy = create_public_policy(3);
+
+        // Policy should not be updated for remote resources
+        assert_eq!(compliance.set_policy(file, file_policy), ComplianceResponse::PolicyNotUpdated);
+    }
+
+    #[test]
+    fn unit_compliance_get_policies_scenarios() {
         init_tracing();
         let compliance = ComplianceService::default();
 
         // Test resources
-        let process = Resource::new_process_mock(0);
-        let file = Resource::new_file("/tmp/test".to_string());
+        let process = LocalizedResource::new(String::new(), Resource::new_process_mock(0));
+        let file =
+            LocalizedResource::new(String::new(), Resource::new_file("/tmp/test".to_string()));
 
         // Test policies
         let process_policy = create_secret_policy(7);
@@ -1033,40 +964,24 @@ mod tests {
         compliance.set_policy(file.clone(), file_policy.clone());
         assert_eq!(
             compliance.get_policies(HashSet::from([process.clone(), file.clone()])).unwrap(),
-            HashMap::from([(process.clone(), process_policy.clone()), (file.clone(), file_policy)])
+            HashMap::from([
+                (process.clone(), process_policy.clone()),
+                (file.clone(), file_policy.clone())
+            ])
         );
 
         // Test 3: Mixed existing and default policies
-        let new_file = Resource::new_file("/tmp/new.txt".to_string());
+        let new_file =
+            LocalizedResource::new(String::new(), Resource::new_file("/tmp/new.txt".to_string()));
         assert_eq!(
-            compliance.get_policies(HashSet::from([process.clone(), new_file.clone()])).unwrap(),
-            HashMap::from([(process, process_policy), (new_file, Policy::default())])
-        );
-    }
-
-    #[tokio::test]
-    async fn unit_compliance_get_policies_edge_cases() {
-        init_tracing();
-        let compliance = ComplianceService::default();
-        let process = Resource::new_process_mock(0);
-
-        // Test 1: Empty request
-        assert_eq!(compliance.get_policies(HashSet::new()).unwrap(), HashMap::new());
-
-        // Test 2: Policy updates
-        let initial_policy = create_public_policy(2);
-        let updated_policy = create_secret_policy(9);
-
-        compliance.set_policy(process.clone(), initial_policy.clone());
-        assert_eq!(
-            compliance.get_policies(HashSet::from([process.clone()])).unwrap(),
-            HashMap::from([(process.clone(), initial_policy.clone())])
-        );
-
-        compliance.set_policy(process.clone(), updated_policy.clone());
-        assert_eq!(
-            compliance.get_policies(HashSet::from([process.clone()])).unwrap(),
-            HashMap::from([(process, updated_policy)])
+            compliance
+                .get_policies(HashSet::from([process.clone(), file.clone(), new_file.clone()]))
+                .unwrap(),
+            HashMap::from([
+                (process.clone(), process_policy.clone()),
+                (file.clone(), file_policy.clone()),
+                (new_file.clone(), Policy::default())
+            ])
         );
     }
 
@@ -1074,43 +989,40 @@ mod tests {
     async fn unit_compliance_deleted_policy_behavior() {
         init_tracing();
         let compliance = ComplianceService::default();
-        let process = Resource::new_process_mock(0);
-        let mock_file = Resource::new_file("/tmp/dest".to_string());
+        let mock_process0 = LocalizedResource::new(String::new(), Resource::new_process_mock(0));
+        let mock_process1 = LocalizedResource::new(String::new(), Resource::new_process_mock(1));
+        let mock_file =
+            LocalizedResource::new(String::new(), Resource::new_file("/tmp/dest".to_string()));
 
         // Create and set a deleted policy
-        let deleted_policy = create_deleted_policy(5);
-        compliance.set_policy(process.clone(), deleted_policy.clone());
+        let deleted_policy = create_deleted_policy();
+        compliance.set_policy(mock_process0.clone(), deleted_policy.clone());
 
         // Test 1: Deleted policy is returned correctly
         assert_eq!(
-            compliance.get_policies(HashSet::from([process.clone()])).unwrap(),
-            HashMap::from([(process.clone(), deleted_policy.clone())])
+            compliance.get_policies(HashSet::from([mock_process0.clone()])).unwrap(),
+            HashMap::from([(mock_process0.clone(), deleted_policy.clone())])
         );
 
         // Test 2: Cannot update deleted policy
         assert_eq!(
-            compliance.set_policy(process.clone(), Policy::default()),
+            compliance.set_policy(mock_process0.clone(), Policy::default()),
             ComplianceResponse::PolicyNotUpdated
         );
 
         // Test 3: Policy remains deleted after update attempt
         assert_eq!(
-            compliance.get_policies(HashSet::from([process.clone()])).unwrap(),
-            HashMap::from([(process.clone(), deleted_policy.clone())])
+            compliance.get_policies(HashSet::from([mock_process0.clone()])).unwrap(),
+            HashMap::from([(mock_process0.clone(), deleted_policy.clone())])
         );
 
-        // Test 4: Deleted policies cause policy violations in evaluation
+        // Test 4: Deleted policies cause policy violations in evaluation in both directions
         assert!(
             compliance
-                .eval_policies(
-                    HashMap::from([(
-                        String::new(),
-                        HashMap::from([
-                            (Resource::new_process_mock(0), deleted_policy.clone()),
-                            (Resource::new_process_mock(1), Policy::default())
-                        ])
-                    )]),
-                    mock_file.clone()
+                .eval_compliance(
+                    HashSet::from([mock_process0.clone(), mock_process1.clone()]),
+                    mock_file.clone(),
+                    None
                 )
                 .await
                 .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
@@ -1118,15 +1030,107 @@ mod tests {
 
         assert!(
             compliance
-                .eval_policies(
-                    HashMap::from([(
-                        String::new(),
-                        HashMap::from([(Resource::new_process_mock(0), Policy::default())])
-                    )]),
-                    process.clone()
+                .eval_compliance(
+                    HashSet::from([mock_file.clone(), mock_process1.clone()]),
+                    mock_process0.clone(),
+                    None
                 )
                 .await
                 .is_err_and(|e| e == TraceabilityError::DirectPolicyViolation)
+        );
+    }
+
+    #[tokio::test]
+    async fn unit_compliance_non_local_resources() {
+        init_tracing();
+        let compliance = ComplianceService::default();
+
+        let local_process = LocalizedResource::new(String::new(), Resource::new_process_mock(0));
+        let local_file =
+            LocalizedResource::new(String::new(), Resource::new_file("/tmp/local.txt".to_string()));
+        let remote_process =
+            LocalizedResource::new("10.0.0.1".to_string(), Resource::new_process_mock(1));
+        let remote_file = LocalizedResource::new(
+            "10.0.0.2".to_string(),
+            Resource::new_file("/tmp/remote.txt".to_string()),
+        );
+
+        // Test 1: Non-local source should fail (no policy provided)
+        assert!(
+            compliance
+                .eval_compliance(HashSet::from([remote_process.clone()]), local_file.clone(), None)
+                .await
+                .is_err_and(|e| e == TraceabilityError::NotLocalResource)
+        );
+
+        // Test 2: Non-local destination without policy should fail
+        assert!(
+            compliance
+                .eval_compliance(HashSet::from([local_process.clone()]), remote_file.clone(), None)
+                .await
+                .is_err_and(|e| e == TraceabilityError::DestinationPolicyNotFound)
+        );
+
+        // Test 3: Non-local destination WITH policy should succeed (the exception)
+        let remote_policy = create_public_policy(0);
+        assert!(
+            compliance
+                .eval_compliance(
+                    HashSet::from([local_process.clone()]),
+                    remote_file.clone(),
+                    Some(remote_policy.clone())
+                )
+                .await
+                .is_ok_and(|r| r == ComplianceResponse::Grant)
+        );
+
+        // Test 4: Mixed local and remote sources should fail
+        assert!(
+            compliance
+                .eval_compliance(
+                    HashSet::from([local_process.clone(), remote_process.clone()]),
+                    local_file.clone(),
+                    None
+                )
+                .await
+                .is_err_and(|e| e == TraceabilityError::NotLocalResource)
+        );
+
+        // Test 5: GetPolicy on remote resource should fail
+        assert!(
+            compliance
+                .get_policy(&remote_file)
+                .is_err_and(|e| e == TraceabilityError::NotLocalResource)
+        );
+
+        // Test 6: SetPolicy on remote resource should return PolicyNotUpdated
+        assert_eq!(
+            compliance.set_policy(remote_file.clone(), create_public_policy(5)),
+            ComplianceResponse::PolicyNotUpdated
+        );
+
+        // Test 7: SetConfidentiality on remote resource should return PolicyNotUpdated
+        assert_eq!(
+            compliance.set_confidentiality(remote_file.clone(), ConfidentialityPolicy::Secret),
+            ComplianceResponse::PolicyNotUpdated
+        );
+
+        // Test 8: SetIntegrity on remote resource should return PolicyNotUpdated
+        assert_eq!(
+            compliance.set_integrity(remote_file.clone(), 10),
+            ComplianceResponse::PolicyNotUpdated
+        );
+
+        // Test 9: SetDeleted on remote resource should return PolicyNotUpdated
+        assert_eq!(
+            compliance.set_deleted(remote_file.clone()),
+            ComplianceResponse::PolicyNotUpdated
+        );
+
+        // Test 10: EnforceConsent on remote resource should return PolicyNotUpdated
+        assert_eq!(
+            compliance.enforce_consent(remote_file, true),
+            ComplianceResponse::PolicyNotUpdated
         );
     }
 
@@ -1135,8 +1139,11 @@ mod tests {
         init_tracing();
         let mut compliance = ComplianceService::default();
 
-        let process = Resource::new_process_mock(0);
-        let file = Resource::new_file("/tmp/sensitive.txt".to_string());
+        let process = LocalizedResource::new(String::new(), Resource::new_process_mock(0));
+        let file = LocalizedResource::new(
+            String::new(),
+            Resource::new_file("/tmp/sensitive.txt".to_string()),
+        );
 
         // Test 1: Set initial policies for resources
         let process_policy = create_secret_policy(5);
@@ -1211,7 +1218,7 @@ mod tests {
         assert!(deleted_policy.is_deleted());
         assert!(!deleted_policy.is_pending_deletion());
 
-        let new_resource = Resource::new_process_mock(1);
+        let new_resource = LocalizedResource::new(String::new(), Resource::new_process_mock(1));
         let set_deleted_request = ComplianceRequest::SetPolicy {
             resource: new_resource.clone(),
             policy: deleted_policy.clone(),
@@ -1231,12 +1238,13 @@ mod tests {
         );
 
         // Test 8: Test policy evaluation with deleted resources - should fail
-        let eval_with_deleted_source = ComplianceRequest::EvalPolicies {
-            source_policies: HashMap::from([(
+        let eval_with_deleted_source = ComplianceRequest::EvalCompliance {
+            sources: HashSet::from([new_resource]),
+            destination: LocalizedResource::new(
                 String::new(),
-                HashMap::from([(new_resource, deleted_policy)]),
-            )]),
-            destination: Resource::new_file("/tmp/dest".to_string()),
+                Resource::new_file("/tmp/dest".to_string()),
+            ),
+            destination_policy: None,
         };
         assert_eq!(
             compliance.call(eval_with_deleted_source).await.unwrap_err(),
@@ -1244,12 +1252,10 @@ mod tests {
         );
 
         // Test 9: Test policy evaluation with deleted destination - should fail
-        let eval_with_deleted_dest = ComplianceRequest::EvalPolicies {
-            source_policies: HashMap::from([(
-                String::new(),
-                HashMap::from([(process, process_policy)]),
-            )]),
-            destination: Resource::new_file("/tmp/dest".to_string()),
+        let eval_with_deleted_dest = ComplianceRequest::EvalCompliance {
+            sources: HashSet::from([process]),
+            destination: file,
+            destination_policy: None,
         };
         assert_eq!(
             compliance.call(eval_with_deleted_dest).await.unwrap_err(),

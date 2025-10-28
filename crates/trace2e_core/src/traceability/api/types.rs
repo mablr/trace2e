@@ -440,33 +440,26 @@ pub enum ComplianceRequest {
     /// Compares source resource policies against destination requirements to determine
     /// if the flow should be authorized. Considers confidentiality, integrity, consent,
     /// and other policy constraints.
-    EvalLocalSourcesLocalDestination {
+    EvalCompliance {
         /// Source resources sending data
-        sources: HashSet<Resource>,
-        /// Destination resource receiving the data
-        destination: Resource,
-    },
-
-    EvalLocalSourcesRemoteDestination {
-        /// Source resources sending data
-        sources: HashSet<Resource>,
+        sources: HashSet<LocalizedResource>,
         /// Destination resource receiving the data
         destination: LocalizedResource,
-        /// Destination node ID
-        destionation_policy: Policy,
+        /// Destination policy
+        destination_policy: Option<Policy>,
     },
 
     /// Retrieve the current compliance policy for a specific resource.
     ///
     /// Returns the complete policy configuration including confidentiality,
     /// integrity, consent, and deletion status for the requested resource.
-    GetPolicy(Resource),
+    GetPolicy(LocalizedResource),
 
     /// Retrieve current compliance policies for multiple resources.
     ///
     /// Batch operation to efficiently query policy configurations for
     /// multiple resources in a single request.
-    GetPolicies(HashSet<Resource>),
+    GetPolicies(HashSet<LocalizedResource>),
 
     /// Set a complete compliance policy for a specific resource.
     ///
@@ -474,7 +467,7 @@ pub enum ComplianceRequest {
     /// all aspects of compliance requirements for the resource.
     SetPolicy {
         /// Target resource to apply the policy to
-        resource: Resource,
+        resource: LocalizedResource,
         /// New complete policy configuration
         policy: Policy,
     },
@@ -485,7 +478,7 @@ pub enum ComplianceRequest {
     /// while preserving other policy components.
     SetConfidentiality {
         /// Target resource to update
-        resource: Resource,
+        resource: LocalizedResource,
         /// New confidentiality policy requirements
         confidentiality: ConfidentialityPolicy,
     },
@@ -496,7 +489,7 @@ pub enum ComplianceRequest {
     /// this resource, typically on a numerical scale.
     SetIntegrity {
         /// Target resource to update
-        resource: Resource,
+        resource: LocalizedResource,
         /// Minimum required integrity level
         integrity: u32,
     },
@@ -505,7 +498,7 @@ pub enum ComplianceRequest {
     ///
     /// Updates the resource's policy to reflect its deletion status while
     /// maintaining historical records for audit purposes.
-    SetDeleted(Resource),
+    SetDeleted(LocalizedResource),
 
     /// Update consent enforcement for data processing operations on a resource.
     ///
@@ -513,7 +506,7 @@ pub enum ComplianceRequest {
     /// typically for privacy and regulatory compliance.
     EnforceConsent {
         /// Target resource to update consent for
-        resource: Resource,
+        resource: LocalizedResource,
         /// Consent status: true to grant, false to revoke
         consent: bool,
     },
@@ -541,7 +534,7 @@ pub enum ComplianceResponse {
     ///
     /// Maps each requested resource to its current policy configuration
     /// for batch policy queries.
-    Policies(HashMap<Resource, Policy>),
+    Policies(HashMap<LocalizedResource, Policy>),
 
     /// Confirmation that a policy update was successfully applied.
     ///
