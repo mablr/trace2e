@@ -442,7 +442,7 @@
 <a href=#442 id=442 data-nosnippet>442</a>    /// and other policy constraints.
 <a href=#443 id=443 data-nosnippet>443</a>    </span>EvalCompliance {
 <a href=#444 id=444 data-nosnippet>444</a>        <span class="doccomment">/// Source resources sending data
-<a href=#445 id=445 data-nosnippet>445</a>        </span>sources: HashSet&lt;LocalizedResource&gt;,
+<a href=#445 id=445 data-nosnippet>445</a>        </span>sources: HashSet&lt;Resource&gt;,
 <a href=#446 id=446 data-nosnippet>446</a>        <span class="doccomment">/// Destination resource receiving the data
 <a href=#447 id=447 data-nosnippet>447</a>        </span>destination: LocalizedResource,
 <a href=#448 id=448 data-nosnippet>448</a>        <span class="doccomment">/// Destination policy
@@ -453,13 +453,13 @@
 <a href=#453 id=453 data-nosnippet>453</a>    ///
 <a href=#454 id=454 data-nosnippet>454</a>    /// Returns the complete policy configuration including confidentiality,
 <a href=#455 id=455 data-nosnippet>455</a>    /// integrity, consent, and deletion status for the requested resource.
-<a href=#456 id=456 data-nosnippet>456</a>    </span>GetPolicy(LocalizedResource),
+<a href=#456 id=456 data-nosnippet>456</a>    </span>GetPolicy(Resource),
 <a href=#457 id=457 data-nosnippet>457</a>
 <a href=#458 id=458 data-nosnippet>458</a>    <span class="doccomment">/// Retrieve current compliance policies for multiple resources.
 <a href=#459 id=459 data-nosnippet>459</a>    ///
 <a href=#460 id=460 data-nosnippet>460</a>    /// Batch operation to efficiently query policy configurations for
 <a href=#461 id=461 data-nosnippet>461</a>    /// multiple resources in a single request.
-<a href=#462 id=462 data-nosnippet>462</a>    </span>GetPolicies(HashSet&lt;LocalizedResource&gt;),
+<a href=#462 id=462 data-nosnippet>462</a>    </span>GetPolicies(HashSet&lt;Resource&gt;),
 <a href=#463 id=463 data-nosnippet>463</a>
 <a href=#464 id=464 data-nosnippet>464</a>    <span class="doccomment">/// Set a complete compliance policy for a specific resource.
 <a href=#465 id=465 data-nosnippet>465</a>    ///
@@ -467,7 +467,7 @@
 <a href=#467 id=467 data-nosnippet>467</a>    /// all aspects of compliance requirements for the resource.
 <a href=#468 id=468 data-nosnippet>468</a>    </span>SetPolicy {
 <a href=#469 id=469 data-nosnippet>469</a>        <span class="doccomment">/// Target resource to apply the policy to
-<a href=#470 id=470 data-nosnippet>470</a>        </span>resource: LocalizedResource,
+<a href=#470 id=470 data-nosnippet>470</a>        </span>resource: Resource,
 <a href=#471 id=471 data-nosnippet>471</a>        <span class="doccomment">/// New complete policy configuration
 <a href=#472 id=472 data-nosnippet>472</a>        </span>policy: Policy,
 <a href=#473 id=473 data-nosnippet>473</a>    },
@@ -478,7 +478,7 @@
 <a href=#478 id=478 data-nosnippet>478</a>    /// while preserving other policy components.
 <a href=#479 id=479 data-nosnippet>479</a>    </span>SetConfidentiality {
 <a href=#480 id=480 data-nosnippet>480</a>        <span class="doccomment">/// Target resource to update
-<a href=#481 id=481 data-nosnippet>481</a>        </span>resource: LocalizedResource,
+<a href=#481 id=481 data-nosnippet>481</a>        </span>resource: Resource,
 <a href=#482 id=482 data-nosnippet>482</a>        <span class="doccomment">/// New confidentiality policy requirements
 <a href=#483 id=483 data-nosnippet>483</a>        </span>confidentiality: ConfidentialityPolicy,
 <a href=#484 id=484 data-nosnippet>484</a>    },
@@ -489,7 +489,7 @@
 <a href=#489 id=489 data-nosnippet>489</a>    /// this resource, typically on a numerical scale.
 <a href=#490 id=490 data-nosnippet>490</a>    </span>SetIntegrity {
 <a href=#491 id=491 data-nosnippet>491</a>        <span class="doccomment">/// Target resource to update
-<a href=#492 id=492 data-nosnippet>492</a>        </span>resource: LocalizedResource,
+<a href=#492 id=492 data-nosnippet>492</a>        </span>resource: Resource,
 <a href=#493 id=493 data-nosnippet>493</a>        <span class="doccomment">/// Minimum required integrity level
 <a href=#494 id=494 data-nosnippet>494</a>        </span>integrity: u32,
 <a href=#495 id=495 data-nosnippet>495</a>    },
@@ -498,7 +498,7 @@
 <a href=#498 id=498 data-nosnippet>498</a>    ///
 <a href=#499 id=499 data-nosnippet>499</a>    /// Updates the resource's policy to reflect its deletion status while
 <a href=#500 id=500 data-nosnippet>500</a>    /// maintaining historical records for audit purposes.
-<a href=#501 id=501 data-nosnippet>501</a>    </span>SetDeleted(LocalizedResource),
+<a href=#501 id=501 data-nosnippet>501</a>    </span>SetDeleted(Resource),
 <a href=#502 id=502 data-nosnippet>502</a>
 <a href=#503 id=503 data-nosnippet>503</a>    <span class="doccomment">/// Update consent enforcement for data processing operations on a resource.
 <a href=#504 id=504 data-nosnippet>504</a>    ///
@@ -506,7 +506,7 @@
 <a href=#506 id=506 data-nosnippet>506</a>    /// typically for privacy and regulatory compliance.
 <a href=#507 id=507 data-nosnippet>507</a>    </span>EnforceConsent {
 <a href=#508 id=508 data-nosnippet>508</a>        <span class="doccomment">/// Target resource to update consent for
-<a href=#509 id=509 data-nosnippet>509</a>        </span>resource: LocalizedResource,
+<a href=#509 id=509 data-nosnippet>509</a>        </span>resource: Resource,
 <a href=#510 id=510 data-nosnippet>510</a>        <span class="doccomment">/// Consent status: true to grant, false to revoke
 <a href=#511 id=511 data-nosnippet>511</a>        </span>consent: bool,
 <a href=#512 id=512 data-nosnippet>512</a>    },
