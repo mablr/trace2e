@@ -440,118 +440,111 @@
 <a href=#440 id=440 data-nosnippet>440</a>    /// Compares source resource policies against destination requirements to determine
 <a href=#441 id=441 data-nosnippet>441</a>    /// if the flow should be authorized. Considers confidentiality, integrity, consent,
 <a href=#442 id=442 data-nosnippet>442</a>    /// and other policy constraints.
-<a href=#443 id=443 data-nosnippet>443</a>    </span>EvalLocalSourcesLocalDestination {
+<a href=#443 id=443 data-nosnippet>443</a>    </span>EvalCompliance {
 <a href=#444 id=444 data-nosnippet>444</a>        <span class="doccomment">/// Source resources sending data
-<a href=#445 id=445 data-nosnippet>445</a>        </span>sources: HashSet&lt;Resource&gt;,
+<a href=#445 id=445 data-nosnippet>445</a>        </span>sources: HashSet&lt;LocalizedResource&gt;,
 <a href=#446 id=446 data-nosnippet>446</a>        <span class="doccomment">/// Destination resource receiving the data
-<a href=#447 id=447 data-nosnippet>447</a>        </span>destination: Resource,
-<a href=#448 id=448 data-nosnippet>448</a>    },
-<a href=#449 id=449 data-nosnippet>449</a>
-<a href=#450 id=450 data-nosnippet>450</a>    EvalLocalSourcesRemoteDestination {
-<a href=#451 id=451 data-nosnippet>451</a>        <span class="doccomment">/// Source resources sending data
-<a href=#452 id=452 data-nosnippet>452</a>        </span>sources: HashSet&lt;Resource&gt;,
-<a href=#453 id=453 data-nosnippet>453</a>        <span class="doccomment">/// Destination resource receiving the data
-<a href=#454 id=454 data-nosnippet>454</a>        </span>destination: LocalizedResource,
-<a href=#455 id=455 data-nosnippet>455</a>        <span class="doccomment">/// Destination node ID
-<a href=#456 id=456 data-nosnippet>456</a>        </span>destionation_policy: Policy,
-<a href=#457 id=457 data-nosnippet>457</a>    },
-<a href=#458 id=458 data-nosnippet>458</a>
-<a href=#459 id=459 data-nosnippet>459</a>    <span class="doccomment">/// Retrieve the current compliance policy for a specific resource.
-<a href=#460 id=460 data-nosnippet>460</a>    ///
-<a href=#461 id=461 data-nosnippet>461</a>    /// Returns the complete policy configuration including confidentiality,
-<a href=#462 id=462 data-nosnippet>462</a>    /// integrity, consent, and deletion status for the requested resource.
-<a href=#463 id=463 data-nosnippet>463</a>    </span>GetPolicy(Resource),
-<a href=#464 id=464 data-nosnippet>464</a>
-<a href=#465 id=465 data-nosnippet>465</a>    <span class="doccomment">/// Retrieve current compliance policies for multiple resources.
-<a href=#466 id=466 data-nosnippet>466</a>    ///
-<a href=#467 id=467 data-nosnippet>467</a>    /// Batch operation to efficiently query policy configurations for
-<a href=#468 id=468 data-nosnippet>468</a>    /// multiple resources in a single request.
-<a href=#469 id=469 data-nosnippet>469</a>    </span>GetPolicies(HashSet&lt;Resource&gt;),
-<a href=#470 id=470 data-nosnippet>470</a>
-<a href=#471 id=471 data-nosnippet>471</a>    <span class="doccomment">/// Set a complete compliance policy for a specific resource.
-<a href=#472 id=472 data-nosnippet>472</a>    ///
-<a href=#473 id=473 data-nosnippet>473</a>    /// Replaces the existing policy with new configuration that defines
-<a href=#474 id=474 data-nosnippet>474</a>    /// all aspects of compliance requirements for the resource.
-<a href=#475 id=475 data-nosnippet>475</a>    </span>SetPolicy {
-<a href=#476 id=476 data-nosnippet>476</a>        <span class="doccomment">/// Target resource to apply the policy to
-<a href=#477 id=477 data-nosnippet>477</a>        </span>resource: Resource,
-<a href=#478 id=478 data-nosnippet>478</a>        <span class="doccomment">/// New complete policy configuration
-<a href=#479 id=479 data-nosnippet>479</a>        </span>policy: Policy,
-<a href=#480 id=480 data-nosnippet>480</a>    },
-<a href=#481 id=481 data-nosnippet>481</a>
-<a href=#482 id=482 data-nosnippet>482</a>    <span class="doccomment">/// Update confidentiality requirements for a specific resource.
-<a href=#483 id=483 data-nosnippet>483</a>    ///
-<a href=#484 id=484 data-nosnippet>484</a>    /// Modifies only the confidentiality aspects of the resource's policy
-<a href=#485 id=485 data-nosnippet>485</a>    /// while preserving other policy components.
-<a href=#486 id=486 data-nosnippet>486</a>    </span>SetConfidentiality {
-<a href=#487 id=487 data-nosnippet>487</a>        <span class="doccomment">/// Target resource to update
-<a href=#488 id=488 data-nosnippet>488</a>        </span>resource: Resource,
-<a href=#489 id=489 data-nosnippet>489</a>        <span class="doccomment">/// New confidentiality policy requirements
-<a href=#490 id=490 data-nosnippet>490</a>        </span>confidentiality: ConfidentialityPolicy,
-<a href=#491 id=491 data-nosnippet>491</a>    },
-<a href=#492 id=492 data-nosnippet>492</a>
-<a href=#493 id=493 data-nosnippet>493</a>    <span class="doccomment">/// Update integrity level requirements for a specific resource.
-<a href=#494 id=494 data-nosnippet>494</a>    ///
-<a href=#495 id=495 data-nosnippet>495</a>    /// Sets the minimum integrity level required for operations involving
-<a href=#496 id=496 data-nosnippet>496</a>    /// this resource, typically on a numerical scale.
-<a href=#497 id=497 data-nosnippet>497</a>    </span>SetIntegrity {
-<a href=#498 id=498 data-nosnippet>498</a>        <span class="doccomment">/// Target resource to update
-<a href=#499 id=499 data-nosnippet>499</a>        </span>resource: Resource,
-<a href=#500 id=500 data-nosnippet>500</a>        <span class="doccomment">/// Minimum required integrity level
-<a href=#501 id=501 data-nosnippet>501</a>        </span>integrity: u32,
-<a href=#502 id=502 data-nosnippet>502</a>    },
-<a href=#503 id=503 data-nosnippet>503</a>
-<a href=#504 id=504 data-nosnippet>504</a>    <span class="doccomment">/// Mark a resource as deleted for compliance tracking.
-<a href=#505 id=505 data-nosnippet>505</a>    ///
-<a href=#506 id=506 data-nosnippet>506</a>    /// Updates the resource's policy to reflect its deletion status while
-<a href=#507 id=507 data-nosnippet>507</a>    /// maintaining historical records for audit purposes.
-<a href=#508 id=508 data-nosnippet>508</a>    </span>SetDeleted(Resource),
-<a href=#509 id=509 data-nosnippet>509</a>
-<a href=#510 id=510 data-nosnippet>510</a>    <span class="doccomment">/// Update consent enforcement for data processing operations on a resource.
-<a href=#511 id=511 data-nosnippet>511</a>    ///
-<a href=#512 id=512 data-nosnippet>512</a>    /// Set or unset consent enforcement for a resource outgoing flows, actually requiring explicit permission for each outgoing flow.
-<a href=#513 id=513 data-nosnippet>513</a>    /// typically for privacy and regulatory compliance.
-<a href=#514 id=514 data-nosnippet>514</a>    </span>EnforceConsent {
-<a href=#515 id=515 data-nosnippet>515</a>        <span class="doccomment">/// Target resource to update consent for
-<a href=#516 id=516 data-nosnippet>516</a>        </span>resource: Resource,
-<a href=#517 id=517 data-nosnippet>517</a>        <span class="doccomment">/// Consent status: true to grant, false to revoke
-<a href=#518 id=518 data-nosnippet>518</a>        </span>consent: bool,
-<a href=#519 id=519 data-nosnippet>519</a>    },
-<a href=#520 id=520 data-nosnippet>520</a>}
-<a href=#521 id=521 data-nosnippet>521</a>
-<a href=#522 id=522 data-nosnippet>522</a><span class="doccomment">/// Compliance service response types.
-<a href=#523 id=523 data-nosnippet>523</a>///
-<a href=#524 id=524 data-nosnippet>524</a>/// Responses from the compliance service containing authorization decisions, policy data,
-<a href=#525 id=525 data-nosnippet>525</a>/// and update confirmations.
-<a href=#526 id=526 data-nosnippet>526</a></span><span class="attr">#[derive(Debug, PartialEq)]
-<a href=#527 id=527 data-nosnippet>527</a></span><span class="kw">pub enum </span>ComplianceResponse {
-<a href=#528 id=528 data-nosnippet>528</a>    <span class="doccomment">/// Authorization granted for the requested data flow operation.
-<a href=#529 id=529 data-nosnippet>529</a>    ///
-<a href=#530 id=530 data-nosnippet>530</a>    /// Indicates that all policy evaluations passed and the operation
-<a href=#531 id=531 data-nosnippet>531</a>    /// complies with organizational and regulatory requirements.
-<a href=#532 id=532 data-nosnippet>532</a>    </span>Grant,
-<a href=#533 id=533 data-nosnippet>533</a>
-<a href=#534 id=534 data-nosnippet>534</a>    <span class="doccomment">/// Current compliance policy for the requested resource.
-<a href=#535 id=535 data-nosnippet>535</a>    ///
-<a href=#536 id=536 data-nosnippet>536</a>    /// Contains the complete policy configuration including confidentiality,
-<a href=#537 id=537 data-nosnippet>537</a>    /// integrity, consent, and other compliance requirements.
-<a href=#538 id=538 data-nosnippet>538</a>    </span>Policy(Policy),
-<a href=#539 id=539 data-nosnippet>539</a>
-<a href=#540 id=540 data-nosnippet>540</a>    <span class="doccomment">/// Current compliance policies for multiple requested resources.
-<a href=#541 id=541 data-nosnippet>541</a>    ///
-<a href=#542 id=542 data-nosnippet>542</a>    /// Maps each requested resource to its current policy configuration
-<a href=#543 id=543 data-nosnippet>543</a>    /// for batch policy queries.
-<a href=#544 id=544 data-nosnippet>544</a>    </span>Policies(HashMap&lt;Resource, Policy&gt;),
-<a href=#545 id=545 data-nosnippet>545</a>
-<a href=#546 id=546 data-nosnippet>546</a>    <span class="doccomment">/// Confirmation that a policy update was successfully applied.
-<a href=#547 id=547 data-nosnippet>547</a>    ///
-<a href=#548 id=548 data-nosnippet>548</a>    /// Indicates that policy modifications, consent changes, or other
-<a href=#549 id=549 data-nosnippet>549</a>    /// compliance configuration updates completed successfully.
-<a href=#550 id=550 data-nosnippet>550</a>    </span>PolicyUpdated,
-<a href=#551 id=551 data-nosnippet>551</a>
-<a href=#552 id=552 data-nosnippet>552</a>    <span class="doccomment">/// Notification that no policy update was needed.
-<a href=#553 id=553 data-nosnippet>553</a>    ///
-<a href=#554 id=554 data-nosnippet>554</a>    /// Returned when the requested policy change would result in no
-<a href=#555 id=555 data-nosnippet>555</a>    /// actual modification to the current configuration.
-<a href=#556 id=556 data-nosnippet>556</a>    </span>PolicyNotUpdated,
-<a href=#557 id=557 data-nosnippet>557</a>}</code></pre></div></section></main></body></html>
+<a href=#447 id=447 data-nosnippet>447</a>        </span>destination: LocalizedResource,
+<a href=#448 id=448 data-nosnippet>448</a>        <span class="doccomment">/// Destination policy
+<a href=#449 id=449 data-nosnippet>449</a>        </span>destination_policy: <span class="prelude-ty">Option</span>&lt;Policy&gt;,
+<a href=#450 id=450 data-nosnippet>450</a>    },
+<a href=#451 id=451 data-nosnippet>451</a>
+<a href=#452 id=452 data-nosnippet>452</a>    <span class="doccomment">/// Retrieve the current compliance policy for a specific resource.
+<a href=#453 id=453 data-nosnippet>453</a>    ///
+<a href=#454 id=454 data-nosnippet>454</a>    /// Returns the complete policy configuration including confidentiality,
+<a href=#455 id=455 data-nosnippet>455</a>    /// integrity, consent, and deletion status for the requested resource.
+<a href=#456 id=456 data-nosnippet>456</a>    </span>GetPolicy(LocalizedResource),
+<a href=#457 id=457 data-nosnippet>457</a>
+<a href=#458 id=458 data-nosnippet>458</a>    <span class="doccomment">/// Retrieve current compliance policies for multiple resources.
+<a href=#459 id=459 data-nosnippet>459</a>    ///
+<a href=#460 id=460 data-nosnippet>460</a>    /// Batch operation to efficiently query policy configurations for
+<a href=#461 id=461 data-nosnippet>461</a>    /// multiple resources in a single request.
+<a href=#462 id=462 data-nosnippet>462</a>    </span>GetPolicies(HashSet&lt;LocalizedResource&gt;),
+<a href=#463 id=463 data-nosnippet>463</a>
+<a href=#464 id=464 data-nosnippet>464</a>    <span class="doccomment">/// Set a complete compliance policy for a specific resource.
+<a href=#465 id=465 data-nosnippet>465</a>    ///
+<a href=#466 id=466 data-nosnippet>466</a>    /// Replaces the existing policy with new configuration that defines
+<a href=#467 id=467 data-nosnippet>467</a>    /// all aspects of compliance requirements for the resource.
+<a href=#468 id=468 data-nosnippet>468</a>    </span>SetPolicy {
+<a href=#469 id=469 data-nosnippet>469</a>        <span class="doccomment">/// Target resource to apply the policy to
+<a href=#470 id=470 data-nosnippet>470</a>        </span>resource: LocalizedResource,
+<a href=#471 id=471 data-nosnippet>471</a>        <span class="doccomment">/// New complete policy configuration
+<a href=#472 id=472 data-nosnippet>472</a>        </span>policy: Policy,
+<a href=#473 id=473 data-nosnippet>473</a>    },
+<a href=#474 id=474 data-nosnippet>474</a>
+<a href=#475 id=475 data-nosnippet>475</a>    <span class="doccomment">/// Update confidentiality requirements for a specific resource.
+<a href=#476 id=476 data-nosnippet>476</a>    ///
+<a href=#477 id=477 data-nosnippet>477</a>    /// Modifies only the confidentiality aspects of the resource's policy
+<a href=#478 id=478 data-nosnippet>478</a>    /// while preserving other policy components.
+<a href=#479 id=479 data-nosnippet>479</a>    </span>SetConfidentiality {
+<a href=#480 id=480 data-nosnippet>480</a>        <span class="doccomment">/// Target resource to update
+<a href=#481 id=481 data-nosnippet>481</a>        </span>resource: LocalizedResource,
+<a href=#482 id=482 data-nosnippet>482</a>        <span class="doccomment">/// New confidentiality policy requirements
+<a href=#483 id=483 data-nosnippet>483</a>        </span>confidentiality: ConfidentialityPolicy,
+<a href=#484 id=484 data-nosnippet>484</a>    },
+<a href=#485 id=485 data-nosnippet>485</a>
+<a href=#486 id=486 data-nosnippet>486</a>    <span class="doccomment">/// Update integrity level requirements for a specific resource.
+<a href=#487 id=487 data-nosnippet>487</a>    ///
+<a href=#488 id=488 data-nosnippet>488</a>    /// Sets the minimum integrity level required for operations involving
+<a href=#489 id=489 data-nosnippet>489</a>    /// this resource, typically on a numerical scale.
+<a href=#490 id=490 data-nosnippet>490</a>    </span>SetIntegrity {
+<a href=#491 id=491 data-nosnippet>491</a>        <span class="doccomment">/// Target resource to update
+<a href=#492 id=492 data-nosnippet>492</a>        </span>resource: LocalizedResource,
+<a href=#493 id=493 data-nosnippet>493</a>        <span class="doccomment">/// Minimum required integrity level
+<a href=#494 id=494 data-nosnippet>494</a>        </span>integrity: u32,
+<a href=#495 id=495 data-nosnippet>495</a>    },
+<a href=#496 id=496 data-nosnippet>496</a>
+<a href=#497 id=497 data-nosnippet>497</a>    <span class="doccomment">/// Mark a resource as deleted for compliance tracking.
+<a href=#498 id=498 data-nosnippet>498</a>    ///
+<a href=#499 id=499 data-nosnippet>499</a>    /// Updates the resource's policy to reflect its deletion status while
+<a href=#500 id=500 data-nosnippet>500</a>    /// maintaining historical records for audit purposes.
+<a href=#501 id=501 data-nosnippet>501</a>    </span>SetDeleted(LocalizedResource),
+<a href=#502 id=502 data-nosnippet>502</a>
+<a href=#503 id=503 data-nosnippet>503</a>    <span class="doccomment">/// Update consent enforcement for data processing operations on a resource.
+<a href=#504 id=504 data-nosnippet>504</a>    ///
+<a href=#505 id=505 data-nosnippet>505</a>    /// Set or unset consent enforcement for a resource outgoing flows, actually requiring explicit permission for each outgoing flow.
+<a href=#506 id=506 data-nosnippet>506</a>    /// typically for privacy and regulatory compliance.
+<a href=#507 id=507 data-nosnippet>507</a>    </span>EnforceConsent {
+<a href=#508 id=508 data-nosnippet>508</a>        <span class="doccomment">/// Target resource to update consent for
+<a href=#509 id=509 data-nosnippet>509</a>        </span>resource: LocalizedResource,
+<a href=#510 id=510 data-nosnippet>510</a>        <span class="doccomment">/// Consent status: true to grant, false to revoke
+<a href=#511 id=511 data-nosnippet>511</a>        </span>consent: bool,
+<a href=#512 id=512 data-nosnippet>512</a>    },
+<a href=#513 id=513 data-nosnippet>513</a>}
+<a href=#514 id=514 data-nosnippet>514</a>
+<a href=#515 id=515 data-nosnippet>515</a><span class="doccomment">/// Compliance service response types.
+<a href=#516 id=516 data-nosnippet>516</a>///
+<a href=#517 id=517 data-nosnippet>517</a>/// Responses from the compliance service containing authorization decisions, policy data,
+<a href=#518 id=518 data-nosnippet>518</a>/// and update confirmations.
+<a href=#519 id=519 data-nosnippet>519</a></span><span class="attr">#[derive(Debug, PartialEq)]
+<a href=#520 id=520 data-nosnippet>520</a></span><span class="kw">pub enum </span>ComplianceResponse {
+<a href=#521 id=521 data-nosnippet>521</a>    <span class="doccomment">/// Authorization granted for the requested data flow operation.
+<a href=#522 id=522 data-nosnippet>522</a>    ///
+<a href=#523 id=523 data-nosnippet>523</a>    /// Indicates that all policy evaluations passed and the operation
+<a href=#524 id=524 data-nosnippet>524</a>    /// complies with organizational and regulatory requirements.
+<a href=#525 id=525 data-nosnippet>525</a>    </span>Grant,
+<a href=#526 id=526 data-nosnippet>526</a>
+<a href=#527 id=527 data-nosnippet>527</a>    <span class="doccomment">/// Current compliance policy for the requested resource.
+<a href=#528 id=528 data-nosnippet>528</a>    ///
+<a href=#529 id=529 data-nosnippet>529</a>    /// Contains the complete policy configuration including confidentiality,
+<a href=#530 id=530 data-nosnippet>530</a>    /// integrity, consent, and other compliance requirements.
+<a href=#531 id=531 data-nosnippet>531</a>    </span>Policy(Policy),
+<a href=#532 id=532 data-nosnippet>532</a>
+<a href=#533 id=533 data-nosnippet>533</a>    <span class="doccomment">/// Current compliance policies for multiple requested resources.
+<a href=#534 id=534 data-nosnippet>534</a>    ///
+<a href=#535 id=535 data-nosnippet>535</a>    /// Maps each requested resource to its current policy configuration
+<a href=#536 id=536 data-nosnippet>536</a>    /// for batch policy queries.
+<a href=#537 id=537 data-nosnippet>537</a>    </span>Policies(HashMap&lt;LocalizedResource, Policy&gt;),
+<a href=#538 id=538 data-nosnippet>538</a>
+<a href=#539 id=539 data-nosnippet>539</a>    <span class="doccomment">/// Confirmation that a policy update was successfully applied.
+<a href=#540 id=540 data-nosnippet>540</a>    ///
+<a href=#541 id=541 data-nosnippet>541</a>    /// Indicates that policy modifications, consent changes, or other
+<a href=#542 id=542 data-nosnippet>542</a>    /// compliance configuration updates completed successfully.
+<a href=#543 id=543 data-nosnippet>543</a>    </span>PolicyUpdated,
+<a href=#544 id=544 data-nosnippet>544</a>
+<a href=#545 id=545 data-nosnippet>545</a>    <span class="doccomment">/// Notification that no policy update was needed.
+<a href=#546 id=546 data-nosnippet>546</a>    ///
+<a href=#547 id=547 data-nosnippet>547</a>    /// Returned when the requested policy change would result in no
+<a href=#548 id=548 data-nosnippet>548</a>    /// actual modification to the current configuration.
+<a href=#549 id=549 data-nosnippet>549</a>    </span>PolicyNotUpdated,
+<a href=#550 id=550 data-nosnippet>550</a>}</code></pre></div></section></main></body></html>

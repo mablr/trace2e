@@ -61,15 +61,18 @@
 <a href=#61 id=61 data-nosnippet>61</a>    <span class="attr">#[error(<span class="string">"Traceability error, direct policy violation"</span>)]
 <a href=#62 id=62 data-nosnippet>62</a>    </span>DirectPolicyViolation,
 <a href=#63 id=63 data-nosnippet>63</a>
-<a href=#64 id=64 data-nosnippet>64</a>    <span class="attr">#[error(<span class="string">"Traceability error, policy not found (resource: {0:?})"</span>)]
-<a href=#65 id=65 data-nosnippet>65</a>    </span>PolicyNotFound(Resource),
+<a href=#64 id=64 data-nosnippet>64</a>    <span class="attr">#[error(<span class="string">"Traceability error, destination policy not found"</span>)]
+<a href=#65 id=65 data-nosnippet>65</a>    </span>DestinationPolicyNotFound,
 <a href=#66 id=66 data-nosnippet>66</a>
-<a href=#67 id=67 data-nosnippet>67</a>    <span class="attr">#[error(<span class="string">"Traceability error, failed to contact remote middleware ({0})"</span>)]
-<a href=#68 id=68 data-nosnippet>68</a>    </span>TransportFailedToContactRemote(String),
+<a href=#67 id=67 data-nosnippet>67</a>    <span class="attr">#[error(<span class="string">"Traceability error, remote resource policies are not supported"</span>)]
+<a href=#68 id=68 data-nosnippet>68</a>    </span>NotLocalResource,
 <a href=#69 id=69 data-nosnippet>69</a>
-<a href=#70 id=70 data-nosnippet>70</a>    <span class="attr">#[error(<span class="string">"Traceability error, transport layer failed to evaluate remote IP"</span>)]
-<a href=#71 id=71 data-nosnippet>71</a>    </span>TransportFailedToEvaluateRemote,
+<a href=#70 id=70 data-nosnippet>70</a>    <span class="attr">#[error(<span class="string">"Traceability error, failed to contact remote middleware ({0})"</span>)]
+<a href=#71 id=71 data-nosnippet>71</a>    </span>TransportFailedToContactRemote(String),
 <a href=#72 id=72 data-nosnippet>72</a>
-<a href=#73 id=73 data-nosnippet>73</a>    <span class="attr">#[error(<span class="string">"Traceability error, consent request timeout"</span>)]
-<a href=#74 id=74 data-nosnippet>74</a>    </span>ConsentRequestTimeout,
-<a href=#75 id=75 data-nosnippet>75</a>}</code></pre></div></section></main></body></html>
+<a href=#73 id=73 data-nosnippet>73</a>    <span class="attr">#[error(<span class="string">"Traceability error, transport layer failed to evaluate remote IP"</span>)]
+<a href=#74 id=74 data-nosnippet>74</a>    </span>TransportFailedToEvaluateRemote,
+<a href=#75 id=75 data-nosnippet>75</a>
+<a href=#76 id=76 data-nosnippet>76</a>    <span class="attr">#[error(<span class="string">"Traceability error, consent request timeout"</span>)]
+<a href=#77 id=77 data-nosnippet>77</a>    </span>ConsentRequestTimeout,
+<a href=#78 id=78 data-nosnippet>78</a>}</code></pre></div></section></main></body></html>

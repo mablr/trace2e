@@ -139,9 +139,9 @@
 <a href=#139 id=139 data-nosnippet>139</a>            services::sequencer::WaitingQueueService::new(inner, max_retries)
 <a href=#140 id=140 data-nosnippet>140</a>        }))
 <a href=#141 id=141 data-nosnippet>141</a>        .service(services::sequencer::SequencerService::default());
-<a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">let </span>provenance = services::provenance::ProvenanceService::new(node_id);
+<a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">let </span>provenance = services::provenance::ProvenanceService::new(node_id.clone());
 <a href=#143 id=143 data-nosnippet>143</a>    <span class="kw">let </span>consent = services::consent::ConsentService::new(consent_timeout);
-<a href=#144 id=144 data-nosnippet>144</a>    <span class="kw">let </span>compliance = services::compliance::ComplianceService::new_with_consent(consent.clone());
+<a href=#144 id=144 data-nosnippet>144</a>    <span class="kw">let </span>compliance = services::compliance::ComplianceService::new(node_id, consent.clone());
 <a href=#145 id=145 data-nosnippet>145</a>
 <a href=#146 id=146 data-nosnippet>146</a>    <span class="kw">let </span>m2m_service: M2mApiDefaultStack =
 <a href=#147 id=147 data-nosnippet>147</a>        api::m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
