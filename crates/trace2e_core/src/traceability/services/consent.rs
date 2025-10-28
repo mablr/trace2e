@@ -7,7 +7,10 @@ use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
 use tracing::info;
 
-use crate::traceability::{error::TraceabilityError, infrastructure::naming::Resource};
+use crate::traceability::{
+    error::TraceabilityError,
+    infrastructure::naming::{LocalizedResource, Resource},
+};
 
 /// Consent service request types.
 ///
@@ -68,6 +71,15 @@ pub enum Destination {
     Resource { resource: Resource, parent: Option<Box<Self>> },
     /// A node destination.
     Node(String),
+}
+
+impl From<LocalizedResource> for Destination {
+    fn from(localized_resource: LocalizedResource) -> Self {
+        Self::Resource {
+            resource: localized_resource.resource().to_owned(),
+            parent: Some(Box::new(Self::Node(localized_resource.node_id().to_owned()))),
+        }
+    }
 }
 
 impl Destination {

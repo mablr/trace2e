@@ -442,7 +442,7 @@ pub enum ComplianceRequest {
     /// and other policy constraints.
     EvalCompliance {
         /// Source resources sending data
-        sources: HashSet<LocalizedResource>,
+        sources: HashSet<Resource>,
         /// Destination resource receiving the data
         destination: LocalizedResource,
         /// Destination policy
@@ -453,13 +453,13 @@ pub enum ComplianceRequest {
     ///
     /// Returns the complete policy configuration including confidentiality,
     /// integrity, consent, and deletion status for the requested resource.
-    GetPolicy(LocalizedResource),
+    GetPolicy(Resource),
 
     /// Retrieve current compliance policies for multiple resources.
     ///
     /// Batch operation to efficiently query policy configurations for
     /// multiple resources in a single request.
-    GetPolicies(HashSet<LocalizedResource>),
+    GetPolicies(HashSet<Resource>),
 
     /// Set a complete compliance policy for a specific resource.
     ///
@@ -467,7 +467,7 @@ pub enum ComplianceRequest {
     /// all aspects of compliance requirements for the resource.
     SetPolicy {
         /// Target resource to apply the policy to
-        resource: LocalizedResource,
+        resource: Resource,
         /// New complete policy configuration
         policy: Policy,
     },
@@ -478,7 +478,7 @@ pub enum ComplianceRequest {
     /// while preserving other policy components.
     SetConfidentiality {
         /// Target resource to update
-        resource: LocalizedResource,
+        resource: Resource,
         /// New confidentiality policy requirements
         confidentiality: ConfidentialityPolicy,
     },
@@ -489,7 +489,7 @@ pub enum ComplianceRequest {
     /// this resource, typically on a numerical scale.
     SetIntegrity {
         /// Target resource to update
-        resource: LocalizedResource,
+        resource: Resource,
         /// Minimum required integrity level
         integrity: u32,
     },
@@ -498,7 +498,7 @@ pub enum ComplianceRequest {
     ///
     /// Updates the resource's policy to reflect its deletion status while
     /// maintaining historical records for audit purposes.
-    SetDeleted(LocalizedResource),
+    SetDeleted(Resource),
 
     /// Update consent enforcement for data processing operations on a resource.
     ///
@@ -506,7 +506,7 @@ pub enum ComplianceRequest {
     /// typically for privacy and regulatory compliance.
     EnforceConsent {
         /// Target resource to update consent for
-        resource: LocalizedResource,
+        resource: Resource,
         /// Consent status: true to grant, false to revoke
         consent: bool,
     },
