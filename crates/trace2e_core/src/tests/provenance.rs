@@ -1,7 +1,4 @@
-use std::{
-    collections::HashSet,
-    time::Duration,
-};
+use std::{collections::HashSet, time::Duration};
 
 use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 
@@ -43,17 +40,27 @@ async fn integration_o2m_local_provenance() {
     assert_provenance!(
         o2m_service,
         fd1.process(),
-        HashSet::from([LocalizedResource::new(String::new(), fd1.process()), LocalizedResource::new(String::new(), fd1.file())])
+        HashSet::from([
+            LocalizedResource::new(String::new(), fd1.process()),
+            LocalizedResource::new(String::new(), fd1.file())
+        ])
     );
     assert_provenance!(
         o2m_service,
         fd2.process(),
-        HashSet::from([LocalizedResource::new(String::new(), fd1.process()), LocalizedResource::new(String::new(), fd1.file())])
+        HashSet::from([
+            LocalizedResource::new(String::new(), fd1.process()),
+            LocalizedResource::new(String::new(), fd1.file())
+        ])
     );
     assert_provenance!(
         o2m_service,
         fd2.file(),
-        HashSet::from([LocalizedResource::new(String::new(), fd2.file()), LocalizedResource::new(String::new(), fd1.process()), LocalizedResource::new(String::new(), fd1.file())])
+        HashSet::from([
+            LocalizedResource::new(String::new(), fd2.file()),
+            LocalizedResource::new(String::new(), fd1.process()),
+            LocalizedResource::new(String::new(), fd1.file())
+        ])
     );
 }
 
@@ -98,7 +105,10 @@ async fn integration_o2m_remote_provenance_basic() {
     assert_provenance!(
         o2m_2,
         stream2.process(),
-        HashSet::from([LocalizedResource::new("10.0.0.1".to_string(), stream1.process()), LocalizedResource::new("10.0.0.2".to_string(), stream2.process())])
+        HashSet::from([
+            LocalizedResource::new("10.0.0.1".to_string(), stream1.process()),
+            LocalizedResource::new("10.0.0.2".to_string(), stream2.process())
+        ])
     );
 }
 
@@ -169,19 +179,32 @@ async fn integration_o2m_remote_provenance_complex() {
     assert_provenance!(
         o2m_3,
         stream3_2.process(), // P3on3
-        HashSet::from([LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()), LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process()), LocalizedResource::new("10.0.0.2".to_string(), stream2_3.process()), LocalizedResource::new("10.0.0.3".to_string(), stream3_2.process())])
+        HashSet::from([
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()),
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process()),
+            LocalizedResource::new("10.0.0.2".to_string(), stream2_3.process()),
+            LocalizedResource::new("10.0.0.3".to_string(), stream3_2.process())
+        ])
     );
 
     assert_provenance!(
         o2m_2,
         stream2_3.process(), // P2on2 eq stream2_1.process()
-        HashSet::from([LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()), LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process()), LocalizedResource::new("10.0.0.2".to_string(), stream2_1.process())])
+        HashSet::from([
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()),
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process()),
+            LocalizedResource::new("10.0.0.2".to_string(), stream2_1.process())
+        ])
     );
 
     assert_provenance!(
         o2m_1,
         stream1_2.process(), // P1on1 eq fd1_1_1.process() | fd1_1_2.process()
-        HashSet::from([LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()), LocalizedResource::new("10.0.0.1".to_string(), fd1_1_2.file()), LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process())])
+        HashSet::from([
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()),
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_2.file()),
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process())
+        ])
     );
 }
 
@@ -245,18 +268,31 @@ async fn integration_o2m_remote_provenance_complex_with_entropy() {
     assert_provenance!(
         o2m_3,
         stream3_2.process(), // P3on3
-        HashSet::from([LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()), LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process()), LocalizedResource::new("10.0.0.2".to_string(), stream2_3.process()), LocalizedResource::new("10.0.0.3".to_string(), stream3_2.process())])
+        HashSet::from([
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()),
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process()),
+            LocalizedResource::new("10.0.0.2".to_string(), stream2_3.process()),
+            LocalizedResource::new("10.0.0.3".to_string(), stream3_2.process())
+        ])
     );
 
     assert_provenance!(
         o2m_2,
         stream2_3.process(), // P2on2 eq stream2_1.process()
-        HashSet::from([LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()), LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process()), LocalizedResource::new("10.0.0.2".to_string(), stream2_1.process())])
+        HashSet::from([
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()),
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process()),
+            LocalizedResource::new("10.0.0.2".to_string(), stream2_1.process())
+        ])
     );
 
     assert_provenance!(
         o2m_1,
         stream1_2.process(), // P1on1 eq fd1_1_1.process() | fd1_1_2.process()
-        HashSet::from([LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()), LocalizedResource::new("10.0.0.1".to_string(), fd1_1_2.file()), LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process())])
+        HashSet::from([
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.file()),
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_2.file()),
+            LocalizedResource::new("10.0.0.1".to_string(), fd1_1_1.process())
+        ])
     );
 }
