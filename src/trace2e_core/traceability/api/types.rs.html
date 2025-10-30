@@ -169,13 +169,13 @@
 <a href=#169 id=169 data-nosnippet>169</a>    ///
 <a href=#170 id=170 data-nosnippet>170</a>    /// Maps each resource to its current policy, enabling the requesting middleware
 <a href=#171 id=171 data-nosnippet>171</a>    /// to evaluate flow compliance before authorization.
-<a href=#172 id=172 data-nosnippet>172</a>    </span>SourceCompliance(HashMap&lt;Resource, Policy&gt;),
+<a href=#172 id=172 data-nosnippet>172</a>    </span>SourcePolicies(HashMap&lt;Resource, Policy&gt;),
 <a href=#173 id=173 data-nosnippet>173</a>
 <a href=#174 id=174 data-nosnippet>174</a>    <span class="doccomment">/// Compliance policy for a specific destination resource.
 <a href=#175 id=175 data-nosnippet>175</a>    ///
 <a href=#176 id=176 data-nosnippet>176</a>    /// Contains the current policy that will be applied to incoming data flows
 <a href=#177 id=177 data-nosnippet>177</a>    /// to the requested destination resource.
-<a href=#178 id=178 data-nosnippet>178</a>    </span>DestinationCompliance(Policy),
+<a href=#178 id=178 data-nosnippet>178</a>    </span>DestinationPolicy(Policy),
 <a href=#179 id=179 data-nosnippet>179</a>
 <a href=#180 id=180 data-nosnippet>180</a>    <span class="doccomment">/// Acknowledgment of successful request processing.
 <a href=#181 id=181 data-nosnippet>181</a>    ///
@@ -273,7 +273,7 @@
 <a href=#273 id=273 data-nosnippet>273</a>    ///
 <a href=#274 id=274 data-nosnippet>274</a>    /// Maps each requested resource to its current policy configuration,
 <a href=#275 id=275 data-nosnippet>275</a>    /// enabling operators to review and audit policy settings.
-<a href=#276 id=276 data-nosnippet>276</a>    </span>Policies(HashMap&lt;Resource, Policy&gt;),
+<a href=#276 id=276 data-nosnippet>276</a>    </span>Policies(HashMap&lt;LocalizedResource, Policy&gt;),
 <a href=#277 id=277 data-nosnippet>277</a>
 <a href=#278 id=278 data-nosnippet>278</a>    <span class="doccomment">/// Acknowledgment of successful policy update or configuration change.
 <a href=#279 id=279 data-nosnippet>279</a>    ///

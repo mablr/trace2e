@@ -20,7 +20,7 @@
 <a href=#20 id=20 data-nosnippet>20</a>//! - Fallback transport when network communication is disabled
 <a href=#21 id=21 data-nosnippet>21</a>//! - Development environments where distributed setup is not feasible
 <a href=#22 id=22 data-nosnippet>22</a>
-<a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">use </span>std::{collections::HashMap, future::Future, pin::Pin, task::Poll};
+<a href=#23 id=23 data-nosnippet>23</a></span><span class="kw">use </span>std::{future::Future, pin::Pin, task::Poll};
 <a href=#24 id=24 data-nosnippet>24</a>
 <a href=#25 id=25 data-nosnippet>25</a><span class="kw">use </span>tower::Service;
 <a href=#26 id=26 data-nosnippet>26</a>
@@ -66,24 +66,22 @@
 <a href=#66 id=66 data-nosnippet>66</a>    ///
 <a href=#67 id=67 data-nosnippet>67</a>    /// # Request Handling
 <a href=#68 id=68 data-nosnippet>68</a>    ///
-<a href=#69 id=69 data-nosnippet>69</a>    /// - **GetDestinationCompliance**: Returns a default policy with public
+<a href=#69 id=69 data-nosnippet>69</a>    /// - **GetDestinationPolicy**: Returns a default policy with public
 <a href=#70 id=70 data-nosnippet>70</a>    ///   confidentiality, zero integrity, not deleted, and consent given
-<a href=#71 id=71 data-nosnippet>71</a>    /// - **GetSourceCompliance**: Returns an empty policy map indicating
+<a href=#71 id=71 data-nosnippet>71</a>    /// - **CheckSourceCompliance**: Returns an empty policy map indicating
 <a href=#72 id=72 data-nosnippet>72</a>    ///   no source policies are available
 <a href=#73 id=73 data-nosnippet>73</a>    /// - **UpdateProvenance**: Acknowledges the request without performing
 <a href=#74 id=74 data-nosnippet>74</a>    ///   any provenance updates
 <a href=#75 id=75 data-nosnippet>75</a>    </span><span class="kw">fn </span>call(<span class="kw-2">&amp;mut </span><span class="self">self</span>, request: M2mRequest) -&gt; <span class="self">Self</span>::Future {
 <a href=#76 id=76 data-nosnippet>76</a>        Box::pin(<span class="kw">async move </span>{
 <a href=#77 id=77 data-nosnippet>77</a>            <span class="prelude-val">Ok</span>(<span class="kw">match </span>request {
-<a href=#78 id=78 data-nosnippet>78</a>                M2mRequest::GetDestinationCompliance { .. } =&gt; {
-<a href=#79 id=79 data-nosnippet>79</a>                    M2mResponse::DestinationCompliance(Policy::default())
+<a href=#78 id=78 data-nosnippet>78</a>                M2mRequest::GetDestinationPolicy { .. } =&gt; {
+<a href=#79 id=79 data-nosnippet>79</a>                    M2mResponse::DestinationPolicy(Policy::default())
 <a href=#80 id=80 data-nosnippet>80</a>                }
-<a href=#81 id=81 data-nosnippet>81</a>                M2mRequest::GetSourceCompliance { .. } =&gt; {
-<a href=#82 id=82 data-nosnippet>82</a>                    M2mResponse::SourceCompliance(HashMap::new())
-<a href=#83 id=83 data-nosnippet>83</a>                }
-<a href=#84 id=84 data-nosnippet>84</a>                M2mRequest::UpdateProvenance { .. } =&gt; M2mResponse::Ack,
-<a href=#85 id=85 data-nosnippet>85</a>                M2mRequest::BroadcastDeletion(<span class="kw">_</span>) =&gt; M2mResponse::Ack,
-<a href=#86 id=86 data-nosnippet>86</a>            })
-<a href=#87 id=87 data-nosnippet>87</a>        })
-<a href=#88 id=88 data-nosnippet>88</a>    }
-<a href=#89 id=89 data-nosnippet>89</a>}</code></pre></div></section></main></body></html>
+<a href=#81 id=81 data-nosnippet>81</a>                M2mRequest::CheckSourceCompliance { .. }
+<a href=#82 id=82 data-nosnippet>82</a>                | M2mRequest::UpdateProvenance { .. }
+<a href=#83 id=83 data-nosnippet>83</a>                | M2mRequest::BroadcastDeletion(<span class="kw">_</span>) =&gt; M2mResponse::Ack,
+<a href=#84 id=84 data-nosnippet>84</a>            })
+<a href=#85 id=85 data-nosnippet>85</a>        })
+<a href=#86 id=86 data-nosnippet>86</a>    }
+<a href=#87 id=87 data-nosnippet>87</a>}</code></pre></div></section></main></body></html>

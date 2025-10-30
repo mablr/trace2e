@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Confidentiality","Flow"],"mod":["fd","resource"],"struct":["Fd","File","MappedPolicy","Policy","Process","References","Resource","Stream"]};
+window.SIDEBAR_ITEMS = {"enum":["Confidentiality","Flow"],"mod":["destination","fd","resource"],"struct":["Destination","Fd","File","LocalizedResource","LocalizedResourceWithParent","MappedLocalizedPolicy","Policy","Process","References","Resource","Stream"]};
