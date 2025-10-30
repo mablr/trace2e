@@ -47,7 +47,7 @@ use crate::traceability::{
     },
     error::TraceabilityError,
     infrastructure::{
-        naming::{LocalizedResource, NodeId, Resource},
+        naming::{NodeId, Resource},
         validation::ResourceValidator,
     },
 };
@@ -257,6 +257,10 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
             P2mRequest::IoReport { .. } => Ok(request),
         }
     }
+
+    fn flow_id() -> u128 {
+        SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos()
+    }
 }
 
 impl<S, P, C, M> Service<P2mRequest> for P2mApiService<S, P, C, M>
@@ -341,11 +345,6 @@ where
                 }
                 P2mRequest::IoRequest { pid, fd, output } => {
                     if let Some(resource) = resource_map.get(&(pid, fd)) {
-                        let flow_id = match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)
-                        {
-                            Ok(n) => n.as_nanos(),
-                            Err(_) => return Err(TraceabilityError::SystemTimeError),
-                        };
                         let (source, destination) = if output {
                             (resource.0.to_owned(), resource.1.to_owned())
                         } else {
@@ -366,41 +365,94 @@ where
                             .await
                         {
                             Ok(SequencerResponse::FlowReserved) => {
-                                let destination_policy = if let Some(_remote_stream) =
-                                    destination.into_localized_peer_stream()
+                                let destination_policy = if let Some(remote_stream) =
+                                    destination.try_into_localized_peer_stream()
                                 {
-                                    todo!("implement remote destination retrieval")
+                                    match m2m
+                                        .ready()
+                                        .await?
+                                        .call(M2mRequest::GetDestinationPolicy(remote_stream))
+                                        .await
+                                    {
+                                        Ok(M2mResponse::DestinationPolicy(policy)) => Some(policy),
+                                        _ => None, // anyway, errors are handled later, but this may be improved
+                                    }
                                 } else {
                                     None
                                 };
-                                match provenance
+                                let localized_destination =
+                                    destination.clone().into_localized(provenance.node_id());
+                                let flow_id = match provenance
                                     .call(ProvenanceRequest::GetReferences(source.clone()))
                                     .await
                                 {
                                     Ok(ProvenanceResponse::Provenance(references)) => {
-                                        let local_references = references
+                                        let (local_references, remote_references): (
+                                            HashSet<_>,
+                                            HashSet<_>,
+                                        ) = references
                                             .into_iter()
-                                            .filter(|r| *r.node_id() == provenance.node_id())
-                                            .map(|r| r.resource().to_owned())
-                                            .collect::<HashSet<_>>();
+                                            .partition(|r| *r.node_id() == provenance.node_id());
                                         match compliance
                                             .call(ComplianceRequest::EvalCompliance {
-                                                sources: local_references,
-                                                destination: LocalizedResource::new(
-                                                    provenance.node_id(),
-                                                    destination.clone(),
-                                                ),
-                                                destination_policy,
+                                                sources: local_references
+                                                    .iter()
+                                                    .map(|r| r.resource().to_owned())
+                                                    .collect(),
+                                                destination: localized_destination.clone(),
+                                                destination_policy: destination_policy.clone(),
                                             })
                                             .await
                                         {
-                                            Ok(ComplianceResponse::Grant) => (),
-                                            _ => todo!("implement error handling"),
-                                        };
-                                        todo!("implement remote sources compliance checking");
+                                            Ok(ComplianceResponse::Grant) => {
+                                                // Local compliance check passed, now check remote sources compliance
+                                                // Destination policy is required for remote sources compliance checking
+                                                let destination_policy = destination_policy.ok_or(
+                                                    TraceabilityError::DestinationPolicyNotFound,
+                                                )?;
+                                                match m2m
+                                                    .ready()
+                                                    .await?
+                                                    .call(M2mRequest::CheckSourceCompliance {
+                                                        sources: remote_references,
+                                                        destination: (
+                                                            localized_destination,
+                                                            destination_policy,
+                                                        ),
+                                                    })
+                                                    .await
+                                                {
+                                                    Ok(M2mResponse::Ack) => {
+                                                        // Remote sources compliance check passed
+                                                        // Flow can be granted, return the flow id
+                                                        Ok(Self::flow_id())
+                                                    }
+                                                    Err(e) => Err(e),
+                                                    _ => {
+                                                        Err(TraceabilityError::InternalTrace2eError)
+                                                    }
+                                                }
+                                            }
+                                            Err(e) => Err(e),
+                                            _ => Err(TraceabilityError::InternalTrace2eError),
+                                        }
                                     }
                                     Err(e) => Err(e),
                                     _ => Err(TraceabilityError::InternalTrace2eError),
+                                };
+                                match flow_id {
+                                    Ok(flow_id) => {
+                                        // Compliance check passed, flow can be granted, return the flow id
+                                        flow_map.insert(flow_id, (source, destination));
+                                        Ok(P2mResponse::Grant(flow_id))
+                                    }
+                                    Err(e) => {
+                                        // release the flow, and then forward the error
+                                        sequencer
+                                            .call(SequencerRequest::ReleaseFlow { destination })
+                                            .await?;
+                                        Err(e)
+                                    }
                                 }
                             }
                             _ => Err(TraceabilityError::InternalTrace2eError),
@@ -418,7 +470,7 @@ where
                             source,
                             destination
                         );
-                        if let Some(remote_stream) = destination.into_localized_peer_stream() {
+                        if let Some(remote_stream) = destination.try_into_localized_peer_stream() {
                             match provenance
                                 .call(ProvenanceRequest::GetReferences(source.clone()))
                                 .await?
