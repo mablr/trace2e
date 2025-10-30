@@ -225,14 +225,16 @@ impl Service<M2mRequest> for M2mGrpc {
                 }
                 M2mRequest::CheckSourceCompliance { sources, destination } => {
                     // Create the protobuf request
+                    let (dest_resource, dest_policy) = destination;
                     let proto_req = proto::messages::CheckSourceCompliance {
                         sources: sources.into_iter().map(|r| r.into()).collect(),
-                        destination: Some(destination.into()),
+                        destination: Some(dest_resource.into()),
+                        destination_policy: Some(dest_policy.into()),
                     };
 
                     // Make the gRPC call
                     match client.m2m_check_source_compliance(Request::new(proto_req)).await {
-                        Ok(response) => Ok(M2mResponse::Ack),
+                        Ok(_response) => Ok(M2mResponse::Ack),
                         _ => Err(TraceabilityError::InternalTrace2eError), // TODO improve error handling
                     }
                 }
@@ -268,7 +270,9 @@ impl Service<M2mRequest> for M2mGrpc {
                 }
                 M2mRequest::BroadcastDeletion(resource) => {
                     // Create the protobuf request
-                    let proto_req: proto::primitives::Resource = resource.into();
+                    let proto_req = proto::messages::BroadcastDeletionRequest {
+                        resource: Some(resource.into()),
+                    };
 
                     // Make the gRPC call
                     client.m2m_broadcast_deletion(Request::new(proto_req)).await.map_err(|_| {
@@ -452,36 +456,34 @@ where
         + 'static,
     M2mApi::Future: Send,
 {
-    /// Handles destination compliance policy requests from remote middleware.
+    /// Handles destination policy requests from remote middleware.
     ///
     /// Returns the compliance policy for a destination resource to enable
     /// remote middleware instances to evaluate flow authorization.
-    async fn m2m_destination_compliance(
+    async fn m2m_destination_policy(
         &self,
-        request: Request<proto::messages::GetDestinationCompliance>,
-    ) -> Result<Response<proto::messages::DestinationCompliance>, Status> {
+        request: Request<proto::messages::GetDestinationPolicy>,
+    ) -> Result<Response<proto::messages::DestinationPolicy>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
         match m2m.call(req.into()).await? {
-            M2mResponse::DestinationCompliance(policy) => Ok(Response::new(policy.into())),
+            M2mResponse::DestinationPolicy(policy) => Ok(Response::new(policy.into())),
             _ => Err(Status::internal("Internal traceability API error")),
         }
     }
 
-    /// Handles source compliance policy requests from remote middleware.
+    /// Handles source compliance checking requests from remote middleware.
     ///
-    /// Returns the compliance policies for a set of source resources to enable
+    /// Checks compliance policies for a set of source resources to enable
     /// distributed flow evaluation across multiple middleware instances.
-    async fn m2m_source_compliance(
+    async fn m2m_check_source_compliance(
         &self,
-        request: Request<proto::messages::GetSourceCompliance>,
-    ) -> Result<Response<proto::messages::SourceCompliance>, Status> {
+        request: Request<proto::messages::CheckSourceCompliance>,
+    ) -> Result<Response<proto::messages::Ack>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
-        match m2m.call(req.into()).await? {
-            M2mResponse::SourceCompliance(policies) => Ok(Response::new(policies.into())),
-            _ => Err(Status::internal("Internal traceability API error")),
-        }
+        m2m.call(req.into()).await?;
+        Ok(Response::new(proto::messages::Ack {}))
     }
 
     /// Handles provenance update requests from remote middleware.
@@ -506,7 +508,7 @@ where
     /// Broadcasts the deletion of a resource to all middleware instances.
     async fn m2m_broadcast_deletion(
         &self,
-        request: Request<proto::primitives::Resource>,
+        request: Request<proto::messages::BroadcastDeletionRequest>,
     ) -> Result<Response<proto::messages::Ack>, Status> {
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
@@ -654,10 +656,10 @@ where
                 let stream = BroadcastStream::new(receiver).map(|result| {
                     match result {
                         Ok(destination) => {
-                            // Format destination as human-readable log message
-                            let log_message =
+                            // Format destination as human-readable consent request message
+                            let consent_request =
                                 format!("Consent request for destination: {:?}", destination);
-                            Ok(proto::messages::ConsentNotification { log_message })
+                            Ok(proto::messages::ConsentNotification { consent_request })
                         }
                         Err(e) => {
                             Err(Status::internal(format!("Notification stream error: {}", e)))
@@ -711,88 +713,8 @@ where
     }
 }
 
-// Protocol Buffer type conversion implementations
-//
-// The following implementations provide bidirectional conversion between
-// internal trace2e types and their Protocol Buffer representations,
-// enabling seamless serialization for network transmission.
-
-/// Converts Protocol Buffer GetDestinationCompliance request to internal M2M request.
-impl From<proto::messages::GetDestinationCompliance> for M2mRequest {
-    fn from(req: proto::messages::GetDestinationCompliance) -> Self {
-        M2mRequest::GetDestinationCompliance {
-            source: req.source.map(|s| s.into()).unwrap_or_default(),
-            destination: req.destination.map(|d| d.into()).unwrap_or_default(),
-        }
-    }
-}
-
-/// Converts Protocol Buffer GetSourceCompliance request to internal M2M request.
-impl From<proto::messages::GetSourceCompliance> for M2mRequest {
-    fn from(req: proto::messages::GetSourceCompliance) -> Self {
-        M2mRequest::GetSourceCompliance {
-            authority_ip: String::new(), // Already routed so no authority IP needed
-            resources: req.resources.into_iter().map(|r| r.into()).collect(),
-        }
-    }
-}
-
-/// Converts Protocol Buffer MappedPolicy to internal resource-policy tuple.
-impl From<proto::primitives::MappedPolicy> for (Resource, Policy) {
-    fn from(policy: proto::primitives::MappedPolicy) -> Self {
-        (
-            policy.resource.map(|r| r.into()).unwrap_or_default(),
-            policy.policy.map(|p| p.into()).unwrap_or_default(),
-        )
-    }
-}
-
-/// Converts Protocol Buffer References to internal node-resources tuple.
-impl From<proto::primitives::References> for (String, HashSet<Resource>) {
-    fn from(references: proto::primitives::References) -> Self {
-        (references.node, references.resources.into_iter().map(|r| r.into()).collect())
-    }
-}
-
-/// Converts Protocol Buffer References to LocalizedResource.
-impl From<proto::primitives::References> for HashSet<LocalizedResource> {
-    fn from(references: proto::primitives::References) -> Self {
-        references
-            .resources
-            .into_iter()
-            .map(|r| LocalizedResource::new(references.node.clone(), r.into()))
-            .collect()
-    }
-}
-
-/// Converts Protocol Buffer UpdateProvenance request to internal M2M request.
-impl From<proto::messages::UpdateProvenance> for M2mRequest {
-    fn from(req: proto::messages::UpdateProvenance) -> Self {
-        // Convert Vec<References> to HashSet<LocalizedResource>
-        let source_prov: HashSet<LocalizedResource> = req
-            .source_prov
-            .into_iter()
-            .flat_map(|refs: proto::primitives::References| {
-                let node_id = refs.node.clone();
-                refs.resources
-                    .into_iter()
-                    .map(move |r| LocalizedResource::new(node_id.clone(), r.into()))
-            })
-            .collect();
-
-        M2mRequest::UpdateProvenance {
-            source_prov,
-            destination: req.destination.map(|d| d.into()).unwrap_or_default(),
-        }
-    }
-}
-
-/// Converts Protocol Buffer Resource to internal M2M BroadcastDeletion request.
-impl From<proto::primitives::Resource> for M2mRequest {
-    fn from(req: proto::primitives::Resource) -> Self {
-        M2mRequest::BroadcastDeletion(req.into())
-    }
-}
+// ========== Protocol Buffer Type Conversions ==========
+// Fundamental type conversions for serialization/deserialization
 
 /// Converts Protocol Buffer Resource to internal Resource type.
 impl From<proto::primitives::Resource> for Resource {
@@ -803,48 +725,6 @@ impl From<proto::primitives::Resource> for Resource {
                 Resource::Process(process.into())
             }
             None => Resource::None,
-        }
-    }
-}
-
-/// Converts internal Policy to Protocol Buffer DestinationCompliance response.
-impl From<Policy> for proto::messages::DestinationCompliance {
-    fn from(policy: Policy) -> Self {
-        proto::messages::DestinationCompliance { policy: Some(policy.into()) }
-    }
-}
-
-/// Converts internal resource-policy map to Protocol Buffer SourceCompliance response.
-impl From<HashMap<Resource, Policy>> for proto::messages::SourceCompliance {
-    fn from(policies: HashMap<Resource, Policy>) -> Self {
-        proto::messages::SourceCompliance {
-            policies: policies
-                .into_iter()
-                .map(|(resource, policy)| proto::primitives::MappedPolicy {
-                    resource: Some(resource.into()),
-                    policy: Some(policy.into()),
-                })
-                .collect(),
-        }
-    }
-}
-
-/// Converts internal node-resources tuple to Protocol Buffer References.
-impl From<(String, HashSet<Resource>)> for proto::primitives::References {
-    fn from((node, resources): (String, HashSet<Resource>)) -> Self {
-        proto::primitives::References {
-            node,
-            resources: resources.into_iter().map(|r| r.into()).collect(),
-        }
-    }
-}
-
-/// Converts internal resource-policy tuple to Protocol Buffer MappedPolicy.
-impl From<(Resource, Policy)> for proto::primitives::MappedPolicy {
-    fn from((resource, policy): (Resource, Policy)) -> Self {
-        proto::primitives::MappedPolicy {
-            resource: Some(resource.into()),
-            policy: Some(policy.into()),
         }
     }
 }
@@ -869,7 +749,7 @@ impl From<proto::primitives::Fd> for Fd {
         match proto_fd.fd {
             Some(proto::primitives::fd::Fd::File(file)) => Fd::File(file.into()),
             Some(proto::primitives::fd::Fd::Stream(stream)) => Fd::Stream(stream.into()),
-            None => Fd::File(File { path: String::new() }), // Default to empty file
+            None => Fd::File(File { path: String::new() }),
         }
     }
 }
@@ -934,6 +814,98 @@ impl From<Process> for proto::primitives::Process {
     }
 }
 
+// ========== LocalizedResource and Destination Conversions ==========
+
+/// Converts Protocol Buffer LocalizedResource to internal LocalizedResource type.
+impl From<proto::primitives::LocalizedResource> for LocalizedResource {
+    fn from(proto_lr: proto::primitives::LocalizedResource) -> Self {
+        LocalizedResource::new(
+            proto_lr.node_id,
+            proto_lr.resource.map(|r| r.into()).unwrap_or_default(),
+        )
+    }
+}
+
+/// Converts internal LocalizedResource to Protocol Buffer LocalizedResource type.
+impl From<LocalizedResource> for proto::primitives::LocalizedResource {
+    fn from(lr: LocalizedResource) -> Self {
+        proto::primitives::LocalizedResource {
+            node_id: lr.node_id().clone(),
+            resource: Some(lr.resource().clone().into()),
+        }
+    }
+}
+
+/// Converts Protocol Buffer Destination to internal Destination type.
+impl From<proto::primitives::Destination> for Destination {
+    fn from(proto_dest: proto::primitives::Destination) -> Self {
+        match proto_dest.destination {
+            Some(proto::primitives::destination::Destination::Resource(lr_with_parent)) => {
+                if let Some(proto_lr) = lr_with_parent.resource {
+                    let localized_resource: LocalizedResource = proto_lr.into();
+                    let parent = lr_with_parent.parent.map(|p| Box::new((*p).into()));
+                    // Preserve the LocalizedResource as a Resource with node_id in the parent
+                    Destination::Resource {
+                        resource: localized_resource.resource().clone(),
+                        parent,
+                    }
+                } else {
+                    Destination::Resource { resource: Resource::None, parent: None }
+                }
+            }
+            Some(proto::primitives::destination::Destination::Node(node_id)) => {
+                Destination::Node(node_id)
+            }
+            None => Destination::Node(String::new()),
+        }
+    }
+}
+
+/// Converts internal Destination to Protocol Buffer Destination type.
+/// Preserves LocalizedResource context by reconstructing the hierarchical structure.
+impl From<Destination> for proto::primitives::Destination {
+    fn from(dest: Destination) -> Self {
+        match dest {
+            Destination::Resource { resource, parent } => {
+                // When converting back to proto, we reconstruct the LocalizedResource
+                // If parent is None, we use empty string for node_id (local)
+                // If parent is Some(Node(...)), we extract the node_id
+                let (node_id, proto_parent) = match &parent {
+                    Some(p) => {
+                        match &(**p) {
+                            Destination::Node(node) => {
+                                (node.clone(), parent.map(|p| Box::new((*p).clone().into())))
+                            }
+                            _ => {
+                                // If parent is another Resource, preserve it as-is
+                                (String::new(), parent.map(|p| Box::new((*p).clone().into())))
+                            }
+                        }
+                    }
+                    None => {
+                        // No parent, local resource
+                        (String::new(), None)
+                    }
+                };
+
+                proto::primitives::Destination {
+                    destination: Some(proto::primitives::destination::Destination::Resource(
+                        Box::new(proto::primitives::LocalizedResourceWithParent {
+                            resource: Some(LocalizedResource::new(node_id, resource).into()),
+                            parent: proto_parent,
+                        }),
+                    )),
+                }
+            }
+            Destination::Node(node_id) => proto::primitives::Destination {
+                destination: Some(proto::primitives::destination::Destination::Node(node_id)),
+            },
+        }
+    }
+}
+
+// ========== Policy Conversions ==========
+
 impl From<Policy> for proto::primitives::Policy {
     fn from(policy: Policy) -> Self {
         proto::primitives::Policy {
@@ -964,7 +936,108 @@ impl From<proto::primitives::Policy> for Policy {
     }
 }
 
-// O2M Protocol Buffer conversions
+// ========== Resource-Policy Mapping Conversions ==========
+
+/// Converts Protocol Buffer MappedLocalizedPolicy to internal tuple.
+impl From<proto::primitives::MappedLocalizedPolicy> for (LocalizedResource, Policy) {
+    fn from(policy: proto::primitives::MappedLocalizedPolicy) -> Self {
+        (
+            policy.resource.map(|r| r.into()).unwrap_or_default(),
+            policy.policy.map(|p| p.into()).unwrap_or_default(),
+        )
+    }
+}
+
+// ========== Provenance References Conversions ==========
+
+/// Converts Protocol Buffer References to internal node-resources tuple.
+impl From<proto::primitives::References> for (String, HashSet<Resource>) {
+    fn from(references: proto::primitives::References) -> Self {
+        (references.node, references.resources.into_iter().map(|r| r.into()).collect())
+    }
+}
+
+/// Converts Protocol Buffer References to LocalizedResource set.
+impl From<proto::primitives::References> for HashSet<LocalizedResource> {
+    fn from(references: proto::primitives::References) -> Self {
+        references
+            .resources
+            .into_iter()
+            .map(|r| LocalizedResource::new(references.node.clone(), r.into()))
+            .collect()
+    }
+}
+
+/// Converts internal node-resources tuple to Protocol Buffer References.
+impl From<(String, HashSet<Resource>)> for proto::primitives::References {
+    fn from((node, resources): (String, HashSet<Resource>)) -> Self {
+        proto::primitives::References {
+            node,
+            resources: resources.into_iter().map(|r| r.into()).collect(),
+        }
+    }
+}
+
+// ========== M2M Protocol Buffer Conversions ==========
+
+/// Converts Protocol Buffer GetDestinationPolicy request to internal M2M request.
+impl From<proto::messages::GetDestinationPolicy> for M2mRequest {
+    fn from(req: proto::messages::GetDestinationPolicy) -> Self {
+        M2mRequest::GetDestinationPolicy(req.destination.map(|d| d.into()).unwrap_or_default())
+    }
+}
+
+/// Converts Protocol Buffer UpdateProvenance request to internal M2M request.
+impl From<proto::messages::UpdateProvenance> for M2mRequest {
+    fn from(req: proto::messages::UpdateProvenance) -> Self {
+        let source_prov: HashSet<LocalizedResource> = req
+            .source_prov
+            .into_iter()
+            .flat_map(|refs: proto::primitives::References| {
+                let node_id = refs.node.clone();
+                refs.resources
+                    .into_iter()
+                    .map(move |r| LocalizedResource::new(node_id.clone(), r.into()))
+            })
+            .collect();
+
+        M2mRequest::UpdateProvenance {
+            source_prov,
+            destination: req.destination.map(|d| d.into()).unwrap_or_default(),
+        }
+    }
+}
+
+/// Converts Protocol Buffer BroadcastDeletionRequest to internal M2M request.
+impl From<proto::messages::BroadcastDeletionRequest> for M2mRequest {
+    fn from(req: proto::messages::BroadcastDeletionRequest) -> Self {
+        M2mRequest::BroadcastDeletion(req.resource.map(|r| r.into()).unwrap_or_default())
+    }
+}
+
+/// Converts Protocol Buffer CheckSourceCompliance request to internal M2M request.
+impl From<proto::messages::CheckSourceCompliance> for M2mRequest {
+    fn from(req: proto::messages::CheckSourceCompliance) -> Self {
+        let sources: HashSet<LocalizedResource> =
+            req.sources.into_iter().map(|s| s.into()).collect();
+        let destination: LocalizedResource = req.destination.map(|d| d.into()).unwrap_or_default();
+        let destination_policy: Policy =
+            req.destination_policy.map(|p| p.into()).unwrap_or_default();
+        M2mRequest::CheckSourceCompliance {
+            sources,
+            destination: (destination, destination_policy),
+        }
+    }
+}
+
+/// Converts internal M2M DestinationPolicy response to Protocol Buffer response.
+impl From<Policy> for proto::messages::DestinationPolicy {
+    fn from(policy: Policy) -> Self {
+        proto::messages::DestinationPolicy { policy: Some(policy.into()) }
+    }
+}
+
+// ========== O2M Protocol Buffer Conversions ==========
 
 /// Converts Protocol Buffer GetPoliciesRequest to internal O2M request.
 impl From<proto::messages::GetPoliciesRequest> for O2mRequest {
@@ -1027,10 +1100,10 @@ impl From<proto::messages::SetConsentDecisionRequest> for O2mRequest {
     fn from(req: proto::messages::SetConsentDecisionRequest) -> Self {
         O2mRequest::SetConsentDecision {
             source: req.source.map(|r| r.into()).unwrap_or_default(),
-            destination: Destination::Resource {
-                resource: req.destination.map(|r| r.into()).unwrap_or_default(),
-                parent: None,
-            },
+            destination: req
+                .destination
+                .map(|d| d.into())
+                .unwrap_or_else(|| Destination::Node(String::new())),
             decision: req.decision,
         }
     }
@@ -1043,13 +1116,30 @@ impl From<proto::messages::GetReferencesRequest> for O2mRequest {
     }
 }
 
+// ========== O2M Response Conversions ==========
+
 /// Converts internal resource-policy map to Protocol Buffer GetPoliciesResponse.
 impl From<HashMap<Resource, Policy>> for proto::messages::GetPoliciesResponse {
     fn from(policies: HashMap<Resource, Policy>) -> Self {
         proto::messages::GetPoliciesResponse {
             policies: policies
                 .into_iter()
-                .map(|(resource, policy)| proto::primitives::MappedPolicy {
+                .map(|(resource, policy)| proto::primitives::MappedLocalizedPolicy {
+                    resource: Some(LocalizedResource::new(String::new(), resource).into()),
+                    policy: Some(policy.into()),
+                })
+                .collect(),
+        }
+    }
+}
+
+/// Converts internal LocalizedResource-policy map to Protocol Buffer GetPoliciesResponse.
+impl From<HashMap<LocalizedResource, Policy>> for proto::messages::GetPoliciesResponse {
+    fn from(policies: HashMap<LocalizedResource, Policy>) -> Self {
+        proto::messages::GetPoliciesResponse {
+            policies: policies
+                .into_iter()
+                .map(|(resource, policy)| proto::primitives::MappedLocalizedPolicy {
                     resource: Some(resource.into()),
                     policy: Some(policy.into()),
                 })

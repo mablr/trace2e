@@ -46,6 +46,7 @@ message GetDestinationPolicy {
 message CheckSourceCompliance {
     repeated primitives.LocalizedResource sources = 1;
     primitives.LocalizedResource destination = 2;
+    primitives.Policy destination_policy = 3;
 }
 
 message DestinationPolicy {
@@ -63,7 +64,7 @@ message GetPoliciesRequest {
 }
 
 message GetPoliciesResponse {
-    repeated primitives.MappedPolicy policies = 1;
+    repeated primitives.MappedLocalizedPolicy policies = 1;
 }
 
 message SetPolicyRequest {
@@ -97,6 +98,10 @@ message SetConsentDecisionRequest {
     primitives.Resource source = 1;
     primitives.Destination destination = 2;
     bool decision = 3;
+}
+
+message BroadcastDeletionRequest {
+    primitives.LocalizedResource resource = 1;
 }
 
 message GetReferencesRequest {

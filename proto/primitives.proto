@@ -43,6 +43,27 @@ message Resource {
     }
 }
 
+// Localized resource types
+message LocalizedResource {
+    string node_id = 1;
+    Resource resource = 2;
+}
+
+/// Destination for consent requests with hierarchical structure.
+/// Represents either a specific LocalizedResource or a Node ID for hierarchy.
+message Destination {
+    oneof destination {
+        LocalizedResourceWithParent resource = 1;
+        string node = 2;
+    }
+}
+
+/// LocalizedResource with optional parent destination for hierarchy.
+message LocalizedResourceWithParent {
+    LocalizedResource resource = 1;
+    Destination parent = 2;  // Optional parent destination (typically a Node)
+}
+
 // Policy-related messages
 message Policy {
     Confidentiality confidentiality = 1;
@@ -51,8 +72,8 @@ message Policy {
     bool consent = 4;
 }
 
-message MappedPolicy {
-    Resource resource = 1;
+message MappedLocalizedPolicy {
+    LocalizedResource resource = 1;
     Policy policy = 2;
 }
 

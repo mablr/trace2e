@@ -38,7 +38,7 @@ use std::{
 use dashmap::DashMap;
 use tower::{Service, ServiceExt};
 #[cfg(feature = "trace2e_tracing")]
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::traceability::{
     api::types::{

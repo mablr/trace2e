@@ -6,7 +6,7 @@ use std::{collections::HashSet, pin::Pin, sync::Arc, task::Poll};
 use dashmap::DashMap;
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::traceability::{
     api::types::{ProvenanceRequest, ProvenanceResponse},

@@ -46,7 +46,7 @@ use crate::traceability::{
         },
     },
     error::TraceabilityError,
-    infrastructure::naming::NodeId,
+    infrastructure::naming::{LocalizedResource, NodeId},
     services::consent::{ConsentRequest, ConsentResponse},
 };
 
@@ -184,7 +184,9 @@ where
                         provenance.node_id(),
                         resource
                     );
-                    match m2m.call(M2mRequest::BroadcastDeletion(resource)).await? {
+                    let localized_resource =
+                        LocalizedResource::new(provenance.node_id().clone(), resource);
+                    match m2m.call(M2mRequest::BroadcastDeletion(localized_resource)).await? {
                         M2mResponse::Ack => Ok(O2mResponse::Ack),
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }

@@ -66,7 +66,13 @@ impl StreamMapping {
         Self::with_node_id(pid, fd, local_socket, peer_socket, String::new())
     }
 
-    pub fn with_node_id(pid: i32, fd: i32, local_socket: &str, peer_socket: &str, node_id: String) -> Self {
+    pub fn with_node_id(
+        pid: i32,
+        fd: i32,
+        local_socket: &str,
+        peer_socket: &str,
+        node_id: String,
+    ) -> Self {
         Self {
             pid,
             fd,
