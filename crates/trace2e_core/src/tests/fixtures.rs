@@ -1,5 +1,7 @@
 use crate::traceability::infrastructure::naming::{Fd, LocalizedResource, Resource};
 
+// TODO: Remove all #[allow(unused)] once we have tests that use unused stuff ;P
+
 pub(super) struct FileMapping {
     pid: i32,
     fd: i32,
@@ -8,6 +10,7 @@ pub(super) struct FileMapping {
     file: Resource,
 }
 
+#[allow(unused)]
 pub(super) struct StreamMapping {
     pid: i32,
     fd: i32,
@@ -16,6 +19,7 @@ pub(super) struct StreamMapping {
     stream: Resource,
 }
 
+#[allow(unused)]
 impl FileMapping {
     pub fn new(pid: i32, fd: i32, path: &str) -> Self {
         Self::with_node_id(pid, fd, path, String::new())
@@ -61,6 +65,7 @@ impl FileMapping {
     }
 }
 
+#[allow(unused)]
 impl StreamMapping {
     pub fn new(pid: i32, fd: i32, local_socket: &str, peer_socket: &str) -> Self {
         Self::with_node_id(pid, fd, local_socket, peer_socket, String::new())

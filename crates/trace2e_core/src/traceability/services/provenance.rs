@@ -78,12 +78,12 @@ impl ProvenanceService {
                 ProvenanceResponse::ProvenanceNotUpdated
             } else {
                 destination_prov.extend(source_prov);
-                self.provenance.insert(destination.to_owned(), destination_prov);
                 #[cfg(feature = "trace2e_tracing")]
                 info!(
                     "[provenance-raw] Provenance updated: destination_prov: {:?}",
                     destination_prov
                 );
+                self.provenance.insert(destination.to_owned(), destination_prov);
                 ProvenanceResponse::ProvenanceUpdated
             }
         }

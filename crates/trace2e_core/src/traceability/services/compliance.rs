@@ -392,7 +392,7 @@ impl ComplianceService<ConsentService> {
         destination_policy: Option<Policy>,
     ) -> Result<ComplianceResponse, TraceabilityError> {
         // Get the destination policy if it is local or use the provided policy
-        let destination_policy = if let Some(destination) = self.into_local_resource(&destination) {
+        let destination_policy = if let Some(destination) = self.as_local_resource(&destination) {
             self.get_policy(&destination)
         } else {
             destination_policy.ok_or(TraceabilityError::DestinationPolicyNotFound)?
@@ -471,8 +471,8 @@ impl ComplianceService<ConsentService> {
 }
 
 impl ComplianceService {
-    /// Returns true if the resource is local to the node, otherwise returns false
-    fn into_local_resource(&self, resource: &LocalizedResource) -> Option<Resource> {
+    /// Returns the resource if it is local to the node, otherwise returns None
+    fn as_local_resource(&self, resource: &LocalizedResource) -> Option<Resource> {
         if *resource.node_id() == self.node_id {
             Some(resource.resource().to_owned())
         } else {
@@ -486,7 +486,7 @@ impl ComplianceService {
     ///
     /// * `resource` - The resource to look up
     fn get_policy(&self, resource: &Resource) -> Policy {
-        self.policies.entry(resource.to_owned()).or_insert_with(|| Policy::default()).to_owned()
+        self.policies.entry(resource.to_owned()).or_default().to_owned()
     }
 
     /// Retrieves policies for a set of resources.

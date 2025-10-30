@@ -241,11 +241,11 @@ impl Service<M2mRequest> for M2mGrpc {
                 M2mRequest::UpdateProvenance { source_prov, destination } => {
                     // Group LocalizedResources by node_id
                     let mut grouped: HashMap<String, Vec<proto::primitives::Resource>> =
-                        HashMap::new();
+                        HashMap::default();
                     for lr in source_prov {
                         grouped
                             .entry(lr.node_id().clone())
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push(lr.resource().clone().into());
                     }
 
@@ -699,12 +699,9 @@ where
         match o2m.call(req.into()).await? {
             O2mResponse::References(references) => {
                 // Group LocalizedResources by node_id
-                let mut grouped: HashMap<String, HashSet<Resource>> = HashMap::new();
+                let mut grouped: HashMap<String, HashSet<Resource>> = HashMap::default();
                 for lr in references {
-                    grouped
-                        .entry(lr.node_id().clone())
-                        .or_insert_with(HashSet::new)
-                        .insert(lr.resource().clone());
+                    grouped.entry(lr.node_id().clone()).or_default().insert(lr.resource().clone());
                 }
                 Ok(Response::new(grouped.into()))
             }
