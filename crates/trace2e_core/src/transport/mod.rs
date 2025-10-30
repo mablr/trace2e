@@ -29,13 +29,7 @@
 //! facilitating the exchange of compliance policies, provenance information,
 //! and authorization decisions across network boundaries.
 
-use std::net::SocketAddr;
-
-use crate::traceability::{
-    api::types::M2mRequest,
-    error::TraceabilityError,
-    infrastructure::naming::{Fd, Resource},
-};
+use crate::traceability::{api::types::M2mRequest, error::TraceabilityError};
 
 pub mod grpc;
 pub mod loopback;

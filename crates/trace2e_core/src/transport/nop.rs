@@ -20,7 +20,7 @@
 //! - Fallback transport when network communication is disabled
 //! - Development environments where distributed setup is not feasible
 
-use std::{collections::HashMap, future::Future, pin::Pin, task::Poll};
+use std::{future::Future, pin::Pin, task::Poll};
 
 use tower::Service;
 

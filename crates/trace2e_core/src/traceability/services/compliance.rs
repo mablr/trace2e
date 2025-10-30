@@ -39,7 +39,7 @@ use crate::traceability::{
     api::types::{ComplianceRequest, ComplianceResponse},
     error::TraceabilityError,
     infrastructure::naming::{LocalizedResource, Resource},
-    services::consent::{ConsentRequest, ConsentResponse, ConsentService, Destination},
+    services::consent::{ConsentRequest, ConsentResponse, ConsentService},
 };
 
 /// Confidentiality policy defines the level of confidentiality of a resource.
