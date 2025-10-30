@@ -159,12 +159,25 @@ impl Resource {
         matches!(self, Resource::Fd(Fd::Stream(_)))
     }
 
+    /// Converts this resource into a localized resource given the specified localization.
+    ///
+    /// It attempts to convert the resource into a localized stream resource, which infers
+    /// the peer node from the stream's peer socket.
+    /// Otherwise, it creates a localized resource with the specified localization..
+    pub fn into_localized(self, localization: String) -> LocalizedResource {
+        if let Some(localized_stream) = self.try_into_localized_peer_stream() {
+            localized_stream
+        } else {
+            LocalizedResource::new(localization, self)
+        }
+    }
+
     /// Returns the peer stream resource if this is a stream resource.
     ///
     /// For stream resources, returns a new resource with the local and peer
     /// socket addresses swapped. This is useful for tracking bidirectional
     /// flows. Returns None for non-stream resources.
-    pub fn into_localized_peer_stream(&self) -> Option<LocalizedResource> {
+    pub fn try_into_localized_peer_stream(&self) -> Option<LocalizedResource> {
         if let Resource::Fd(Fd::Stream(stream)) = self
             && let Ok(peer_socket) = stream.peer_socket.parse::<SocketAddr>()
         {
