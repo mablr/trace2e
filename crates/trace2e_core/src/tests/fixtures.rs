@@ -1,8 +1,9 @@
-use crate::traceability::infrastructure::naming::{Fd, Resource};
+use crate::traceability::infrastructure::naming::{Fd, LocalizedResource, Resource};
 
 pub(super) struct FileMapping {
     pid: i32,
     fd: i32,
+    node_id: String,
     process: Resource,
     file: Resource,
 }
@@ -10,19 +11,26 @@ pub(super) struct FileMapping {
 pub(super) struct StreamMapping {
     pid: i32,
     fd: i32,
+    node_id: String,
     process: Resource,
     stream: Resource,
 }
 
 impl FileMapping {
     pub fn new(pid: i32, fd: i32, path: &str) -> Self {
+        Self::with_node_id(pid, fd, path, String::new())
+    }
+
+    pub fn with_node_id(pid: i32, fd: i32, path: &str, node_id: String) -> Self {
         Self {
             pid,
             fd,
+            node_id,
             process: Resource::new_process(pid),
             file: Resource::new_file(path.to_string()),
         }
     }
+
     pub fn pid(&self) -> i32 {
         self.pid
     }
@@ -41,17 +49,33 @@ impl FileMapping {
     pub fn file(&self) -> Resource {
         self.file.to_owned()
     }
+
+    /// Get the localized process resource
+    pub fn localized_process(&self) -> LocalizedResource {
+        LocalizedResource::new(self.node_id.clone(), self.process.to_owned())
+    }
+
+    /// Get the localized file resource
+    pub fn localized_file(&self) -> LocalizedResource {
+        LocalizedResource::new(self.node_id.clone(), self.file.to_owned())
+    }
 }
 
 impl StreamMapping {
     pub fn new(pid: i32, fd: i32, local_socket: &str, peer_socket: &str) -> Self {
+        Self::with_node_id(pid, fd, local_socket, peer_socket, String::new())
+    }
+
+    pub fn with_node_id(pid: i32, fd: i32, local_socket: &str, peer_socket: &str, node_id: String) -> Self {
         Self {
             pid,
             fd,
+            node_id,
             process: Resource::new_process(pid),
             stream: Resource::new_stream(local_socket.to_string(), peer_socket.to_string()),
         }
     }
+
     pub fn pid(&self) -> i32 {
         self.pid
     }
@@ -75,6 +99,16 @@ impl StreamMapping {
     }
     pub fn stream(&self) -> Resource {
         self.stream.to_owned()
+    }
+
+    /// Get the localized process resource
+    pub fn localized_process(&self) -> LocalizedResource {
+        LocalizedResource::new(self.node_id.clone(), self.process.to_owned())
+    }
+
+    /// Get the localized stream resource
+    pub fn localized_stream(&self) -> LocalizedResource {
+        LocalizedResource::new(self.node_id.clone(), self.stream.to_owned())
     }
 }
 

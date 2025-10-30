@@ -76,14 +76,14 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
     assert_policies!(
         o2m_1,
         HashSet::from([fd1_1_1.file()]),
-        HashMap::from([(fd1_1_1.file(), Policy::default())])
+        HashMap::from([(fd1_1_1.localized_file(), Policy::default())])
     );
     set_confidentiality!(o2m_1, fd1_1_1.file(), ConfidentialityPolicy::Secret);
     assert_policies!(
         o2m_1,
         HashSet::from([fd1_1_1.file()]),
         HashMap::from([(
-            fd1_1_1.file(),
+            fd1_1_1.localized_file(),
             Policy::new(
                 ConfidentialityPolicy::Secret,
                 Default::default(),
@@ -234,7 +234,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
     assert_policies!(
         o2m_1,
         HashSet::from([fd1_1_1.file()]),
-        HashMap::from([(fd1_1_1.file(), Policy::default())])
+        HashMap::from([(fd1_1_1.localized_file(), Policy::default())])
     );
 
     // Mark the source file as deleted
@@ -245,7 +245,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
         o2m_1,
         HashSet::from([fd1_1_1.file()]),
         HashMap::from([(
-            fd1_1_1.file(),
+            fd1_1_1.localized_file(),
             Policy::new(Default::default(), Default::default(), DeletionPolicy::Pending, false)
         )])
     );
@@ -267,7 +267,7 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
         o2m_1,
         HashSet::from([fd1_1_1.file()]),
         HashMap::from([(
-            fd1_1_1.file(),
+            fd1_1_1.localized_file(),
             Policy::new(Default::default(), Default::default(), DeletionPolicy::Pending, false)
         )])
     );
