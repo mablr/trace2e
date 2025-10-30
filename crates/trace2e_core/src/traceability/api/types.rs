@@ -237,7 +237,7 @@ pub enum O2mRequest {
     /// Broadcast the deletion of a resource to all middleware instances.
     ///
     /// Uses M2M API to broadcast the deletion to all middleware instances.
-    BroadcastDeletion(LocalizedResource),
+    BroadcastDeletion(Resource),
 
     /// Enforce consent for data processing operations on a resource.
     ///

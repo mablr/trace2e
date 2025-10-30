@@ -40,12 +40,12 @@ message Grant {
 
 // M2M specific messages
 message GetDestinationPolicy {
-    primitives.Resource destination = 2;
+    primitives.LocalizedResource destination = 1;
 }
 
 message CheckSourceCompliance {
-    repeated primitives.Resource sources = 1;
-    primitives.Resource destination = 2;
+    repeated primitives.LocalizedResource sources = 1;
+    primitives.LocalizedResource destination = 2;
 }
 
 message DestinationPolicy {
@@ -54,7 +54,7 @@ message DestinationPolicy {
 
 message UpdateProvenance {
     repeated primitives.References source_prov = 1;
-    primitives.Resource destination = 2;
+    primitives.LocalizedResource destination = 2;
 }
 
 // O2M specific messages
@@ -90,12 +90,12 @@ message EnforceConsentRequest {
 }
 
 message ConsentNotification {
-    string log_message = 1;
+    string consent_request = 1;
 }
 
 message SetConsentDecisionRequest {
     primitives.Resource source = 1;
-    primitives.Resource destination = 2;
+    primitives.Destination destination = 2;
     bool decision = 3;
 }
 
