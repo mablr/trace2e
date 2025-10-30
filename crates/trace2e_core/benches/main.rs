@@ -1,11 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 use tower::Service;
 use trace2e_core::{
     traceability::{
         api::{ComplianceRequest, P2mRequest, P2mResponse, ProvenanceRequest, SequencerRequest},
-        infrastructure::naming::Resource,
+        infrastructure::naming::{LocalizedResource, Resource},
         services::{
             compliance::{ComplianceService, ConfidentialityPolicy, DeletionPolicy, Policy},
             provenance::ProvenanceService,
@@ -257,9 +257,10 @@ fn bench_provenance_update_raw_multiple_nodes(c: &mut Criterion) {
             let process1 = create_test_process(1);
             let file0 = create_test_file("/tmp/test0");
 
-            let source_prov = HashMap::from([
-                ("10.0.0.1".to_string(), HashSet::from([process0.clone()])),
-                ("10.0.0.2".to_string(), HashSet::from([process0.clone()])),
+            // Create LocalizedResource set from node_id and resource pairs
+            let source_prov: HashSet<LocalizedResource> = HashSet::from([
+                LocalizedResource::new("10.0.0.1".to_string(), process0.clone()),
+                LocalizedResource::new("10.0.0.2".to_string(), process0.clone()),
             ]);
 
             let _ = black_box(
@@ -271,9 +272,10 @@ fn bench_provenance_update_raw_multiple_nodes(c: &mut Criterion) {
                     .await,
             );
 
-            let source_prov2 = HashMap::from([
-                ("10.0.0.1".to_string(), HashSet::from([process1.clone()])),
-                ("10.0.0.2".to_string(), HashSet::from([file0.clone(), process1.clone()])),
+            let source_prov2: HashSet<LocalizedResource> = HashSet::from([
+                LocalizedResource::new("10.0.0.1".to_string(), process1.clone()),
+                LocalizedResource::new("10.0.0.2".to_string(), file0.clone()),
+                LocalizedResource::new("10.0.0.2".to_string(), process1.clone()),
             ]);
 
             let _ = black_box(
