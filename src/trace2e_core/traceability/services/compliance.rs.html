@@ -392,7 +392,7 @@
 <a href=#392 id=392 data-nosnippet>392</a>        destination_policy: <span class="prelude-ty">Option</span>&lt;Policy&gt;,
 <a href=#393 id=393 data-nosnippet>393</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;ComplianceResponse, TraceabilityError&gt; {
 <a href=#394 id=394 data-nosnippet>394</a>        <span class="comment">// Get the destination policy if it is local or use the provided policy
-<a href=#395 id=395 data-nosnippet>395</a>        </span><span class="kw">let </span>destination_policy = <span class="kw">if let </span><span class="prelude-val">Some</span>(destination) = <span class="self">self</span>.into_local_resource(<span class="kw-2">&amp;</span>destination) {
+<a href=#395 id=395 data-nosnippet>395</a>        </span><span class="kw">let </span>destination_policy = <span class="kw">if let </span><span class="prelude-val">Some</span>(destination) = <span class="self">self</span>.as_local_resource(<span class="kw-2">&amp;</span>destination) {
 <a href=#396 id=396 data-nosnippet>396</a>            <span class="self">self</span>.get_policy(<span class="kw-2">&amp;</span>destination)
 <a href=#397 id=397 data-nosnippet>397</a>        } <span class="kw">else </span>{
 <a href=#398 id=398 data-nosnippet>398</a>            destination_policy.ok_or(TraceabilityError::DestinationPolicyNotFound)<span class="question-mark">?
@@ -471,8 +471,8 @@
 <a href=#471 id=471 data-nosnippet>471</a>}
 <a href=#472 id=472 data-nosnippet>472</a>
 <a href=#473 id=473 data-nosnippet>473</a><span class="kw">impl </span>ComplianceService {
-<a href=#474 id=474 data-nosnippet>474</a>    <span class="doccomment">/// Returns true if the resource is local to the node, otherwise returns false
-<a href=#475 id=475 data-nosnippet>475</a>    </span><span class="kw">fn </span>into_local_resource(<span class="kw-2">&amp;</span><span class="self">self</span>, resource: <span class="kw-2">&amp;</span>LocalizedResource) -&gt; <span class="prelude-ty">Option</span>&lt;Resource&gt; {
+<a href=#474 id=474 data-nosnippet>474</a>    <span class="doccomment">/// Returns the resource if it is local to the node, otherwise returns None
+<a href=#475 id=475 data-nosnippet>475</a>    </span><span class="kw">fn </span>as_local_resource(<span class="kw-2">&amp;</span><span class="self">self</span>, resource: <span class="kw-2">&amp;</span>LocalizedResource) -&gt; <span class="prelude-ty">Option</span>&lt;Resource&gt; {
 <a href=#476 id=476 data-nosnippet>476</a>        <span class="kw">if </span><span class="kw-2">*</span>resource.node_id() == <span class="self">self</span>.node_id {
 <a href=#477 id=477 data-nosnippet>477</a>            <span class="prelude-val">Some</span>(resource.resource().to_owned())
 <a href=#478 id=478 data-nosnippet>478</a>        } <span class="kw">else </span>{
@@ -486,7 +486,7 @@
 <a href=#486 id=486 data-nosnippet>486</a>    ///
 <a href=#487 id=487 data-nosnippet>487</a>    /// * `resource` - The resource to look up
 <a href=#488 id=488 data-nosnippet>488</a>    </span><span class="kw">fn </span>get_policy(<span class="kw-2">&amp;</span><span class="self">self</span>, resource: <span class="kw-2">&amp;</span>Resource) -&gt; Policy {
-<a href=#489 id=489 data-nosnippet>489</a>        <span class="self">self</span>.policies.entry(resource.to_owned()).or_insert_with(|| Policy::default()).to_owned()
+<a href=#489 id=489 data-nosnippet>489</a>        <span class="self">self</span>.policies.entry(resource.to_owned()).or_default().to_owned()
 <a href=#490 id=490 data-nosnippet>490</a>    }
 <a href=#491 id=491 data-nosnippet>491</a>
 <a href=#492 id=492 data-nosnippet>492</a>    <span class="doccomment">/// Retrieves policies for a set of resources.
