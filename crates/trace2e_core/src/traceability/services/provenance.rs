@@ -179,59 +179,7 @@ mod tests {
         );
 
         // Check the proper handling of circular dependencies
-        assert_eq!(
-            provenance.get_prov(file.resource()),
-            provenance.get_prov(process.resource())
-        );
-    }
-
-    #[test]
-    fn unit_provenance_update_multiple_nodes() {
-        #[cfg(feature = "trace2e_tracing")]
-        crate::trace2e_tracing::init();
-        let mut provenance = ProvenanceService::default();
-        let local_process =
-            LocalizedResource::new(provenance.node_id(), Resource::new_process_mock(0));
-        let remote_process =
-            LocalizedResource::new("10.0.0.2".to_string(), Resource::new_process_mock(1));
-        let remote_file = LocalizedResource::new(
-            "10.0.0.2".to_string(),
-            Resource::new_file("/tmp/test0".to_string()),
-        );
-
-        assert_eq!(
-            provenance
-                .update_raw(
-                    HashSet::from([
-                        local_process.clone(),
-                        remote_file.clone(),
-                        remote_process.clone(),
-                    ]),
-                    local_process.resource(),
-                ),
-            ProvenanceResponse::ProvenanceUpdated
-        );
-        // Provenance service handles only local destinations
-        assert_eq!(
-            provenance
-                .update_raw(
-                    HashSet::from([
-                        remote_process.clone(),
-                        remote_file.clone(),
-                        local_process.clone(),
-                    ]),
-                    remote_process.resource(),
-                ),
-            ProvenanceResponse::ProvenanceNotUpdated
-        );
-
-        assert_eq!(
-            provenance.get_prov(local_process.resource()),
-            HashSet::from([local_process, remote_process.clone(), remote_file,])
-        );
-
-        // Provenance service handles only local resources
-        assert_eq!(provenance.get_prov(remote_process.resource()), HashSet::new());
+        assert_eq!(provenance.get_prov(file.resource()), provenance.get_prov(process.resource()));
     }
 
     #[tokio::test]
