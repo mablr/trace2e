@@ -40,7 +40,7 @@ impl ProvenanceService {
     ///
     /// This function returns a map of node IDs to the provenance of the resource for that node.
     /// If the resource is found, it initializes the provenance for the resource.
-    async fn get_prov(&self, resource: &Resource) -> HashSet<LocalizedResource> {
+    fn get_prov(&self, resource: &Resource) -> HashSet<LocalizedResource> {
         if let Some(prov) = self.provenance.get(resource) {
             prov.to_owned()
         } else {
@@ -52,16 +52,16 @@ impl ProvenanceService {
     ///
     /// Note that this function does not guarantee sequential consistency,
     /// this is the role of the sequencer.
-    async fn update(&mut self, source: &Resource, destination: &Resource) -> ProvenanceResponse {
+    fn update(&mut self, source: &Resource, destination: &Resource) -> ProvenanceResponse {
         // Update the provenance of the destination with the source provenance
-        self.update_raw(self.get_prov(source).await, destination).await
+        self.update_raw(self.get_prov(source), destination)
     }
 
     /// Update the provenance of the destination with the raw source provenance
     ///
     /// Note that this function does not guarantee sequential consistency,
     /// this is the role of the sequencer.
-    async fn update_raw(
+    fn update_raw(
         &mut self,
         source_prov: HashSet<LocalizedResource>,
         destination: &Resource,
@@ -69,7 +69,7 @@ impl ProvenanceService {
         if !destination.is_stream() {
             ProvenanceResponse::ProvenanceNotUpdated
         } else {
-            let mut destination_prov = self.get_prov(destination).await;
+            let mut destination_prov = self.get_prov(destination);
             if source_prov.is_subset(&destination_prov) {
                 #[cfg(feature = "trace2e_tracing")]
                 info!(
@@ -112,7 +112,7 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                 ProvenanceRequest::GetReferences(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!("[provenance-{}] GetReferences: {:?}", this.node_id, resource);
-                    Ok(ProvenanceResponse::Provenance(this.get_prov(&resource).await))
+                    Ok(ProvenanceResponse::Provenance(this.get_prov(&resource)))
                 }
                 ProvenanceRequest::UpdateProvenance { source, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
@@ -120,7 +120,7 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                         "[provenance-{}] UpdateProvenance: source: {:?}, destination: {:?}",
                         this.node_id, source, destination
                     );
-                    Ok(this.update(&source, &destination).await)
+                    Ok(this.update(&source, &destination))
                 }
                 ProvenanceRequest::UpdateProvenanceRaw { source_prov, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
@@ -128,7 +128,7 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                         "[provenance-{}] UpdateProvenanceRaw: source_prov: {:?}, destination: {:?}",
                         this.node_id, source_prov, destination
                     );
-                    Ok(this.update_raw(source_prov, &destination).await)
+                    Ok(this.update_raw(source_prov, &destination))
                 }
             }
         })
@@ -139,8 +139,8 @@ impl Service<ProvenanceRequest> for ProvenanceService {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    async fn unit_provenance_update_simple() {
+    #[test]
+    fn unit_provenance_update_simple() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
@@ -151,15 +151,15 @@ mod tests {
         );
 
         assert_eq!(
-            provenance.update(file.resource(), process.resource()).await,
+            provenance.update(file.resource(), process.resource()),
             ProvenanceResponse::ProvenanceUpdated
         );
         // Check that the process is now derived from the file
-        assert_eq!(provenance.get_prov(process.resource()).await, HashSet::from([file, process]));
+        assert_eq!(provenance.get_prov(process.resource()), HashSet::from([file, process]));
     }
 
-    #[tokio::test]
-    async fn unit_provenance_update_circular() {
+    #[test]
+    fn unit_provenance_update_circular() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
@@ -170,23 +170,23 @@ mod tests {
         );
 
         assert_eq!(
-            provenance.update(process.resource(), file.resource()).await,
+            provenance.update(process.resource(), file.resource()),
             ProvenanceResponse::ProvenanceUpdated
         );
         assert_eq!(
-            provenance.update(file.resource(), process.resource()).await,
+            provenance.update(file.resource(), process.resource()),
             ProvenanceResponse::ProvenanceUpdated
         );
 
         // Check the proper handling of circular dependencies
         assert_eq!(
-            provenance.get_prov(file.resource()).await,
-            provenance.get_prov(process.resource()).await
+            provenance.get_prov(file.resource()),
+            provenance.get_prov(process.resource())
         );
     }
 
-    #[tokio::test]
-    async fn unit_provenance_update_multiple_nodes() {
+    #[test]
+    fn unit_provenance_update_multiple_nodes() {
         #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
@@ -208,8 +208,7 @@ mod tests {
                         remote_process.clone(),
                     ]),
                     local_process.resource(),
-                )
-                .await,
+                ),
             ProvenanceResponse::ProvenanceUpdated
         );
         // Provenance service handles only local destinations
@@ -222,18 +221,17 @@ mod tests {
                         local_process.clone(),
                     ]),
                     remote_process.resource(),
-                )
-                .await,
+                ),
             ProvenanceResponse::ProvenanceNotUpdated
         );
 
         assert_eq!(
-            provenance.get_prov(local_process.resource()).await,
+            provenance.get_prov(local_process.resource()),
             HashSet::from([local_process, remote_process.clone(), remote_file,])
         );
 
         // Provenance service handles only local resources
-        assert_eq!(provenance.get_prov(remote_process.resource()).await, HashSet::new());
+        assert_eq!(provenance.get_prov(remote_process.resource()), HashSet::new());
     }
 
     #[tokio::test]
