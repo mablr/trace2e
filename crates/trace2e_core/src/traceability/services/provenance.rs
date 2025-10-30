@@ -66,7 +66,7 @@ impl ProvenanceService {
         source_prov: HashSet<LocalizedResource>,
         destination: &Resource,
     ) -> ProvenanceResponse {
-        if !destination.is_stream() {
+        if destination.is_stream() {
             ProvenanceResponse::ProvenanceNotUpdated
         } else {
             let mut destination_prov = self.get_prov(destination);
