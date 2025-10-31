@@ -670,52 +670,55 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
                 ComplianceRequest::EvalCompliance { sources, destination, destination_policy } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[compliance] CheckCompliance: sources: {:?}, destination: {:?}, destination_policy: {:?}",
-                        sources, destination, destination_policy
+                        "[compliance-{}] CheckCompliance: sources: {:?}, destination: {:?}, destination_policy: {:?}",
+                        this.node_id, sources, destination, destination_policy
                     );
                     this.eval_compliance(sources, destination, destination_policy).await
                 }
                 ComplianceRequest::GetPolicy(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[compliance] GetPolicy: resource: {:?}", resource);
+                    info!("[compliance-{}] GetPolicy: resource: {:?}", this.node_id, resource);
                     Ok(ComplianceResponse::Policy(this.get_policy(&resource)))
                 }
                 ComplianceRequest::GetPolicies(resources) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[compliance] GetPolicies: resources: {:?}", resources);
+                    info!("[compliance-{}] GetPolicies: resources: {:?}", this.node_id, resources);
                     Ok(ComplianceResponse::Policies(this.get_localized_policies(resources)))
                 }
                 ComplianceRequest::SetPolicy { resource, policy } => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[compliance] SetPolicy: resource: {:?}, policy: {:?}", resource, policy);
+                    info!(
+                        "[compliance-{}] SetPolicy: resource: {:?}, policy: {:?}",
+                        this.node_id, resource, policy
+                    );
                     Ok(this.set_policy(resource, policy))
                 }
                 ComplianceRequest::SetConfidentiality { resource, confidentiality } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[compliance] SetConfidentiality: resource: {:?}, confidentiality: {:?}",
-                        resource, confidentiality
+                        "[compliance-{}] SetConfidentiality: resource: {:?}, confidentiality: {:?}",
+                        this.node_id, resource, confidentiality
                     );
                     Ok(this.set_confidentiality(resource, confidentiality))
                 }
                 ComplianceRequest::SetIntegrity { resource, integrity } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[compliance] SetIntegrity: resource: {:?}, integrity: {:?}",
-                        resource, integrity
+                        "[compliance-{}] SetIntegrity: resource: {:?}, integrity: {:?}",
+                        this.node_id, resource, integrity
                     );
                     Ok(this.set_integrity(resource, integrity))
                 }
                 ComplianceRequest::SetDeleted(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[compliance] SetDeleted: resource: {:?}", resource);
+                    info!("[compliance-{}] SetDeleted: resource: {:?}", this.node_id, resource);
                     Ok(this.set_deleted(resource))
                 }
                 ComplianceRequest::EnforceConsent { resource, consent } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[compliance] EnforceConsent: resource: {:?}, consent: {:?}",
-                        resource, consent
+                        "[compliance-{}] EnforceConsent: resource: {:?}, consent: {:?}",
+                        this.node_id, resource, consent
                     );
                     Ok(this.enforce_consent(resource, consent))
                 }
