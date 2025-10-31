@@ -168,9 +168,9 @@ macro_rules! write_request {
             Err(_e) => {
                 #[cfg(feature = "trace2e_tracing")]
                 tracing::info!("Error: {:?}", _e);
-                0u128
+                u128::MAX // This means there was a policy violation or an error
             }
-            _ => u128::MAX, // This means there was a policy violation or an error
+            _ => unreachable!(),
         }
     };
 }
@@ -189,9 +189,9 @@ macro_rules! read_request {
             Err(_e) => {
                 #[cfg(feature = "trace2e_tracing")]
                 tracing::info!("Error: {:?}", _e);
-                0u128
+                u128::MAX // This means there was a policy violation or an error
             }
-            _ => u128::MAX, // This means there was a policy violation or an error
+            _ => unreachable!(),
         }
     };
 }
