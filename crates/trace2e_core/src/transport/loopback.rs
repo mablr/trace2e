@@ -315,6 +315,39 @@ impl Service<M2mRequest> for M2mLoopback {
                     Ok(M2mResponse::Ack)
                 })
             }
+            M2mRequest::CheckSourceCompliance { sources, destination } => Box::pin(async move {
+                // Partition sources by node_id
+                let mut partitioned: std::collections::HashMap<String, Vec<_>> =
+                    std::collections::HashMap::new();
+                for source in sources {
+                    partitioned
+                        .entry(source.node_id().clone())
+                        .or_insert_with(Vec::new)
+                        .push(source);
+                }
+
+                // Spawn tasks for each remote node
+                let mut handles = Vec::new();
+                for (node_id, sources) in partitioned {
+                    let mut middleware = this.get_middleware(node_id)?;
+                    let dest = destination.clone();
+                    let request = M2mRequest::CheckSourceCompliance {
+                        sources: sources.into_iter().collect(),
+                        destination: dest,
+                    };
+                    handles.push(tokio::spawn(async move { middleware.call(request).await }));
+                }
+
+                // Collect all results
+                for handle in handles {
+                    match handle.await.map_err(|_| TraceabilityError::InternalTrace2eError)?? {
+                        M2mResponse::Ack => continue,
+                        _ => return Err(TraceabilityError::InternalTrace2eError),
+                    }
+                }
+
+                Ok(M2mResponse::Ack)
+            }),
             _ => Box::pin(async move {
                 this.get_middleware(eval_remote_ip(request.clone())?)?.call(request).await
             }),
