@@ -1174,4 +1174,24 @@ mod tests {
             TraceabilityError::DirectPolicyViolation
         );
     }
+
+    #[tokio::test]
+    async fn unit_compliance_eval_policies_empty_sources() {
+        init_tracing();
+        let compliance = ComplianceService::default();
+
+        let mock_file = LocalizedResource::new(
+            compliance.node_id.clone(),
+            Resource::new_file("/tmp/dest".to_string()),
+        );
+
+        // Test: eval_compliance with empty sources set should grant access (no-op)
+        // Nothing flows to destination, so there are no violations
+        assert!(
+            compliance
+                .eval_compliance(HashSet::new(), mock_file, None)
+                .await
+                .is_ok_and(|r| r == ComplianceResponse::Grant)
+        );
+    }
 }
