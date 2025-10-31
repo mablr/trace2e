@@ -38,7 +38,7 @@ use std::{
 use dashmap::DashMap;
 use tower::{Service, ServiceExt};
 #[cfg(feature = "trace2e_tracing")]
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::traceability::{
     api::types::{
@@ -368,6 +368,12 @@ where
                                 let destination_policy = if let Some(remote_stream) =
                                     destination.try_into_localized_peer_stream()
                                 {
+                                    #[cfg(feature = "trace2e_tracing")]
+                                    debug!(
+                                        "[p2m-{}] Querying destination policy for remote stream on node: {:?}",
+                                        provenance.node_id(),
+                                        remote_stream
+                                    );
                                     match m2m
                                         .ready()
                                         .await?
@@ -409,11 +415,21 @@ where
                                                 // grant the flow, otherwise we need to check the compliance of the remote nodes.
                                                 // Destination policy is required for remote sources compliance checking.
                                                 if remote_references.is_empty() {
+                                                    #[cfg(feature = "trace2e_tracing")]
+                                                    debug!(
+                                                        "[p2m-{}] Local compliance check passed, no remote references, granting flow",
+                                                        provenance.node_id()
+                                                    );
                                                     Ok(Self::flow_id())
                                                 } else {
                                                     let destination_policy = destination_policy.ok_or(
                                                     TraceabilityError::DestinationPolicyNotFound,
                                                     )?;
+                                                    #[cfg(feature = "trace2e_tracing")]
+                                                    debug!(
+                                                        "[p2m-{}] Local compliance check passed, remote references found, querying remote sources compliance",
+                                                        provenance.node_id()
+                                                    );
                                                     match m2m
                                                         .ready()
                                                         .await?
