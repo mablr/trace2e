@@ -405,31 +405,36 @@ where
                                             .await
                                         {
                                             Ok(ComplianceResponse::Grant) => {
-                                                // Local compliance check passed, now check remote sources compliance
-                                                // Destination policy is required for remote sources compliance checking
-                                                let destination_policy = destination_policy.ok_or(
+                                                // Local compliance check passed. If we have no remote references, we can
+                                                // grant the flow, otherwise we need to check the compliance of the remote nodes.
+                                                // Destination policy is required for remote sources compliance checking.
+                                                if remote_references.is_empty() {
+                                                    Ok(Self::flow_id())
+                                                } else {
+                                                    let destination_policy = destination_policy.ok_or(
                                                     TraceabilityError::DestinationPolicyNotFound,
-                                                )?;
-                                                match m2m
-                                                    .ready()
-                                                    .await?
-                                                    .call(M2mRequest::CheckSourceCompliance {
-                                                        sources: remote_references,
-                                                        destination: (
-                                                            localized_destination,
-                                                            destination_policy,
+                                                    )?;
+                                                    match m2m
+                                                        .ready()
+                                                        .await?
+                                                        .call(M2mRequest::CheckSourceCompliance {
+                                                            sources: remote_references,
+                                                            destination: (
+                                                                localized_destination,
+                                                                destination_policy,
+                                                            ),
+                                                        })
+                                                        .await
+                                                    {
+                                                        Ok(M2mResponse::Ack) => {
+                                                            // Remote sources compliance check passed
+                                                            // Flow can be granted, return the flow id
+                                                            Ok(Self::flow_id())
+                                                        }
+                                                        Err(e) => Err(e),
+                                                        _ => Err(
+                                                            TraceabilityError::InternalTrace2eError,
                                                         ),
-                                                    })
-                                                    .await
-                                                {
-                                                    Ok(M2mResponse::Ack) => {
-                                                        // Remote sources compliance check passed
-                                                        // Flow can be granted, return the flow id
-                                                        Ok(Self::flow_id())
-                                                    }
-                                                    Err(e) => Err(e),
-                                                    _ => {
-                                                        Err(TraceabilityError::InternalTrace2eError)
                                                     }
                                                 }
                                             }
