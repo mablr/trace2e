@@ -427,15 +427,19 @@ where
                                                 } else {
                                                     // It the destination is not a stream, so it is a local resource, we can get the policy from the compliance service
                                                     // This could have been done earlier, but we do it here, to make this call only when it is really needed.
-                                                    let destination_policy = if !destination
-                                                        .is_stream()
+                                                    let destination_policy = if let Some(policy) =
+                                                        destination_policy
                                                     {
+                                                        policy
+                                                    } else if !destination.is_stream() {
                                                         match compliance.call(ComplianceRequest::GetPolicy(destination.clone())).await {
                                                             Ok(ComplianceResponse::Policy(policy)) => policy,
                                                             _ => return Err(TraceabilityError::InternalTrace2eError),
                                                         }
                                                     } else {
-                                                        return Err(TraceabilityError::DestinationPolicyNotFound);
+                                                        return Err(
+                                                            TraceabilityError::InternalTrace2eError,
+                                                        );
                                                     };
 
                                                     #[cfg(feature = "trace2e_tracing")]
