@@ -60,12 +60,7 @@ pub fn eval_remote_ip(req: M2mRequest) -> Result<String, TraceabilityError> {
     match req {
         M2mRequest::GetDestinationPolicy(destination)
         | M2mRequest::UpdateProvenance { destination, .. } => Ok(destination.node_id().clone()),
-        M2mRequest::CheckSourceCompliance { sources, .. } => Ok(sources
-            .iter()
-            .next()
-            .ok_or(TraceabilityError::TransportFailedToEvaluateRemote)?
-            .node_id()
-            .clone()),
         M2mRequest::BroadcastDeletion(_) => Ok("*".to_string()),
+        _ => Err(TraceabilityError::TransportFailedToEvaluateRemote),
     }
 }

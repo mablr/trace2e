@@ -55,6 +55,7 @@ use std::{
 };
 
 use dashmap::DashMap;
+use futures::future::try_join_all;
 use tokio_stream::{StreamExt, wrappers::BroadcastStream};
 use tonic::{Request, Response, Status, transport::Channel};
 use tower::Service;
@@ -204,10 +205,11 @@ impl Service<M2mRequest> for M2mGrpc {
     fn call(&mut self, request: M2mRequest) -> Self::Future {
         let this = self.clone();
         Box::pin(async move {
-            let remote_ip = eval_remote_ip(request.clone())?;
-            let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
-            match request {
+            match request.clone() {
                 M2mRequest::GetDestinationPolicy(destination) => {
+                    let remote_ip = eval_remote_ip(request)?;
+                    let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
+
                     // Create the protobuf request
                     let proto_req = proto::messages::GetDestinationPolicy {
                         destination: Some(destination.into()),
@@ -224,21 +226,53 @@ impl Service<M2mRequest> for M2mGrpc {
                     ))
                 }
                 M2mRequest::CheckSourceCompliance { sources, destination } => {
-                    // Create the protobuf request
-                    let (dest_resource, dest_policy) = destination;
-                    let proto_req = proto::messages::CheckSourceCompliance {
-                        sources: sources.into_iter().map(|r| r.into()).collect(),
-                        destination: Some(dest_resource.into()),
-                        destination_policy: Some(dest_policy.into()),
-                    };
+                    // Create sources partition by node_id
+                    let sources_partition = sources.iter().fold(
+                        HashMap::new(),
+                        |mut partitions: HashMap<&String, HashSet<&LocalizedResource>>, lr| {
+                            partitions.entry(lr.node_id()).or_default().insert(lr);
+                            partitions
+                        },
+                    );
 
-                    // Make the gRPC call
-                    match client.m2m_check_source_compliance(Request::new(proto_req)).await {
-                        Ok(_response) => Ok(M2mResponse::Ack),
-                        _ => Err(TraceabilityError::InternalTrace2eError), // TODO improve error handling
-                    }
+                    let futures = sources_partition
+                        .into_iter()
+                        .map(|(node_id, sources)| {
+                            let this_clone = this.clone();
+                            let dest_resource = destination.0.clone();
+                            let dest_policy = destination.1.clone();
+                            async move {
+                                let mut client =
+                                    this_clone.get_client_or_connect(node_id.to_string()).await?;
+                                client
+                                    .m2m_check_source_compliance(Request::new(
+                                        proto::messages::CheckSourceCompliance {
+                                            sources: sources
+                                                .iter()
+                                                .map(|r| (**r).clone().into())
+                                                .collect(),
+                                            destination: Some((dest_resource).into()),
+                                            destination_policy: Some((dest_policy).into()),
+                                        },
+                                    ))
+                                    .await
+                                    .map_err(|_| {
+                                        TraceabilityError::TransportFailedToContactRemote(
+                                            node_id.to_string(),
+                                        )
+                                    })
+                            }
+                        })
+                        .collect::<Vec<_>>();
+
+                    // Collect all results and return error if any failed
+                    try_join_all(futures).await?;
+                    Ok(M2mResponse::Ack)
                 }
                 M2mRequest::UpdateProvenance { source_prov, destination } => {
+                    let remote_ip = eval_remote_ip(request)?;
+                    let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
+
                     // Group LocalizedResources by node_id
                     let mut grouped: HashMap<String, Vec<proto::primitives::Resource>> =
                         HashMap::default();
@@ -269,6 +303,9 @@ impl Service<M2mRequest> for M2mGrpc {
                     Ok(M2mResponse::Ack)
                 }
                 M2mRequest::BroadcastDeletion(resource) => {
+                    let remote_ip = eval_remote_ip(request)?;
+                    let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
+
                     // Create the protobuf request
                     let proto_req = proto::messages::BroadcastDeletionRequest {
                         resource: Some(resource.into()),
