@@ -165,12 +165,6 @@ pub enum M2mRequest {
 /// Responses sent between middleware instances for distributed coordination and policy exchange.
 #[derive(Debug, PartialEq)]
 pub enum M2mResponse {
-    /// Compliance policies for requested source resources.
-    ///
-    /// Maps each resource to its current policy, enabling the requesting middleware
-    /// to evaluate flow compliance before authorization.
-    SourcePolicies(HashMap<Resource, Policy>),
-
     /// Compliance policy for a specific destination resource.
     ///
     /// Contains the current policy that will be applied to incoming data flows
