@@ -315,9 +315,42 @@
 <a href=#315 id=315 data-nosnippet>315</a>                    </span><span class="prelude-val">Ok</span>(M2mResponse::Ack)
 <a href=#316 id=316 data-nosnippet>316</a>                })
 <a href=#317 id=317 data-nosnippet>317</a>            }
-<a href=#318 id=318 data-nosnippet>318</a>            <span class="kw">_ </span>=&gt; Box::pin(<span class="kw">async move </span>{
-<a href=#319 id=319 data-nosnippet>319</a>                this.get_middleware(eval_remote_ip(request.clone())<span class="question-mark">?</span>)<span class="question-mark">?</span>.call(request).<span class="kw">await
-<a href=#320 id=320 data-nosnippet>320</a>            </span>}),
-<a href=#321 id=321 data-nosnippet>321</a>        }
-<a href=#322 id=322 data-nosnippet>322</a>    }
-<a href=#323 id=323 data-nosnippet>323</a>}</code></pre></div></section></main></body></html>
+<a href=#318 id=318 data-nosnippet>318</a>            M2mRequest::CheckSourceCompliance { sources, destination } =&gt; Box::pin(<span class="kw">async move </span>{
+<a href=#319 id=319 data-nosnippet>319</a>                <span class="comment">// Partition sources by node_id
+<a href=#320 id=320 data-nosnippet>320</a>                </span><span class="kw">let </span><span class="kw-2">mut </span>partitioned: std::collections::HashMap&lt;String, Vec&lt;<span class="kw">_</span>&gt;&gt; =
+<a href=#321 id=321 data-nosnippet>321</a>                    std::collections::HashMap::new();
+<a href=#322 id=322 data-nosnippet>322</a>                <span class="kw">for </span>source <span class="kw">in </span>sources {
+<a href=#323 id=323 data-nosnippet>323</a>                    partitioned
+<a href=#324 id=324 data-nosnippet>324</a>                        .entry(source.node_id().clone())
+<a href=#325 id=325 data-nosnippet>325</a>                        .or_insert_with(Vec::new)
+<a href=#326 id=326 data-nosnippet>326</a>                        .push(source);
+<a href=#327 id=327 data-nosnippet>327</a>                }
+<a href=#328 id=328 data-nosnippet>328</a>
+<a href=#329 id=329 data-nosnippet>329</a>                <span class="comment">// Spawn tasks for each remote node
+<a href=#330 id=330 data-nosnippet>330</a>                </span><span class="kw">let </span><span class="kw-2">mut </span>handles = Vec::new();
+<a href=#331 id=331 data-nosnippet>331</a>                <span class="kw">for </span>(node_id, sources) <span class="kw">in </span>partitioned {
+<a href=#332 id=332 data-nosnippet>332</a>                    <span class="kw">let </span><span class="kw-2">mut </span>middleware = this.get_middleware(node_id)<span class="question-mark">?</span>;
+<a href=#333 id=333 data-nosnippet>333</a>                    <span class="kw">let </span>dest = destination.clone();
+<a href=#334 id=334 data-nosnippet>334</a>                    <span class="kw">let </span>request = M2mRequest::CheckSourceCompliance {
+<a href=#335 id=335 data-nosnippet>335</a>                        sources: sources.into_iter().collect(),
+<a href=#336 id=336 data-nosnippet>336</a>                        destination: dest,
+<a href=#337 id=337 data-nosnippet>337</a>                    };
+<a href=#338 id=338 data-nosnippet>338</a>                    handles.push(tokio::spawn(<span class="kw">async move </span>{ middleware.call(request).<span class="kw">await </span>}));
+<a href=#339 id=339 data-nosnippet>339</a>                }
+<a href=#340 id=340 data-nosnippet>340</a>
+<a href=#341 id=341 data-nosnippet>341</a>                <span class="comment">// Collect all results
+<a href=#342 id=342 data-nosnippet>342</a>                </span><span class="kw">for </span>handle <span class="kw">in </span>handles {
+<a href=#343 id=343 data-nosnippet>343</a>                    <span class="kw">match </span>handle.<span class="kw">await</span>.map_err(|<span class="kw">_</span>| TraceabilityError::InternalTrace2eError)<span class="question-mark">?? </span>{
+<a href=#344 id=344 data-nosnippet>344</a>                        M2mResponse::Ack =&gt; <span class="kw">continue</span>,
+<a href=#345 id=345 data-nosnippet>345</a>                        <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(TraceabilityError::InternalTrace2eError),
+<a href=#346 id=346 data-nosnippet>346</a>                    }
+<a href=#347 id=347 data-nosnippet>347</a>                }
+<a href=#348 id=348 data-nosnippet>348</a>
+<a href=#349 id=349 data-nosnippet>349</a>                <span class="prelude-val">Ok</span>(M2mResponse::Ack)
+<a href=#350 id=350 data-nosnippet>350</a>            }),
+<a href=#351 id=351 data-nosnippet>351</a>            <span class="kw">_ </span>=&gt; Box::pin(<span class="kw">async move </span>{
+<a href=#352 id=352 data-nosnippet>352</a>                this.get_middleware(eval_remote_ip(request.clone())<span class="question-mark">?</span>)<span class="question-mark">?</span>.call(request).<span class="kw">await
+<a href=#353 id=353 data-nosnippet>353</a>            </span>}),
+<a href=#354 id=354 data-nosnippet>354</a>        }
+<a href=#355 id=355 data-nosnippet>355</a>    }
+<a href=#356 id=356 data-nosnippet>356</a>}</code></pre></div></section></main></body></html>
