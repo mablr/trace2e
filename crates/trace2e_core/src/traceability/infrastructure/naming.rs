@@ -183,7 +183,7 @@ impl Resource {
         {
             Some(LocalizedResource::new(
                 peer_socket.ip().to_string(),
-                Resource::new_stream(stream.local_socket.to_owned(), stream.peer_socket.to_owned()),
+                Resource::new_stream(stream.peer_socket.to_owned(), stream.local_socket.to_owned()),
             ))
         } else {
             None
