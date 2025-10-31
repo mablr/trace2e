@@ -66,26 +66,19 @@ impl ProvenanceService {
         source_prov: HashSet<LocalizedResource>,
         destination: &Resource,
     ) -> ProvenanceResponse {
-        if destination.is_stream() {
+        let mut destination_prov = self.get_prov(destination);
+        if source_prov.is_subset(&destination_prov) {
+            #[cfg(feature = "trace2e_tracing")]
+            info!(
+                "[provenance-raw] Provenance not updated: source_prov is subset of destination_prov"
+            );
             ProvenanceResponse::ProvenanceNotUpdated
         } else {
-            let mut destination_prov = self.get_prov(destination);
-            if source_prov.is_subset(&destination_prov) {
-                #[cfg(feature = "trace2e_tracing")]
-                info!(
-                    "[provenance-raw] Provenance not updated: source_prov is subset of destination_prov"
-                );
-                ProvenanceResponse::ProvenanceNotUpdated
-            } else {
-                destination_prov.extend(source_prov);
-                #[cfg(feature = "trace2e_tracing")]
-                info!(
-                    "[provenance-raw] Provenance updated: destination_prov: {:?}",
-                    destination_prov
-                );
-                self.provenance.insert(destination.to_owned(), destination_prov);
-                ProvenanceResponse::ProvenanceUpdated
-            }
+            destination_prov.extend(source_prov);
+            #[cfg(feature = "trace2e_tracing")]
+            info!("[provenance-raw] Provenance updated: destination_prov: {:?}", destination_prov);
+            self.provenance.insert(destination.to_owned(), destination_prov);
+            ProvenanceResponse::ProvenanceUpdated
         }
     }
 }
