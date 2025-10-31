@@ -365,19 +365,24 @@ where
                             .await
                         {
                             Ok(SequencerResponse::FlowReserved) => {
-                                let destination_policy = if let Some(remote_stream) =
-                                    destination.try_into_localized_peer_stream()
+                                let localized_destination =
+                                    destination.clone().into_localized(provenance.node_id());
+                                let destination_policy = if localized_destination
+                                    .resource()
+                                    .is_stream()
                                 {
                                     #[cfg(feature = "trace2e_tracing")]
                                     debug!(
                                         "[p2m-{}] Querying destination policy for remote stream on node: {:?}",
                                         provenance.node_id(),
-                                        remote_stream
+                                        localized_destination
                                     );
                                     match m2m
                                         .ready()
                                         .await?
-                                        .call(M2mRequest::GetDestinationPolicy(remote_stream))
+                                        .call(M2mRequest::GetDestinationPolicy(
+                                            localized_destination.clone(),
+                                        ))
                                         .await
                                     {
                                         Ok(M2mResponse::DestinationPolicy(policy)) => Some(policy),
@@ -386,8 +391,6 @@ where
                                 } else {
                                     None
                                 };
-                                let localized_destination =
-                                    destination.clone().into_localized(provenance.node_id());
                                 let flow_id = match provenance
                                     .call(ProvenanceRequest::GetReferences(source.clone()))
                                     .await
@@ -422,9 +425,19 @@ where
                                                     );
                                                     Ok(Self::flow_id())
                                                 } else {
-                                                    let destination_policy = destination_policy.ok_or(
-                                                    TraceabilityError::DestinationPolicyNotFound,
-                                                    )?;
+                                                    // It the destination is not a stream, so it is a local resource, we can get the policy from the compliance service
+                                                    // This could have been done earlier, but we do it here, to make this call only when it is really needed.
+                                                    let destination_policy = if !destination
+                                                        .is_stream()
+                                                    {
+                                                        match compliance.call(ComplianceRequest::GetPolicy(destination.clone())).await {
+                                                            Ok(ComplianceResponse::Policy(policy)) => policy,
+                                                            _ => return Err(TraceabilityError::InternalTrace2eError),
+                                                        }
+                                                    } else {
+                                                        return Err(TraceabilityError::DestinationPolicyNotFound);
+                                                    };
+
                                                     #[cfg(feature = "trace2e_tracing")]
                                                     debug!(
                                                         "[p2m-{}] Local compliance check passed, remote references found, querying remote sources compliance",
@@ -468,6 +481,12 @@ where
                                         Ok(P2mResponse::Grant(flow_id))
                                     }
                                     Err(e) => {
+                                        #[cfg(feature = "trace2e_tracing")]
+                                        debug!(
+                                            "[p2m-{}] Compliance check failed, releasing flow: {}",
+                                            provenance.node_id(),
+                                            e
+                                        );
                                         // release the flow, and then forward the error
                                         sequencer
                                             .call(SequencerRequest::ReleaseFlow { destination })
