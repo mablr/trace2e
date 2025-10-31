@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use crate::traceability::infrastructure::naming::{Fd, LocalizedResource, Resource};
 
 // TODO: Remove all #[allow(unused)] once we have tests that use unused stuff ;P
@@ -21,11 +23,7 @@ pub(super) struct StreamMapping {
 
 #[allow(unused)]
 impl FileMapping {
-    pub fn new(pid: i32, fd: i32, path: &str) -> Self {
-        Self::with_node_id(pid, fd, path, String::new())
-    }
-
-    pub fn with_node_id(pid: i32, fd: i32, path: &str, node_id: String) -> Self {
+    pub fn new(pid: i32, fd: i32, path: &str, node_id: String) -> Self {
         Self {
             pid,
             fd,
@@ -68,20 +66,10 @@ impl FileMapping {
 #[allow(unused)]
 impl StreamMapping {
     pub fn new(pid: i32, fd: i32, local_socket: &str, peer_socket: &str) -> Self {
-        Self::with_node_id(pid, fd, local_socket, peer_socket, String::new())
-    }
-
-    pub fn with_node_id(
-        pid: i32,
-        fd: i32,
-        local_socket: &str,
-        peer_socket: &str,
-        node_id: String,
-    ) -> Self {
         Self {
             pid,
             fd,
-            node_id,
+            node_id: local_socket.parse::<SocketAddr>().unwrap().ip().to_string(),
             process: Resource::new_process(pid),
             stream: Resource::new_stream(local_socket.to_string(), peer_socket.to_string()),
         }

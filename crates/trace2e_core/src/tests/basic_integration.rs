@@ -21,8 +21,8 @@ async fn integration_init_middleware() {
     crate::trace2e_tracing::init();
     let (_, mut p2m_service, _) = init_middleware("10.0.0.1".to_string(), None, 0, M2mNop, false);
 
-    let file = FileMapping::new(1, 3, "/tmp/test.txt");
-    let stream = StreamMapping::new(1, 4, "127.0.0.1:8080", "127.0.0.1:8081");
+    let file = FileMapping::new(1, 3, "/tmp/test.txt", "10.0.0.1".to_string());
+    let stream = StreamMapping::new(1, 4, "10.0.0.1:8080", "10.0.0.2:8081");
 
     local_enroll!(p2m_service, file);
     remote_enroll!(p2m_service, stream);

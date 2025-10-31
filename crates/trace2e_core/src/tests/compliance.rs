@@ -50,8 +50,8 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
     let (mut p2m_2, _) = middlewares.next().unwrap();
     let (mut p2m_3, _) = middlewares.next().unwrap();
 
-    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt");
-    let fd3_3_2 = FileMapping::new(3, 4, "/tmp/test2.txt");
+    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt", "10.0.0.1".to_string());
+    let fd3_3_2 = FileMapping::new(3, 4, "/tmp/test2.txt", "10.0.0.3".to_string());
 
     local_enroll!(p2m_1, fd1_1_1);
     local_enroll!(p2m_3, fd3_3_2);
@@ -141,8 +141,8 @@ async fn integration_o2m_remote_integrity_enforcement() {
     let (mut p2m_2, _) = middlewares.next().unwrap();
     let (mut p2m_3, mut o2m_3) = middlewares.next().unwrap();
 
-    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt");
-    let fd3_3_2 = FileMapping::new(3, 4, "/tmp/test2.txt");
+    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt", "10.0.0.1".to_string());
+    let fd3_3_2 = FileMapping::new(3, 4, "/tmp/test2.txt", "10.0.0.3".to_string());
 
     // Set the destination's integrity requirement to 5
     set_integrity!(o2m_3, fd3_3_2.file(), 5);
@@ -208,9 +208,9 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
     let (mut p2m_1, mut o2m_1) = middlewares.next().unwrap();
     let (mut p2m_2, _) = middlewares.next().unwrap();
 
-    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/source.txt");
-    let fd3_3_1 = FileMapping::new(3, 4, "/tmp/source.txt");
-    let fd2_2_1 = FileMapping::new(2, 4, "/tmp/destination.txt");
+    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/source.txt", "10.0.0.1".to_string());
+    let fd3_3_1 = FileMapping::new(3, 4, "/tmp/source.txt", "10.0.0.3".to_string());
+    let fd2_2_1 = FileMapping::new(2, 4, "/tmp/destination.txt", "10.0.0.2".to_string());
 
     local_enroll!(p2m_1, fd1_1_1);
     local_enroll!(p2m_1, fd3_3_1);

@@ -23,8 +23,8 @@ async fn integration_o2m_local_provenance() {
     let (_, mut p2m_service, mut o2m_service) =
         init_middleware(String::new(), None, 0, M2mNop, false);
 
-    let fd1 = FileMapping::new(1, 3, "/tmp/test1.txt");
-    let fd2 = FileMapping::new(1, 4, "/tmp/test2.txt");
+    let fd1 = FileMapping::new(1, 3, "/tmp/test1.txt", "10.0.0.1".to_string());
+    let fd2 = FileMapping::new(1, 4, "/tmp/test2.txt", "10.0.0.1".to_string());
 
     local_enroll!(p2m_service, fd1);
     local_enroll!(p2m_service, fd2);
@@ -153,8 +153,8 @@ async fn integration_o2m_remote_provenance_complex() {
     let (mut p2m_2, mut o2m_2) = middlewares.next().unwrap();
     let (mut p2m_3, mut o2m_3) = middlewares.next().unwrap();
 
-    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt");
-    let fd1_1_2 = FileMapping::new(1, 5, "/tmp/test2.txt");
+    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt", "10.0.0.1".to_string());
+    let fd1_1_2 = FileMapping::new(1, 5, "/tmp/test2.txt", "10.0.0.1".to_string());
 
     local_enroll!(p2m_1, fd1_1_1);
     local_enroll!(p2m_1, fd1_1_2);
@@ -242,8 +242,8 @@ async fn integration_o2m_remote_provenance_complex_with_entropy() {
     let (mut p2m_2, mut o2m_2) = middlewares.next().unwrap();
     let (mut p2m_3, mut o2m_3) = middlewares.next().unwrap();
 
-    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt");
-    let fd1_1_2 = FileMapping::new(1, 5, "/tmp/test2.txt");
+    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt", "10.0.0.1".to_string());
+    let fd1_1_2 = FileMapping::new(1, 5, "/tmp/test2.txt", "10.0.0.1".to_string());
 
     local_enroll!(p2m_1, fd1_1_1);
     local_enroll!(p2m_1, fd1_1_2);

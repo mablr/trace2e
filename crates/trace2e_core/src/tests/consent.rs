@@ -37,7 +37,7 @@ async fn integration_consent_notification_local_and_remote_io() {
     let (mut p2m_1, mut o2m_1) = middlewares.next().unwrap();
     let (mut p2m_2, _) = middlewares.next().unwrap();
 
-    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt");
+    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/test1.txt", "10.0.0.1".to_string());
 
     local_enroll!(p2m_1, fd1_1_1);
 
@@ -111,8 +111,8 @@ async fn integration_consent_notification_local_and_remote_io() {
     assert_eq!(
         destinations[1],
         Destination::Resource {
-            resource: stream1_2.stream(),
-            parent: Some(Box::new(Destination::Node("10.0.0.1".to_string())))
+            resource: stream2_1.stream(),
+            parent: Some(Box::new(Destination::Node("10.0.0.2".to_string())))
         }
     );
 }
@@ -142,7 +142,7 @@ async fn integration_consent_decision_on_remote_io() {
     let (mut p2m_1, mut o2m_1) = middlewares.next().unwrap();
     let (mut p2m_2, _) = middlewares.next().unwrap();
 
-    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/source.txt");
+    let fd1_1_1 = FileMapping::new(1, 4, "/tmp/source.txt", "10.0.0.1".to_string());
 
     local_enroll!(p2m_1, fd1_1_1);
 
@@ -207,7 +207,7 @@ async fn integration_consent_decision_on_remote_io() {
 
     // Verify one of the destinations is for node2 or the stream
     let has_remote_dest = granted_destinations.iter().any(|dest| match dest {
-        Destination::Resource { resource, .. } => resource == &stream1_2.stream(),
+        Destination::Resource { resource, .. } => resource == &stream2_1.stream(),
         Destination::Node(node_id) => node_id == "10.0.0.2",
     });
     assert!(has_remote_dest, "Expected consent for remote destination");
