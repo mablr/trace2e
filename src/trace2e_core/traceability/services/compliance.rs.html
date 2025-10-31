@@ -1180,16 +1180,18 @@
 <a href=#1180 id=1180 data-nosnippet>1180</a>        init_tracing();
 <a href=#1181 id=1181 data-nosnippet>1181</a>        <span class="kw">let </span>compliance = ComplianceService::default();
 <a href=#1182 id=1182 data-nosnippet>1182</a>
-<a href=#1183 id=1183 data-nosnippet>1183</a>        <span class="kw">let </span>mock_file =
-<a href=#1184 id=1184 data-nosnippet>1184</a>            LocalizedResource::new(compliance.node_id.clone(), Resource::new_file(<span class="string">"/tmp/dest"</span>.to_string()));
-<a href=#1185 id=1185 data-nosnippet>1185</a>
-<a href=#1186 id=1186 data-nosnippet>1186</a>        <span class="comment">// Test: eval_compliance with empty sources set should grant access (no-op)
-<a href=#1187 id=1187 data-nosnippet>1187</a>        // Nothing flows to destination, so there are no violations
-<a href=#1188 id=1188 data-nosnippet>1188</a>        </span><span class="macro">assert!</span>(
-<a href=#1189 id=1189 data-nosnippet>1189</a>            compliance
-<a href=#1190 id=1190 data-nosnippet>1190</a>                .eval_compliance(HashSet::new(), mock_file, <span class="prelude-val">None</span>)
-<a href=#1191 id=1191 data-nosnippet>1191</a>                .<span class="kw">await
-<a href=#1192 id=1192 data-nosnippet>1192</a>                </span>.is_ok_and(|r| r == ComplianceResponse::Grant)
-<a href=#1193 id=1193 data-nosnippet>1193</a>        );
-<a href=#1194 id=1194 data-nosnippet>1194</a>    }
-<a href=#1195 id=1195 data-nosnippet>1195</a>}</code></pre></div></section></main></body></html>
+<a href=#1183 id=1183 data-nosnippet>1183</a>        <span class="kw">let </span>mock_file = LocalizedResource::new(
+<a href=#1184 id=1184 data-nosnippet>1184</a>            compliance.node_id.clone(),
+<a href=#1185 id=1185 data-nosnippet>1185</a>            Resource::new_file(<span class="string">"/tmp/dest"</span>.to_string()),
+<a href=#1186 id=1186 data-nosnippet>1186</a>        );
+<a href=#1187 id=1187 data-nosnippet>1187</a>
+<a href=#1188 id=1188 data-nosnippet>1188</a>        <span class="comment">// Test: eval_compliance with empty sources set should grant access (no-op)
+<a href=#1189 id=1189 data-nosnippet>1189</a>        // Nothing flows to destination, so there are no violations
+<a href=#1190 id=1190 data-nosnippet>1190</a>        </span><span class="macro">assert!</span>(
+<a href=#1191 id=1191 data-nosnippet>1191</a>            compliance
+<a href=#1192 id=1192 data-nosnippet>1192</a>                .eval_compliance(HashSet::new(), mock_file, <span class="prelude-val">None</span>)
+<a href=#1193 id=1193 data-nosnippet>1193</a>                .<span class="kw">await
+<a href=#1194 id=1194 data-nosnippet>1194</a>                </span>.is_ok_and(|r| r == ComplianceResponse::Grant)
+<a href=#1195 id=1195 data-nosnippet>1195</a>        );
+<a href=#1196 id=1196 data-nosnippet>1196</a>    }
+<a href=#1197 id=1197 data-nosnippet>1197</a>}</code></pre></div></section></main></body></html>
