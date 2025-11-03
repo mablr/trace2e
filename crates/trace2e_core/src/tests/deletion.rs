@@ -46,11 +46,7 @@ async fn integration_broadcast_deletion_three_nodes() {
     #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
 
-    let ips = vec![
-        "10.0.0.1".to_string(),
-        "10.0.0.2".to_string(),
-        "10.0.0.3".to_string(),
-    ];
+    let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
     let mut middlewares =
         spawn_loopback_middlewares(ips.clone()).await.into_iter().map(|(p2m, o2m)| {
             (
@@ -115,16 +111,25 @@ async fn integration_broadcast_deletion_three_nodes() {
 
     // Attempt: Read from stream on node2 that receives data from deleted file
     // This should be refused because the source (file on node1) is deleted
-    assert_eq!(read_request!(p2m_2, stream2_1), u128::MAX, 
-        "Node2 should refuse to read from stream with deleted source");
+    assert_eq!(
+        read_request!(p2m_2, stream2_1),
+        u128::MAX,
+        "Node2 should refuse to read from stream with deleted source"
+    );
 
-    // Attempt: Write from process on node2 to next stream  
+    // Attempt: Write from process on node2 to next stream
     // This should be refused because the data chain includes a deleted source
-    assert_eq!(write_request!(p2m_2, stream2_3), u128::MAX,
-        "Node2 should refuse to write to next stream when data chain includes deleted source");
+    assert_eq!(
+        write_request!(p2m_2, stream2_3),
+        u128::MAX,
+        "Node2 should refuse to write to next stream when data chain includes deleted source"
+    );
 
     // Attempt: Read from stream on node3 that receives from node2
     // This should be refused because the original source (file on node1) is deleted
-    assert_eq!(read_request!(p2m_3, stream3_2), u128::MAX,
-        "Node3 should refuse to read from stream with deleted source in chain");
+    assert_eq!(
+        read_request!(p2m_3, stream3_2),
+        u128::MAX,
+        "Node3 should refuse to read from stream with deleted source in chain"
+    );
 }

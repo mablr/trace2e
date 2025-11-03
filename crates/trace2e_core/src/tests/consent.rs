@@ -1,7 +1,6 @@
 use super::fixtures::{FileMapping, StreamMapping};
 use crate::{
-    traceability::services::consent::Destination,
-    transport::loopback::spawn_loopback_middlewares,
+    traceability::services::consent::Destination, transport::loopback::spawn_loopback_middlewares,
 };
 use std::time::Duration;
 use tokio::time::timeout;
