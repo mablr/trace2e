@@ -23,7 +23,10 @@
 //! Resources can be constructed using dedicated factory methods that handle system queries
 //! and validation, or using mock variants for testing purposes.
 
-use std::{fmt::Debug, net::SocketAddr};
+use std::{
+    fmt::{Debug, Display},
+    net::SocketAddr,
+};
 
 use sysinfo::{Pid, System};
 
@@ -199,6 +202,21 @@ impl Resource {
     }
 }
 
+impl Display for Resource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Resource::Fd(Fd::File(file)) => write!(f, "file:://{}", file.path),
+            Resource::Fd(Fd::Stream(stream)) => {
+                write!(f, "stream:://{}::{}", stream.local_socket, stream.peer_socket)
+            }
+            Resource::Process(process) => {
+                write!(f, "process:://{}::{}::{}", process.pid, process.starttime, process.exe_path)
+            }
+            Resource::None => write!(f, "None"),
+        }
+    }
+}
+
 /// Unified resource identifier for all trackable entities in the system.
 ///
 /// Localized resources are resources that are associated with a specific node in a distributed system.
@@ -229,6 +247,12 @@ impl LocalizedResource {
     }
 }
 
+impl Display for LocalizedResource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}@{}", self.resource, self.node_id)
+    }
+}
+
 /// Trait for services that have a node identifier in distributed systems.
 ///
 /// This trait is implemented by services that participate in distributed
@@ -241,4 +265,29 @@ pub trait NodeId {
     /// Node IDs should be unique across the distributed deployment and
     /// persistent across service restarts to maintain consistent provenance records.
     fn node_id(&self) -> String;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resource_display() {
+        let file = LocalizedResource::new(
+            "127.0.0.1".to_string(),
+            Resource::new_file("/tmp/test.txt".to_string()),
+        );
+        let stream = LocalizedResource::new(
+            "127.0.0.1".to_string(),
+            Resource::new_stream("127.0.0.1:8080".to_string(), "127.0.0.1:8081".to_string()),
+        );
+        let process_mock =
+            LocalizedResource::new("127.0.0.1".to_string(), Resource::new_process_mock(1234));
+        let none = LocalizedResource::new(Default::default(), Resource::None);
+
+        assert_eq!(file.to_string(), "file::///tmp/test.txt@127.0.0.1");
+        assert_eq!(stream.to_string(), "stream:://127.0.0.1:8080::127.0.0.1:8081@127.0.0.1");
+        assert_eq!(process_mock.to_string(), "process:://1234::0::@127.0.0.1");
+        assert_eq!(none.to_string(), "None@");
+    }
 }
