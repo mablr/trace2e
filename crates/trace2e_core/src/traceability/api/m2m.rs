@@ -144,7 +144,7 @@ where
                         .iter()
                         .filter(|r| *r.node_id() == provenance.node_id())
                         .map(|r| r.resource().to_owned())
-                        .collect::<HashSet<_>>(); // TODO: return error if remote resources are found
+                        .collect::<HashSet<_>>();
                     match compliance
                         .call(ComplianceRequest::EvalCompliance {
                             sources,
