@@ -1,8 +1,4 @@
-use std::net::SocketAddr;
-
 use crate::traceability::infrastructure::naming::{Fd, LocalizedResource, Resource};
-
-// TODO: Remove all #[allow(unused)] once we have tests that use unused stuff ;P
 
 pub(super) struct FileMapping {
     pid: i32,
@@ -12,11 +8,9 @@ pub(super) struct FileMapping {
     file: Resource,
 }
 
-#[allow(unused)]
 pub(super) struct StreamMapping {
     pid: i32,
     fd: i32,
-    node_id: String,
     process: Resource,
     stream: Resource,
 }
@@ -63,13 +57,11 @@ impl FileMapping {
     }
 }
 
-#[allow(unused)]
 impl StreamMapping {
     pub fn new(pid: i32, fd: i32, local_socket: &str, peer_socket: &str) -> Self {
         Self {
             pid,
             fd,
-            node_id: local_socket.parse::<SocketAddr>().unwrap().ip().to_string(),
             process: Resource::new_process(pid),
             stream: Resource::new_stream(local_socket.to_string(), peer_socket.to_string()),
         }
@@ -98,16 +90,6 @@ impl StreamMapping {
     }
     pub fn stream(&self) -> Resource {
         self.stream.to_owned()
-    }
-
-    /// Get the localized process resource
-    pub fn localized_process(&self) -> LocalizedResource {
-        LocalizedResource::new(self.node_id.clone(), self.process.to_owned())
-    }
-
-    /// Get the localized stream resource
-    pub fn localized_stream(&self) -> LocalizedResource {
-        LocalizedResource::new(self.node_id.clone(), self.stream.to_owned())
     }
 }
 
@@ -276,7 +258,6 @@ macro_rules! set_deleted {
     };
 }
 
-#[allow(unused_macros)]
 macro_rules! broadcast_deletion {
     ($o2m:expr, $resource:expr) => {
         assert_eq!(
