@@ -288,25 +288,29 @@ macro_rules! broadcast_deletion {
     };
 }
 
-#[allow(unused_macros)]
 macro_rules! enforce_consent {
     ($o2m:expr, $resource:expr) => {
-        assert_eq!(
-            $o2m.call(crate::traceability::api::O2mRequest::EnforceConsent($resource))
-                .await
-                .unwrap(),
-            crate::traceability::api::O2mResponse::Ack
-        )
+        match $o2m
+            .call(crate::traceability::api::O2mRequest::EnforceConsent($resource))
+            .await
+            .unwrap()
+        {
+            crate::traceability::api::O2mResponse::Notifications(rx) => rx,
+            _ => panic!("Expected Notifications response"),
+        }
     };
 }
 
-#[allow(unused_macros)]
 macro_rules! set_consent_decision {
-    ($o2m:expr, $resource:expr, $consent:expr) => {
+    ($o2m:expr, $resource:expr, $destination:expr, $decision:expr) => {
         assert_eq!(
-            $o2m.call(crate::traceability::api::O2mRequest::SetConsentDecision($resource))
-                .await
-                .unwrap(),
+            $o2m.call(crate::traceability::api::O2mRequest::SetConsentDecision {
+                source: $resource,
+                destination: $destination,
+                decision: $decision,
+            })
+            .await
+            .unwrap(),
             crate::traceability::api::O2mResponse::Ack
         )
     };

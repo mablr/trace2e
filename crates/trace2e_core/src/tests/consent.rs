@@ -1,6 +1,6 @@
 use super::fixtures::{FileMapping, StreamMapping};
 use crate::{
-    traceability::{api::types::O2mRequest, services::consent::Destination},
+    traceability::services::consent::Destination,
     transport::loopback::spawn_loopback_middlewares,
 };
 use std::time::Duration;
@@ -48,11 +48,7 @@ async fn integration_consent_notification_local_and_remote_io() {
     remote_enroll!(p2m_2, stream2_1);
 
     // Enable consent enforcement on the file and get notification channel
-    let mut notifications =
-        match o2m_1.call(O2mRequest::EnforceConsent(fd1_1_1.file())).await.unwrap() {
-            crate::traceability::api::types::O2mResponse::Notifications(rx) => rx,
-            _ => panic!("Expected Notifications response"),
-        };
+    let mut notifications = enforce_consent!(o2m_1, fd1_1_1.file());
 
     // Spawn a task to receive and track consent notifications
     let fd1_file = fd1_1_1.file();
@@ -69,13 +65,7 @@ async fn integration_consent_notification_local_and_remote_io() {
             count += 1;
 
             // Auto-grant consent for each notification
-            let _ = o2m_consent
-                .call(O2mRequest::SetConsentDecision {
-                    source: fd1_file.clone(),
-                    destination,
-                    decision: true,
-                })
-                .await;
+            set_consent_decision!(o2m_consent, fd1_file.clone(), destination, true);
         }
 
         (count, destinations)
@@ -153,15 +143,7 @@ async fn integration_consent_decision_on_remote_io() {
     remote_enroll!(p2m_2, stream2_1);
 
     // Enable consent enforcement on the source file and get notification channel
-    let mut notifications =
-        match o2m_1.call(O2mRequest::EnforceConsent(fd1_1_1.file())).await.unwrap() {
-            crate::traceability::api::types::O2mResponse::Notifications(rx) => {
-                #[cfg(feature = "trace2e_tracing")]
-                info!("Enabled consent enforcement on the file {:?}", fd1_1_1.file());
-                rx
-            }
-            _ => panic!("Expected Notifications response"),
-        };
+    let mut notifications = enforce_consent!(o2m_1, fd1_1_1.file());
 
     // Spawn a background task to handle consent requests automatically
     let fd1_file = fd1_1_1.file();
@@ -178,13 +160,7 @@ async fn integration_consent_decision_on_remote_io() {
             granted_destinations.push(destination.clone());
 
             // Auto-grant consent immediately
-            let _ = o2m_consent
-                .call(O2mRequest::SetConsentDecision {
-                    source: fd1_file.clone(),
-                    destination,
-                    decision: true,
-                })
-                .await;
+            set_consent_decision!(o2m_consent, fd1_file.clone(), destination, true);
         }
 
         granted_destinations
