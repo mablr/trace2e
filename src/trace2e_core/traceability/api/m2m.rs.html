@@ -144,8 +144,8 @@
 <a href=#144 id=144 data-nosnippet>144</a>                        .iter()
 <a href=#145 id=145 data-nosnippet>145</a>                        .filter(|r| <span class="kw-2">*</span>r.node_id() == provenance.node_id())
 <a href=#146 id=146 data-nosnippet>146</a>                        .map(|r| r.resource().to_owned())
-<a href=#147 id=147 data-nosnippet>147</a>                        .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;(); <span class="comment">// TODO: return error if remote resources are found
-<a href=#148 id=148 data-nosnippet>148</a>                    </span><span class="kw">match </span>compliance
+<a href=#147 id=147 data-nosnippet>147</a>                        .collect::&lt;HashSet&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#148 id=148 data-nosnippet>148</a>                    <span class="kw">match </span>compliance
 <a href=#149 id=149 data-nosnippet>149</a>                        .call(ComplianceRequest::EvalCompliance {
 <a href=#150 id=150 data-nosnippet>150</a>                            sources,
 <a href=#151 id=151 data-nosnippet>151</a>                            destination: destination.<span class="number">0</span>,
