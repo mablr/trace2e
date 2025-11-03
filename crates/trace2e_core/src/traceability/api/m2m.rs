@@ -199,7 +199,7 @@ where
                         provenance.node_id(),
                         resource
                     );
-                    // check if the destination is local
+                    // check if the resource is local
                     if *resource.node_id() == provenance.node_id() {
                         match compliance
                             .call(ComplianceRequest::SetDeleted(resource.resource().to_owned()))
@@ -209,7 +209,8 @@ where
                             _ => Err(TraceabilityError::InternalTrace2eError),
                         }
                     } else {
-                        Err(TraceabilityError::NotLocalResource)
+                        // If the resource is not local, just return Ack, as no action is needed here.
+                        Ok(M2mResponse::Ack)
                     }
                 }
             }
