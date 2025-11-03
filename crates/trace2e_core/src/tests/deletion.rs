@@ -38,7 +38,7 @@ async fn integration_broadcast_deletion_three_nodes() {
     //     s1338on2 -- 3: read --> P2on2["Process2 @Node2"]
     //     P2on2 -- 4: write --> s1339on2
     //     s1340on3 -- 5: read --> P3on3["Process3 @Node3"]
-    //     policy0(["6: BroadcastDeletion(File1)"]) -. .- F1_1_1
+    //     policy0(["6: BroadcastDeletion(File1)"]) -.- F1_1_1
     //     F1_1_1 -- 7: blocked --x P1on1
     //     P2on2 -- 8: blocked --x s1339on2
     //     P3on3 -- 9: blocked --x operations
