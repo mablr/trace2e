@@ -34,9 +34,9 @@ use std::{collections::HashSet, future::Future, pin::Pin, task::Poll};
 use tower::Service;
 
 #[cfg(feature = "trace2e_tracing")]
-use tracing::info;
-#[cfg(feature = "trace2e_tracing")]
 use crate::traceability::infrastructure::naming::DisplayableResource;
+#[cfg(feature = "trace2e_tracing")]
+use tracing::info;
 
 use crate::traceability::{
     api::types::{
@@ -140,7 +140,7 @@ where
                     info!(
                         "[m2m-{}] CheckSourceCompliance: sources: {}, destination: {}, destination_policy: {:?}",
                         provenance.node_id(),
-                        DisplayableResource::from(sources.clone()),
+                        DisplayableResource::from(&sources),
                         destination.0,
                         destination.1
                     );
@@ -167,7 +167,7 @@ where
                     info!(
                         "[m2m-{}] UpdateProvenance: source_prov: {}, destination: {}",
                         provenance.node_id(),
-                        DisplayableResource::from(source_prov.clone()),
+                        DisplayableResource::from(&source_prov),
                         destination
                     );
                     // check if the destination is local

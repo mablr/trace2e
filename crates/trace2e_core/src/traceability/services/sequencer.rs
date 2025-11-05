@@ -9,9 +9,9 @@ use tokio::{join, sync::oneshot};
 use tower::Service;
 
 #[cfg(feature = "trace2e_tracing")]
-use tracing::{debug, info};
-#[cfg(feature = "trace2e_tracing")]
 use crate::traceability::infrastructure::naming::DisplayableResource;
+#[cfg(feature = "trace2e_tracing")]
+use tracing::{debug, info};
 
 use crate::traceability::{
     api::types::{SequencerRequest, SequencerResponse},
@@ -194,8 +194,8 @@ where
                         #[cfg(feature = "trace2e_tracing")]
                         debug!(
                             "[sequencer] FlowReleased: source: {}, destination: {}",
-                            DisplayableResource::from(source.clone()),
-                            DisplayableResource::from(destination.clone())
+                            DisplayableResource::from(&source),
+                            DisplayableResource::from(&destination)
                         );
                         return Ok(SequencerResponse::FlowReleased { source, destination });
                     }

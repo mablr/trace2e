@@ -29,13 +29,13 @@ use std::{
     task::Poll,
 };
 
+#[cfg(feature = "trace2e_tracing")]
+use crate::traceability::infrastructure::naming::DisplayableResource;
 use dashmap::DashMap;
 use tokio::task::JoinSet;
 use tower::Service;
 #[cfg(feature = "trace2e_tracing")]
 use tracing::info;
-#[cfg(feature = "trace2e_tracing")]
-use crate::traceability::infrastructure::naming::DisplayableResource;
 
 use crate::traceability::{
     api::types::{ComplianceRequest, ComplianceResponse},
@@ -673,7 +673,10 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[compliance-{}] CheckCompliance: sources: {}, destination: {}, destination_policy: {:?}",
-                        this.node_id, DisplayableResource::from(sources.clone()), destination, destination_policy
+                        this.node_id,
+                        DisplayableResource::from(&sources),
+                        destination,
+                        destination_policy
                     );
                     this.eval_compliance(sources, destination, destination_policy).await
                 }
@@ -684,7 +687,11 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
                 }
                 ComplianceRequest::GetPolicies(resources) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[compliance-{}] GetPolicies: resources: {}", this.node_id, DisplayableResource::from(resources.clone()));
+                    info!(
+                        "[compliance-{}] GetPolicies: resources: {}",
+                        this.node_id,
+                        DisplayableResource::from(&resources)
+                    );
                     Ok(ComplianceResponse::Policies(this.get_localized_policies(resources)))
                 }
                 ComplianceRequest::SetPolicy { resource, policy } => {

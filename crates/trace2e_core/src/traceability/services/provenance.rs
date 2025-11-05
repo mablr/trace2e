@@ -7,9 +7,9 @@ use dashmap::DashMap;
 use tower::Service;
 
 #[cfg(feature = "trace2e_tracing")]
-use tracing::info;
-#[cfg(feature = "trace2e_tracing")]
 use crate::traceability::infrastructure::naming::DisplayableResource;
+#[cfg(feature = "trace2e_tracing")]
+use tracing::info;
 
 use crate::traceability::{
     api::types::{ProvenanceRequest, ProvenanceResponse},
@@ -79,7 +79,10 @@ impl ProvenanceService {
         } else {
             destination_prov.extend(source_prov);
             #[cfg(feature = "trace2e_tracing")]
-            info!("[provenance-raw] Provenance updated: destination_prov: {}", DisplayableResource::from(destination_prov.clone()));
+            info!(
+                "[provenance-raw] Provenance updated: destination_prov: {}",
+                DisplayableResource::from(&destination_prov)
+            );
             self.provenance.insert(destination.to_owned(), destination_prov);
             ProvenanceResponse::ProvenanceUpdated
         }
@@ -122,7 +125,9 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[provenance-{}] UpdateProvenanceRaw: source_prov: {}, destination: {}",
-                        this.node_id, DisplayableResource::from(source_prov.clone()), destination
+                        this.node_id,
+                        DisplayableResource::from(&source_prov),
+                        destination
                     );
                     Ok(this.update_raw(source_prov, &destination))
                 }
