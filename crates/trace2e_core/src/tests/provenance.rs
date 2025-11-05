@@ -17,8 +17,6 @@ async fn integration_o2m_local_provenance() {
     // flowchart LR
     //     F(File) -->|1| P1[Process1]
     //     P1 -->|2| F
-
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let (_, mut p2m_service, mut o2m_service) =
         init_middleware(String::new(), None, 0, M2mNop, false);
@@ -73,7 +71,6 @@ async fn integration_o2m_remote_provenance_basic() {
 
     //     P1on1["Process1 on Node1"] -- 1 --> s1337on1
     //     s1338on2 -- 2 --> P1on2["Process1 on Node2"]
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
     let mut middlewares =
@@ -135,8 +132,6 @@ async fn integration_o2m_remote_provenance_complex() {
     //     s1338on2 -- 4 --> P2on2
     //     P2on2 -- 5 --> s1339on2
     //     s1340on3 -- 6 --> P3on3
-
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
     let mut middlewares =
@@ -231,8 +226,6 @@ async fn integration_o2m_remote_provenance_complex_with_entropy() {
     //     s1338on2 -- 4 --> P2on2
     //     P2on2 -- 5 --> s1339on2
     //     s1340on3 -- 6 --> P3on3
-
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
     let mut middlewares =

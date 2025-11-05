@@ -37,7 +37,6 @@ use std::{
 
 use dashmap::DashMap;
 use tower::{Service, ServiceExt};
-#[cfg(feature = "trace2e_tracing")]
 use tracing::{debug, info};
 
 use crate::traceability::{
@@ -312,7 +311,6 @@ where
 
             match request {
                 P2mRequest::LocalEnroll { pid, fd, path } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[p2m-{}] LocalEnroll: pid: {}, fd: {}, path: {}",
                         provenance.node_id(),
@@ -325,7 +323,6 @@ where
                     Ok(P2mResponse::Ack)
                 }
                 P2mRequest::RemoteEnroll { pid, fd, local_socket, peer_socket } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[p2m-{}] RemoteEnroll: pid: {}, fd: {}, local_socket: {}, peer_socket: {}",
                         provenance.node_id(),
@@ -350,7 +347,6 @@ where
                         } else {
                             (resource.1.to_owned(), resource.0.to_owned())
                         };
-                        #[cfg(feature = "trace2e_tracing")]
                         info!(
                             "[p2m-{}] IoRequest: source: {}, destination: {}",
                             provenance.node_id(),
@@ -371,7 +367,6 @@ where
                                     .resource()
                                     .is_stream()
                                 {
-                                    #[cfg(feature = "trace2e_tracing")]
                                     debug!(
                                         "[p2m-{}] Querying destination policy for remote stream on node: {}",
                                         provenance.node_id(),
@@ -418,7 +413,6 @@ where
                                                 // grant the flow, otherwise we need to check the compliance of the remote nodes.
                                                 // Destination policy is required for remote sources compliance checking.
                                                 if remote_references.is_empty() {
-                                                    #[cfg(feature = "trace2e_tracing")]
                                                     debug!(
                                                         "[p2m-{}] Local compliance check passed, no remote references, granting flow",
                                                         provenance.node_id()
@@ -441,8 +435,6 @@ where
                                                             TraceabilityError::InternalTrace2eError,
                                                         );
                                                     };
-
-                                                    #[cfg(feature = "trace2e_tracing")]
                                                     debug!(
                                                         "[p2m-{}] Local compliance check passed, remote references found, querying remote sources compliance",
                                                         provenance.node_id()
@@ -485,7 +477,6 @@ where
                                         Ok(P2mResponse::Grant(flow_id))
                                     }
                                     Err(e) => {
-                                        #[cfg(feature = "trace2e_tracing")]
                                         debug!(
                                             "[p2m-{}] Compliance check failed, releasing flow: {}",
                                             provenance.node_id(),
@@ -507,7 +498,6 @@ where
                 }
                 P2mRequest::IoReport { grant_id, .. } => {
                     if let Some((_, (source, destination))) = flow_map.remove(&grant_id) {
-                        #[cfg(feature = "trace2e_tracing")]
                         info!(
                             "[p2m-{}] IoReport: source: {}, destination: {}",
                             provenance.node_id(),
@@ -565,7 +555,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_request_response() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut p2m_service = P2mApiService::new(
             SequencerService::default(),
@@ -623,7 +612,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_validated_resources() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut p2m_service = P2mApiService::new(
             SequencerService::default(),
@@ -660,7 +648,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_io_invalid_request() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut p2m_service = P2mApiService::new(
             SequencerService::default(),
@@ -708,7 +695,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_io_invalid_report() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut p2m_service = P2mApiService::new(
             SequencerService::default(),
@@ -731,7 +717,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_trace2e_service_integrated_validation() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
 
         // Test P2M service with integrated validation enabled

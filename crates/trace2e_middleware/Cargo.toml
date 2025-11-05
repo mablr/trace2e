@@ -12,8 +12,5 @@ tonic-reflection = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 clap = { workspace = true, features = ["derive"] }
 
-[features]
-trace2e_tracing = ["trace2e_core/trace2e_tracing"]
-
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }

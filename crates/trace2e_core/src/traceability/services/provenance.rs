@@ -6,9 +6,7 @@ use std::{collections::HashSet, pin::Pin, sync::Arc, task::Poll};
 use dashmap::DashMap;
 use tower::Service;
 
-#[cfg(feature = "trace2e_tracing")]
 use crate::traceability::infrastructure::naming::DisplayableResource;
-#[cfg(feature = "trace2e_tracing")]
 use tracing::info;
 
 use crate::traceability::{
@@ -71,14 +69,12 @@ impl ProvenanceService {
     ) -> ProvenanceResponse {
         let mut destination_prov = self.get_prov(destination);
         if source_prov.is_subset(&destination_prov) {
-            #[cfg(feature = "trace2e_tracing")]
             info!(
                 "[provenance-raw] Provenance not updated: source_prov is subset of destination_prov"
             );
             ProvenanceResponse::ProvenanceNotUpdated
         } else {
             destination_prov.extend(source_prov);
-            #[cfg(feature = "trace2e_tracing")]
             info!(
                 "[provenance-raw] Provenance updated: destination_prov: {}",
                 DisplayableResource::from(&destination_prov)
@@ -109,12 +105,10 @@ impl Service<ProvenanceRequest> for ProvenanceService {
         Box::pin(async move {
             match request {
                 ProvenanceRequest::GetReferences(resource) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!("[provenance-{}] GetReferences: {}", this.node_id, resource);
                     Ok(ProvenanceResponse::Provenance(this.get_prov(&resource)))
                 }
                 ProvenanceRequest::UpdateProvenance { source, destination } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[provenance-{}] UpdateProvenance: source: {}, destination: {}",
                         this.node_id, source, destination
@@ -122,7 +116,6 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                     Ok(this.update(&source, &destination))
                 }
                 ProvenanceRequest::UpdateProvenanceRaw { source_prov, destination } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[provenance-{}] UpdateProvenanceRaw: source_prov: {}, destination: {}",
                         this.node_id,
@@ -142,7 +135,6 @@ mod tests {
 
     #[test]
     fn unit_provenance_update_simple() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
         let process = LocalizedResource::new(provenance.node_id(), Resource::new_process_mock(0));
@@ -161,7 +153,6 @@ mod tests {
 
     #[test]
     fn unit_provenance_update_circular() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
         let process = LocalizedResource::new(provenance.node_id(), Resource::new_process_mock(0));
@@ -185,7 +176,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_provenance_service_flow_simple() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut provenance = ProvenanceService::default();
         let process = LocalizedResource::new(provenance.node_id(), Resource::new_process_mock(0));

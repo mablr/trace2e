@@ -29,12 +29,10 @@ use std::{
     task::Poll,
 };
 
-#[cfg(feature = "trace2e_tracing")]
 use crate::traceability::infrastructure::naming::DisplayableResource;
 use dashmap::DashMap;
 use tokio::task::JoinSet;
 use tower::Service;
-#[cfg(feature = "trace2e_tracing")]
 use tracing::info;
 
 use crate::traceability::{
@@ -419,7 +417,6 @@ impl ComplianceService<ConsentService> {
 
             // If the source or destination policy is deleted, the flow is not compliant
             if source_policy.is_deleted() || destination_policy.is_deleted() {
-                #[cfg(feature = "trace2e_tracing")]
                 info!(
                     "[compliance] EvalPolicies: source_policy.deleted: {}, destination_policy.deleted: {}",
                     source_policy.is_deleted(),
@@ -427,12 +424,10 @@ impl ComplianceService<ConsentService> {
                 );
                 #[cfg(feature = "enforcement_mocking")]
                 if source_policy.is_pending_deletion() {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance] Enforcing deletion policy for source");
                 }
                 #[cfg(feature = "enforcement_mocking")]
                 if destination_policy.is_pending_deletion() {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance] Enforcing deletion policy for destination");
                 }
 
@@ -670,7 +665,6 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
         Box::pin(async move {
             match request {
                 ComplianceRequest::EvalCompliance { sources, destination, destination_policy } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[compliance-{}] CheckCompliance: sources: {}, destination: {}, destination_policy: {:?}",
                         this.node_id,
@@ -681,12 +675,10 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
                     this.eval_compliance(sources, destination, destination_policy).await
                 }
                 ComplianceRequest::GetPolicy(resource) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance-{}] GetPolicy: resource: {}", this.node_id, resource);
                     Ok(ComplianceResponse::Policy(this.get_policy(&resource)))
                 }
                 ComplianceRequest::GetPolicies(resources) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[compliance-{}] GetPolicies: resources: {}",
                         this.node_id,
@@ -695,7 +687,6 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
                     Ok(ComplianceResponse::Policies(this.get_localized_policies(resources)))
                 }
                 ComplianceRequest::SetPolicy { resource, policy } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[compliance-{}] SetPolicy: resource: {}, policy: {:?}",
                         this.node_id, resource, policy
@@ -703,7 +694,6 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
                     Ok(this.set_policy(resource, policy))
                 }
                 ComplianceRequest::SetConfidentiality { resource, confidentiality } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[compliance-{}] SetConfidentiality: resource: {}, confidentiality: {:?}",
                         this.node_id, resource, confidentiality
@@ -711,7 +701,6 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
                     Ok(this.set_confidentiality(resource, confidentiality))
                 }
                 ComplianceRequest::SetIntegrity { resource, integrity } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[compliance-{}] SetIntegrity: resource: {}, integrity: {:?}",
                         this.node_id, resource, integrity
@@ -719,12 +708,10 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
                     Ok(this.set_integrity(resource, integrity))
                 }
                 ComplianceRequest::SetDeleted(resource) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!("[compliance-{}] SetDeleted: resource: {}", this.node_id, resource);
                     Ok(this.set_deleted(resource))
                 }
                 ComplianceRequest::EnforceConsent { resource, consent } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[compliance-{}] EnforceConsent: resource: {}, consent: {:?}",
                         this.node_id, resource, consent
@@ -755,7 +742,6 @@ mod tests {
     }
 
     fn init_tracing() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
     }
 

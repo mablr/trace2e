@@ -4,7 +4,6 @@ use std::{future::Future, pin::Pin, sync::Arc, task::Poll};
 use dashmap::{DashMap, Entry};
 use tokio::{sync::broadcast, time::Duration};
 use tower::Service;
-#[cfg(feature = "trace2e_tracing")]
 use tracing::info;
 
 use crate::traceability::{
@@ -231,7 +230,6 @@ impl Service<ConsentRequest> for ConsentService {
         Box::pin(async move {
             match request {
                 ConsentRequest::RequestConsent { source, destination } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[consent] RequestConsent from source: {:?} to destination: {:?}",
                         source, destination
@@ -239,7 +237,6 @@ impl Service<ConsentRequest> for ConsentService {
                     this.get_consent(source, destination).await.map(ConsentResponse::Consent)
                 }
                 ConsentRequest::SetConsent { source, destination, consent } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[consent] SetConsent {} from source: {:?} to destination: {:?}",
                         consent, source, destination
@@ -248,7 +245,6 @@ impl Service<ConsentRequest> for ConsentService {
                     Ok(ConsentResponse::Ack)
                 }
                 ConsentRequest::TakeResourceOwnership(resource) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!("[consent] TakeResourceOwnership for resource: {}", resource);
                     Ok(ConsentResponse::Notifications(this.take_resource_ownership(resource)))
                 }
@@ -263,7 +259,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_consent_service_no_ownership() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(0);
         let resource = Resource::new_process_mock(0);
@@ -279,7 +274,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_consent_service_with_ownership_with_decision_on_notification() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(0);
         let resource = Resource::new_process_mock(0);
@@ -315,7 +309,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_consent_service_with_ownership_with_decision_timeout() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(1);
         let resource = Resource::new_process_mock(0);
@@ -367,7 +360,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_hierarchical_consent_resource_overrides_node() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(0);
         let source = Resource::new_process_mock(0);
@@ -408,7 +400,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_hierarchical_consent_node_level_fallback() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(0);
         let source = Resource::new_process_mock(0);
@@ -439,7 +430,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_hierarchical_consent_most_specific_wins() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut consent_service = ConsentService::new(0);
         let source = Resource::new_process_mock(0);

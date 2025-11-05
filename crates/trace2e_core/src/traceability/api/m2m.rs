@@ -33,9 +33,7 @@ use std::{collections::HashSet, future::Future, pin::Pin, task::Poll};
 
 use tower::Service;
 
-#[cfg(feature = "trace2e_tracing")]
 use crate::traceability::infrastructure::naming::DisplayableResource;
-#[cfg(feature = "trace2e_tracing")]
 use tracing::info;
 
 use crate::traceability::{
@@ -104,7 +102,6 @@ where
         Box::pin(async move {
             match request {
                 M2mRequest::GetDestinationPolicy(destination) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[m2m-{}] GetDestinationPolicy: destination: {}",
                         provenance.node_id(),
@@ -136,7 +133,6 @@ where
                     }
                 }
                 M2mRequest::CheckSourceCompliance { sources, destination } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[m2m-{}] CheckSourceCompliance: sources: {}, destination: {}, destination_policy: {:?}",
                         provenance.node_id(),
@@ -163,7 +159,6 @@ where
                     }
                 }
                 M2mRequest::UpdateProvenance { source_prov, destination } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[m2m-{}] UpdateProvenance: source_prov: {}, destination: {}",
                         provenance.node_id(),
@@ -197,7 +192,6 @@ where
                     }
                 }
                 M2mRequest::BroadcastDeletion(resource) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[m2m-{}] BroadcastDeletion: resource: {}",
                         provenance.node_id(),

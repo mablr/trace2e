@@ -5,7 +5,6 @@ use crate::{
 use std::time::Duration;
 use tokio::time::timeout;
 use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
-#[cfg(feature = "trace2e_tracing")]
 use tracing::info;
 
 #[tokio::test]
@@ -18,8 +17,6 @@ async fn integration_consent_notification_local_and_remote_io() {
     //     P1on1 -- 2 --> s1337on1["socket1337 on Node1"]
     //     s1337on1 --- s1338on2["socket1338 on Node2"]
     //     policy0(["Enable Consent"]) -. 0 .- F1_1_1
-
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
 
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
@@ -113,8 +110,6 @@ async fn integration_consent_decision_on_remote_io() {
     //
     // This test demonstrates consent enforcement for data flowing from a file
     // on node1 to a stream destination on node2.
-
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
 
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
@@ -154,7 +149,6 @@ async fn integration_consent_decision_on_remote_io() {
         while let Ok(Ok(destination)) =
             timeout(Duration::from_millis(150), notifications.recv()).await
         {
-            #[cfg(feature = "trace2e_tracing")]
             info!("Received consent notification for destination: {:?}", destination);
             granted_destinations.push(destination.clone());
 

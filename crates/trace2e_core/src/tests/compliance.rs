@@ -32,8 +32,6 @@ async fn integration_o2m_remote_confidentiality_enforcement() {
     //     s1338on2@{ shape: h-cyl}
     //     s1339on2@{ shape: h-cyl}
     //     s1340on3@{ shape: h-cyl}
-
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
     let mut middlewares =
@@ -123,8 +121,6 @@ async fn integration_o2m_remote_integrity_enforcement() {
     //     s1338on2@{ shape: h-cyl}
     //     s1339on2@{ shape: h-cyl}
     //     s1340on3@{ shape: h-cyl}
-
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
     let mut middlewares =
@@ -191,8 +187,6 @@ async fn integration_o2m_remote_delete_policy_enforcement() {
 
     //     s1337on1@{ shape: h-cyl}
     //     s1338on2@{ shape: h-cyl}
-
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
     let mut middlewares =

@@ -42,8 +42,6 @@ async fn integration_broadcast_deletion_three_nodes() {
     //     F1_1_1 -- 7: blocked --x P1on1
     //     P2on2 -- 8: blocked --x s1339on2
     //     P3on3 -- 9: blocked --x operations
-
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
 
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];

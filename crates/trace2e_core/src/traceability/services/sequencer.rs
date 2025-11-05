@@ -8,9 +8,7 @@ use dashmap::DashMap;
 use tokio::{join, sync::oneshot};
 use tower::Service;
 
-#[cfg(feature = "trace2e_tracing")]
 use crate::traceability::infrastructure::naming::DisplayableResource;
-#[cfg(feature = "trace2e_tracing")]
 use tracing::{debug, info};
 
 use crate::traceability::{
@@ -98,7 +96,6 @@ impl Service<SequencerRequest> for SequencerService {
         Box::pin(async move {
             match request {
                 SequencerRequest::ReserveFlow { source, destination } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[sequencer] ReserveFlow: source: {}, destination: {}",
                         source, destination
@@ -106,7 +103,6 @@ impl Service<SequencerRequest> for SequencerService {
                     this.make_flow(source, destination).await
                 }
                 SequencerRequest::ReleaseFlow { destination } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!("[sequencer] ReleaseFlow: destination: {}", destination);
                     this.drop_flow(&destination).await
                 }
@@ -182,7 +178,6 @@ where
             for _ in 0..max_tries {
                 match inner.call(req.clone()).await {
                     Ok(SequencerResponse::FlowReserved) => {
-                        #[cfg(feature = "trace2e_tracing")]
                         debug!("[sequencer] FlowReserved");
                         return Ok(SequencerResponse::FlowReserved);
                     }
@@ -191,7 +186,6 @@ where
                             this.notify_waiting_queue(&source),
                             this.notify_waiting_queue(&destination)
                         );
-                        #[cfg(feature = "trace2e_tracing")]
                         debug!(
                             "[sequencer] FlowReleased: source: {}, destination: {}",
                             DisplayableResource::from(&source),
@@ -201,13 +195,11 @@ where
                     }
                     Err(TraceabilityError::UnavailableSource(source)) => {
                         let rx = this.join_waiting_queue(&source).await;
-                        #[cfg(feature = "trace2e_tracing")]
                         debug!("[sequencer] waiting source: {}", source);
                         let _ = rx.await;
                     }
                     Err(TraceabilityError::UnavailableDestination(destination)) => {
                         let rx = this.join_waiting_queue(&destination).await;
-                        #[cfg(feature = "trace2e_tracing")]
                         debug!("[sequencer] waiting destination: {}", destination);
                         let _ = rx.await;
                     }
@@ -217,7 +209,6 @@ where
                     )) => {
                         let rx1 = this.join_waiting_queue(&source).await;
                         let rx2 = this.join_waiting_queue(&destination).await;
-                        #[cfg(feature = "trace2e_tracing")]
                         debug!(
                             "[sequencer] waiting source: {}, destination: {}",
                             source, destination
@@ -242,7 +233,6 @@ mod tests {
     use crate::traceability::infrastructure::naming::Resource;
     #[tokio::test]
     async fn unit_sequencer_impl_flow() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let sequencer = SequencerService::default();
         let process = Resource::new_process_mock(0);
@@ -270,7 +260,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_impl_flow_drop_already_dropped() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let sequencer = SequencerService::default();
         let process = Resource::new_process_mock(0);
@@ -295,7 +284,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_impl_flow_readers_drop() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let sequencer = SequencerService::default();
         let process = Resource::new_process_mock(0);
@@ -353,7 +341,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_impl_flow_interference() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let sequencer = SequencerService::default();
         let process1 = Resource::new_process_mock(1);
@@ -394,7 +381,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
@@ -423,7 +409,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow_interference() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
@@ -452,7 +437,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow_circular() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
@@ -484,7 +468,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
@@ -536,7 +519,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence_interference() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
@@ -606,7 +588,6 @@ mod tests {
     }
     #[tokio::test]
     async fn unit_sequencer_layer_flow_sequence_interference_multiple_share_releases() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut sequencer = SequencerService::default();
 
@@ -674,7 +655,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_waiting_queue_layer_flow_interference() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -705,7 +685,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_waiting_queue_layer_flow_circular() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(1)))
@@ -736,7 +715,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_waiting_queue_layer_writers_interference_resolution() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(10)))
@@ -794,7 +772,6 @@ mod tests {
     }
     #[tokio::test]
     async fn unit_waiting_queue_layer_writer_readers_interference_resolution() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(2)))
@@ -899,7 +876,6 @@ mod tests {
 
     #[tokio::test]
     async fn unit_waiting_queue_layer_reader_writer_interference_resolution() {
-        #[cfg(feature = "trace2e_tracing")]
         crate::trace2e_tracing::init();
         let mut sequencer = ServiceBuilder::new()
             .layer(TimeoutLayer::new(Duration::from_millis(2)))

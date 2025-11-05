@@ -34,7 +34,6 @@
 use std::{future::Future, pin::Pin, task::Poll};
 
 use tower::Service;
-#[cfg(feature = "trace2e_tracing")]
 use tracing::info;
 
 use crate::traceability::{
@@ -114,7 +113,6 @@ where
         Box::pin(async move {
             match request {
                 O2mRequest::GetPolicies(resources) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!("[o2m-{}] GetPolicies: resources: {:?}", provenance.node_id(), resources);
                     match compliance.call(ComplianceRequest::GetPolicies(resources)).await? {
                         ComplianceResponse::Policies(policies) => {
@@ -124,7 +122,6 @@ where
                     }
                 }
                 O2mRequest::SetPolicy { resource, policy } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[o2m-{}] SetPolicy: resource: {}, policy: {:?}",
                         provenance.node_id(),
@@ -138,7 +135,6 @@ where
                     }
                 }
                 O2mRequest::SetConfidentiality { resource, confidentiality } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[o2m-{}] SetConfidentiality: resource: {}, confidentiality: {:?}",
                         provenance.node_id(),
@@ -154,7 +150,6 @@ where
                     }
                 }
                 O2mRequest::SetIntegrity { resource, integrity } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[o2m-{}] SetIntegrity: resource: {}, integrity: {:?}",
                         provenance.node_id(),
@@ -170,7 +165,6 @@ where
                     }
                 }
                 O2mRequest::SetDeleted(resource) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!("[o2m-{}] SetDeleted: resource: {}", provenance.node_id(), resource);
                     match compliance.call(ComplianceRequest::SetDeleted(resource)).await? {
                         ComplianceResponse::PolicyUpdated => Ok(O2mResponse::Ack),
@@ -178,7 +172,6 @@ where
                     }
                 }
                 O2mRequest::BroadcastDeletion(resource) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[o2m-{}] BroadcastDeletion: resource: {}",
                         provenance.node_id(),
@@ -192,7 +185,6 @@ where
                     }
                 }
                 O2mRequest::EnforceConsent(resource) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!("[o2m-{}] EnforceConsent: resource: {}", provenance.node_id(), resource);
                     let notifications = match consent
                         .call(ConsentRequest::TakeResourceOwnership(resource.clone()))
@@ -212,7 +204,6 @@ where
                     }
                 }
                 O2mRequest::GetReferences(resource) => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!("[o2m-{}] GetReferences: resource: {}", provenance.node_id(), resource);
                     match provenance.call(ProvenanceRequest::GetReferences(resource)).await? {
                         ProvenanceResponse::Provenance(references) => {
@@ -222,7 +213,6 @@ where
                     }
                 }
                 O2mRequest::SetConsentDecision { source, destination, decision } => {
-                    #[cfg(feature = "trace2e_tracing")]
                     info!(
                         "[o2m-{}] SetConsentDecision: source: {}, destination: {:?}, decision: {:?}",
                         provenance.node_id(),

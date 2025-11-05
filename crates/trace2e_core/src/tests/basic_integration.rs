@@ -16,8 +16,6 @@ async fn integration_init_middleware() {
     //     P1[Process1] -->|2| S(Stream)
     //     F -->|3| P1
     //     S -->|4| P1
-
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let (_, mut p2m_service, _) = init_middleware("10.0.0.1".to_string(), None, 0, M2mNop, false);
 
@@ -42,7 +40,6 @@ async fn integration_spawn_loopback_middlewares() {
 
     //     P1on1["Process1 on Node1"] -- 1 --> s1337on1
     //     s1338on2 -- 2 --> P1on2["Process1 on Node2"]
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string()];
     let mut middlewares =

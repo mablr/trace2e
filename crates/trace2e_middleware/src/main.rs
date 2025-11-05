@@ -39,7 +39,6 @@ struct Trace2eMiddlewareArgs {
 #[cfg(not(tarpaulin_include))]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    #[cfg(feature = "trace2e_tracing")]
     trace2e_core::trace2e_tracing::init();
 
     let args = Trace2eMiddlewareArgs::parse();

@@ -7,7 +7,6 @@ use crate::{
 
 #[tokio::test]
 async fn integration_p2m_stress_interference() {
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let processes_count = 10;
     let files_per_process_count = 10;
@@ -67,7 +66,6 @@ async fn integration_p2m_stress_interference() {
 
 #[tokio::test]
 async fn integration_p2m_seq_stress_interference() {
-    #[cfg(feature = "trace2e_tracing")]
     crate::trace2e_tracing::init();
     let processes_count = 10;
     let files_per_process_count = 10;
