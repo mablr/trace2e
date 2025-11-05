@@ -5,8 +5,11 @@ use std::{collections::HashSet, pin::Pin, sync::Arc, task::Poll};
 
 use dashmap::DashMap;
 use tower::Service;
+
 #[cfg(feature = "trace2e_tracing")]
 use tracing::info;
+#[cfg(feature = "trace2e_tracing")]
+use crate::traceability::infrastructure::naming::DisplayableResource;
 
 use crate::traceability::{
     api::types::{ProvenanceRequest, ProvenanceResponse},
@@ -76,7 +79,7 @@ impl ProvenanceService {
         } else {
             destination_prov.extend(source_prov);
             #[cfg(feature = "trace2e_tracing")]
-            info!("[provenance-raw] Provenance updated: destination_prov: {:?}", destination_prov);
+            info!("[provenance-raw] Provenance updated: destination_prov: {}", DisplayableResource::from(destination_prov.clone()));
             self.provenance.insert(destination.to_owned(), destination_prov);
             ProvenanceResponse::ProvenanceUpdated
         }
@@ -104,13 +107,13 @@ impl Service<ProvenanceRequest> for ProvenanceService {
             match request {
                 ProvenanceRequest::GetReferences(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[provenance-{}] GetReferences: {:?}", this.node_id, resource);
+                    info!("[provenance-{}] GetReferences: {}", this.node_id, resource);
                     Ok(ProvenanceResponse::Provenance(this.get_prov(&resource)))
                 }
                 ProvenanceRequest::UpdateProvenance { source, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[provenance-{}] UpdateProvenance: source: {:?}, destination: {:?}",
+                        "[provenance-{}] UpdateProvenance: source: {}, destination: {}",
                         this.node_id, source, destination
                     );
                     Ok(this.update(&source, &destination))
@@ -118,8 +121,8 @@ impl Service<ProvenanceRequest> for ProvenanceService {
                 ProvenanceRequest::UpdateProvenanceRaw { source_prov, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[provenance-{}] UpdateProvenanceRaw: source_prov: {:?}, destination: {:?}",
-                        this.node_id, source_prov, destination
+                        "[provenance-{}] UpdateProvenanceRaw: source_prov: {}, destination: {}",
+                        this.node_id, DisplayableResource::from(source_prov.clone()), destination
                     );
                     Ok(this.update_raw(source_prov, &destination))
                 }

@@ -126,7 +126,7 @@ where
                 O2mRequest::SetPolicy { resource, policy } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[o2m-{}] SetPolicy: resource: {:?}, policy: {:?}",
+                        "[o2m-{}] SetPolicy: resource: {}, policy: {:?}",
                         provenance.node_id(),
                         resource,
                         policy
@@ -140,7 +140,7 @@ where
                 O2mRequest::SetConfidentiality { resource, confidentiality } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[o2m-{}] SetConfidentiality: resource: {:?}, confidentiality: {:?}",
+                        "[o2m-{}] SetConfidentiality: resource: {}, confidentiality: {:?}",
                         provenance.node_id(),
                         resource,
                         confidentiality
@@ -156,7 +156,7 @@ where
                 O2mRequest::SetIntegrity { resource, integrity } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[o2m-{}] SetIntegrity: resource: {:?}, integrity: {:?}",
+                        "[o2m-{}] SetIntegrity: resource: {}, integrity: {:?}",
                         provenance.node_id(),
                         resource,
                         integrity
@@ -171,7 +171,7 @@ where
                 }
                 O2mRequest::SetDeleted(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[o2m-{}] SetDeleted: resource: {:?}", provenance.node_id(), resource,);
+                    info!("[o2m-{}] SetDeleted: resource: {}", provenance.node_id(), resource);
                     match compliance.call(ComplianceRequest::SetDeleted(resource)).await? {
                         ComplianceResponse::PolicyUpdated => Ok(O2mResponse::Ack),
                         _ => Err(TraceabilityError::InternalTrace2eError),
@@ -180,7 +180,7 @@ where
                 O2mRequest::BroadcastDeletion(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[o2m-{}] BroadcastDeletion: resource: {:?}",
+                        "[o2m-{}] BroadcastDeletion: resource: {}",
                         provenance.node_id(),
                         resource
                     );
@@ -193,11 +193,7 @@ where
                 }
                 O2mRequest::EnforceConsent(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!(
-                        "[o2m-{}] EnforceConsent: resource: {:?}",
-                        provenance.node_id(),
-                        resource
-                    );
+                    info!("[o2m-{}] EnforceConsent: resource: {}", provenance.node_id(), resource);
                     let notifications = match consent
                         .call(ConsentRequest::TakeResourceOwnership(resource.clone()))
                         .await?
@@ -217,7 +213,7 @@ where
                 }
                 O2mRequest::GetReferences(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[o2m-{}] GetReferences: resource: {:?}", provenance.node_id(), resource);
+                    info!("[o2m-{}] GetReferences: resource: {}", provenance.node_id(), resource);
                     match provenance.call(ProvenanceRequest::GetReferences(resource)).await? {
                         ProvenanceResponse::Provenance(references) => {
                             Ok(O2mResponse::References(references))
@@ -228,7 +224,7 @@ where
                 O2mRequest::SetConsentDecision { source, destination, decision } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[o2m-{}] SetConsentDecision: source: {:?}, destination: {:?}, decision: {:?}",
+                        "[o2m-{}] SetConsentDecision: source: {}, destination: {:?}, decision: {:?}",
                         provenance.node_id(),
                         source,
                         destination,

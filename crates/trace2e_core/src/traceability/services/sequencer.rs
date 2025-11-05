@@ -7,8 +7,11 @@ use std::{collections::VecDeque, pin::Pin, sync::Arc, task::Poll};
 use dashmap::DashMap;
 use tokio::{join, sync::oneshot};
 use tower::Service;
+
 #[cfg(feature = "trace2e_tracing")]
 use tracing::{debug, info};
+#[cfg(feature = "trace2e_tracing")]
+use crate::traceability::infrastructure::naming::DisplayableResource;
 
 use crate::traceability::{
     api::types::{SequencerRequest, SequencerResponse},
@@ -97,14 +100,14 @@ impl Service<SequencerRequest> for SequencerService {
                 SequencerRequest::ReserveFlow { source, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[sequencer] ReserveFlow: source: {:?}, destination: {:?}",
+                        "[sequencer] ReserveFlow: source: {}, destination: {}",
                         source, destination
                     );
                     this.make_flow(source, destination).await
                 }
                 SequencerRequest::ReleaseFlow { destination } => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[sequencer] ReleaseFlow: destination: {:?}", destination);
+                    info!("[sequencer] ReleaseFlow: destination: {}", destination);
                     this.drop_flow(&destination).await
                 }
             }
@@ -190,21 +193,22 @@ where
                         );
                         #[cfg(feature = "trace2e_tracing")]
                         debug!(
-                            "[sequencer] FlowReleased: source: {:?}, destination: {:?}",
-                            source, destination
+                            "[sequencer] FlowReleased: source: {}, destination: {}",
+                            DisplayableResource::from(source.clone()),
+                            DisplayableResource::from(destination.clone())
                         );
                         return Ok(SequencerResponse::FlowReleased { source, destination });
                     }
                     Err(TraceabilityError::UnavailableSource(source)) => {
                         let rx = this.join_waiting_queue(&source).await;
                         #[cfg(feature = "trace2e_tracing")]
-                        debug!("[sequencer] waiting source: {:?}", source);
+                        debug!("[sequencer] waiting source: {}", source);
                         let _ = rx.await;
                     }
                     Err(TraceabilityError::UnavailableDestination(destination)) => {
                         let rx = this.join_waiting_queue(&destination).await;
                         #[cfg(feature = "trace2e_tracing")]
-                        debug!("[sequencer] waiting destination: {:?}", destination);
+                        debug!("[sequencer] waiting destination: {}", destination);
                         let _ = rx.await;
                     }
                     Err(TraceabilityError::UnavailableSourceAndDestination(
@@ -215,7 +219,7 @@ where
                         let rx2 = this.join_waiting_queue(&destination).await;
                         #[cfg(feature = "trace2e_tracing")]
                         debug!(
-                            "[sequencer] waiting source: {:?}, destination: {:?}",
+                            "[sequencer] waiting source: {}, destination: {}",
                             source, destination
                         );
                         let (_, _) = join!(rx1, rx2);

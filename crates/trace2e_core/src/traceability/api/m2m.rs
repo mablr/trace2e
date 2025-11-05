@@ -32,8 +32,11 @@
 use std::{collections::HashSet, future::Future, pin::Pin, task::Poll};
 
 use tower::Service;
+
 #[cfg(feature = "trace2e_tracing")]
 use tracing::info;
+#[cfg(feature = "trace2e_tracing")]
+use crate::traceability::infrastructure::naming::DisplayableResource;
 
 use crate::traceability::{
     api::types::{
@@ -103,7 +106,7 @@ where
                 M2mRequest::GetDestinationPolicy(destination) => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[m2m-{}] GetDestinationPolicy: destination: {:?}",
+                        "[m2m-{}] GetDestinationPolicy: destination: {}",
                         provenance.node_id(),
                         destination
                     );
@@ -135,10 +138,11 @@ where
                 M2mRequest::CheckSourceCompliance { sources, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[m2m-{}] CheckSourceCompliance: sources: {:?}, destination: {:?}",
+                        "[m2m-{}] CheckSourceCompliance: sources: {}, destination: {}, destination_policy: {:?}",
                         provenance.node_id(),
-                        sources,
-                        destination
+                        DisplayableResource::from(sources.clone()),
+                        destination.0,
+                        destination.1
                     );
                     let sources = sources
                         .iter()
@@ -161,9 +165,9 @@ where
                 M2mRequest::UpdateProvenance { source_prov, destination } => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[m2m-{}] UpdateProvenance: source_prov: {:?}, destination: {:?}",
+                        "[m2m-{}] UpdateProvenance: source_prov: {}, destination: {}",
                         provenance.node_id(),
-                        source_prov,
+                        DisplayableResource::from(source_prov.clone()),
                         destination
                     );
                     // check if the destination is local
@@ -195,7 +199,7 @@ where
                 M2mRequest::BroadcastDeletion(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
                     info!(
-                        "[m2m-{}] BroadcastDeletion: resource: {:?}",
+                        "[m2m-{}] BroadcastDeletion: resource: {}",
                         provenance.node_id(),
                         resource
                     );

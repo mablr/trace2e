@@ -249,7 +249,7 @@ impl Service<ConsentRequest> for ConsentService {
                 }
                 ConsentRequest::TakeResourceOwnership(resource) => {
                     #[cfg(feature = "trace2e_tracing")]
-                    info!("[consent] TakeResourceOwnership for resource: {:?}", resource);
+                    info!("[consent] TakeResourceOwnership for resource: {}", resource);
                     Ok(ConsentResponse::Notifications(this.take_resource_ownership(resource)))
                 }
             }

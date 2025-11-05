@@ -352,7 +352,7 @@ where
                         };
                         #[cfg(feature = "trace2e_tracing")]
                         info!(
-                            "[p2m-{}] IoRequest: source: {:?}, destination: {:?}",
+                            "[p2m-{}] IoRequest: source: {}, destination: {}",
                             provenance.node_id(),
                             source,
                             destination
@@ -373,7 +373,7 @@ where
                                 {
                                     #[cfg(feature = "trace2e_tracing")]
                                     debug!(
-                                        "[p2m-{}] Querying destination policy for remote stream on node: {:?}",
+                                        "[p2m-{}] Querying destination policy for remote stream on node: {}",
                                         provenance.node_id(),
                                         localized_destination
                                     );
@@ -509,7 +509,7 @@ where
                     if let Some((_, (source, destination))) = flow_map.remove(&grant_id) {
                         #[cfg(feature = "trace2e_tracing")]
                         info!(
-                            "[p2m-{}] IoReport: source: {:?}, destination: {:?}",
+                            "[p2m-{}] IoReport: source: {}, destination: {}",
                             provenance.node_id(),
                             source,
                             destination
