@@ -256,16 +256,15 @@ impl Display for LocalizedResource {
 
 /// Wrapper type for Display implementation of Option<Resource>
 ///
-/// This wrapper is needed because Rust's orphan rule prevents implementing
-/// Display directly for Option<Resource> when Option is from the standard library.
-#[derive(Clone, Debug)]
-pub enum DisplayableResource<T> {
-    Option(Option<T>),
-    HashSet(HashSet<T>),
-    Vec(Vec<T>),
+/// Uses references to avoid cloning data when displaying.
+#[derive(Debug)]
+pub enum DisplayableResource<'a, T> {
+    Option(&'a Option<T>),
+    HashSet(&'a HashSet<T>),
+    Slice(&'a [T]),
 }
 
-impl Display for DisplayableResource<Resource> {
+impl<'a> Display for DisplayableResource<'a, Resource> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DisplayableResource::Option(Some(resource)) => write!(f, "{}", resource),
@@ -275,7 +274,7 @@ impl Display for DisplayableResource<Resource> {
                 "[{}]",
                 resources.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(", ")
             ),
-            DisplayableResource::Vec(resources) => write!(
+            DisplayableResource::Slice(resources) => write!(
                 f,
                 "[{}]",
                 resources.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(", ")
@@ -284,7 +283,7 @@ impl Display for DisplayableResource<Resource> {
     }
 }
 
-impl Display for DisplayableResource<LocalizedResource> {
+impl<'a> Display for DisplayableResource<'a, LocalizedResource> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DisplayableResource::Option(Some(resource)) => write!(f, "{}", resource),
@@ -294,7 +293,7 @@ impl Display for DisplayableResource<LocalizedResource> {
                 "[{}]",
                 resources.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(", ")
             ),
-            DisplayableResource::Vec(resources) => write!(
+            DisplayableResource::Slice(resources) => write!(
                 f,
                 "[{}]",
                 resources.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(", ")
@@ -303,39 +302,39 @@ impl Display for DisplayableResource<LocalizedResource> {
     }
 }
 
-impl From<Option<Resource>> for DisplayableResource<Resource> {
-    fn from(t: Option<Resource>) -> Self {
+impl<'a> From<&'a Option<Resource>> for DisplayableResource<'a, Resource> {
+    fn from(t: &'a Option<Resource>) -> Self {
         DisplayableResource::Option(t)
     }
 }
 
-impl From<HashSet<Resource>> for DisplayableResource<Resource> {
-    fn from(t: HashSet<Resource>) -> DisplayableResource<Resource> {
+impl<'a> From<&'a HashSet<Resource>> for DisplayableResource<'a, Resource> {
+    fn from(t: &'a HashSet<Resource>) -> DisplayableResource<'a, Resource> {
         DisplayableResource::HashSet(t)
     }
 }
 
-impl From<Vec<Resource>> for DisplayableResource<Resource> {
-    fn from(t: Vec<Resource>) -> DisplayableResource<Resource> {
-        DisplayableResource::Vec(t)
+impl<'a> From<&'a [Resource]> for DisplayableResource<'a, Resource> {
+    fn from(t: &'a [Resource]) -> DisplayableResource<'a, Resource> {
+        DisplayableResource::Slice(t)
     }
 }
 
-impl From<Option<LocalizedResource>> for DisplayableResource<LocalizedResource> {
-    fn from(t: Option<LocalizedResource>) -> Self {
+impl<'a> From<&'a Option<LocalizedResource>> for DisplayableResource<'a, LocalizedResource> {
+    fn from(t: &'a Option<LocalizedResource>) -> Self {
         DisplayableResource::Option(t)
     }
 }
 
-impl From<HashSet<LocalizedResource>> for DisplayableResource<LocalizedResource> {
-    fn from(t: HashSet<LocalizedResource>) -> Self {
+impl<'a> From<&'a HashSet<LocalizedResource>> for DisplayableResource<'a, LocalizedResource> {
+    fn from(t: &'a HashSet<LocalizedResource>) -> Self {
         DisplayableResource::HashSet(t)
     }
 }
 
-impl From<Vec<LocalizedResource>> for DisplayableResource<LocalizedResource> {
-    fn from(t: Vec<LocalizedResource>) -> Self {
-        DisplayableResource::Vec(t)
+impl<'a> From<&'a [LocalizedResource]> for DisplayableResource<'a, LocalizedResource> {
+    fn from(t: &'a [LocalizedResource]) -> Self {
+        DisplayableResource::Slice(t)
     }
 }
 
@@ -391,29 +390,17 @@ mod tests {
             LocalizedResource::new("127.0.0.1".to_string(), Resource::new_process_mock(1234));
         let none = LocalizedResource::new(Default::default(), Resource::None);
 
-        // localized resources
-        assert_eq!(
-            DisplayableResource::from(Some(file.clone())).to_string(),
-            "file::///tmp/test.txt@127.0.0.1"
-        );
-        assert_eq!(
-            DisplayableResource::from(Some(process_mock.clone())).to_string(),
-            "process:://1234::0::@127.0.0.1"
-        );
-        assert_eq!(
-            DisplayableResource::from(Some(stream.clone())).to_string(),
-            "stream:://127.0.0.1:8080::127.0.0.1:8081@127.0.0.1"
-        );
-        assert_eq!(DisplayableResource::from(Some(none.clone())).to_string(), "None@");
+        // localized resources - test direct resource display
+        assert_eq!(file.to_string(), "file::///tmp/test.txt@127.0.0.1");
+        assert_eq!(process_mock.to_string(), "process:://1234::0::@127.0.0.1");
+        assert_eq!(stream.to_string(), "stream:://127.0.0.1:8080::127.0.0.1:8081@127.0.0.1");
+        assert_eq!(none.to_string(), "None@");
 
+        // test DisplayableResource with vector of cloned resources for display
+        // In production code, we pass references to avoid clones (as shown in other files)
         assert_eq!(
-            DisplayableResource::from(vec![
-                file.clone(),
-                process_mock.clone(),
-                stream.clone(),
-                none.clone()
-            ])
-            .to_string(),
+            DisplayableResource::from(vec![file, process_mock, stream, none].as_slice())
+                .to_string(),
             "[file::///tmp/test.txt@127.0.0.1, process:://1234::0::@127.0.0.1, stream:://127.0.0.1:8080::127.0.0.1:8081@127.0.0.1, None@]"
         );
     }
