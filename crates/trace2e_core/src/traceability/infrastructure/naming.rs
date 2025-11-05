@@ -24,6 +24,7 @@
 //! and validation, or using mock variants for testing purposes.
 
 use std::{
+    collections::HashSet,
     fmt::{Debug, Display},
     net::SocketAddr,
 };
@@ -253,6 +254,91 @@ impl Display for LocalizedResource {
     }
 }
 
+/// Wrapper type for Display implementation of Option<Resource>
+///
+/// This wrapper is needed because Rust's orphan rule prevents implementing
+/// Display directly for Option<Resource> when Option is from the standard library.
+#[derive(Clone, Debug)]
+pub enum DisplayableResource<T> {
+    Option(Option<T>),
+    HashSet(HashSet<T>),
+    Vec(Vec<T>),
+}
+
+impl Display for DisplayableResource<Resource> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DisplayableResource::Option(Some(resource)) => write!(f, "{}", resource),
+            DisplayableResource::Option(None) => write!(f, "None"),
+            DisplayableResource::HashSet(resources) => write!(
+                f,
+                "[{}]",
+                resources.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(", ")
+            ),
+            DisplayableResource::Vec(resources) => write!(
+                f,
+                "[{}]",
+                resources.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(", ")
+            ),
+        }
+    }
+}
+
+impl Display for DisplayableResource<LocalizedResource> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DisplayableResource::Option(Some(resource)) => write!(f, "{}", resource),
+            DisplayableResource::Option(None) => write!(f, "None"),
+            DisplayableResource::HashSet(resources) => write!(
+                f,
+                "[{}]",
+                resources.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(", ")
+            ),
+            DisplayableResource::Vec(resources) => write!(
+                f,
+                "[{}]",
+                resources.iter().map(|r| r.to_string()).collect::<Vec<String>>().join(", ")
+            ),
+        }
+    }
+}
+
+impl From<Option<Resource>> for DisplayableResource<Resource> {
+    fn from(t: Option<Resource>) -> Self {
+        DisplayableResource::Option(t)
+    }
+}
+
+impl From<HashSet<Resource>> for DisplayableResource<Resource> {
+    fn from(t: HashSet<Resource>) -> DisplayableResource<Resource> {
+        DisplayableResource::HashSet(t)
+    }
+}
+
+impl From<Vec<Resource>> for DisplayableResource<Resource> {
+    fn from(t: Vec<Resource>) -> DisplayableResource<Resource> {
+        DisplayableResource::Vec(t)
+    }
+}
+
+impl From<Option<LocalizedResource>> for DisplayableResource<LocalizedResource> {
+    fn from(t: Option<LocalizedResource>) -> Self {
+        DisplayableResource::Option(t)
+    }
+}
+
+impl From<HashSet<LocalizedResource>> for DisplayableResource<LocalizedResource> {
+    fn from(t: HashSet<LocalizedResource>) -> Self {
+        DisplayableResource::HashSet(t)
+    }
+}
+
+impl From<Vec<LocalizedResource>> for DisplayableResource<LocalizedResource> {
+    fn from(t: Vec<LocalizedResource>) -> Self {
+        DisplayableResource::Vec(t)
+    }
+}
+
 /// Trait for services that have a node identifier in distributed systems.
 ///
 /// This trait is implemented by services that participate in distributed
@@ -289,5 +375,46 @@ mod tests {
         assert_eq!(stream.to_string(), "stream:://127.0.0.1:8080::127.0.0.1:8081@127.0.0.1");
         assert_eq!(process_mock.to_string(), "process:://1234::0::@127.0.0.1");
         assert_eq!(none.to_string(), "None@");
+    }
+
+    #[test]
+    fn test_displayable_resource() {
+        let file = LocalizedResource::new(
+            "127.0.0.1".to_string(),
+            Resource::new_file("/tmp/test.txt".to_string()),
+        );
+        let stream = LocalizedResource::new(
+            "127.0.0.1".to_string(),
+            Resource::new_stream("127.0.0.1:8080".to_string(), "127.0.0.1:8081".to_string()),
+        );
+        let process_mock =
+            LocalizedResource::new("127.0.0.1".to_string(), Resource::new_process_mock(1234));
+        let none = LocalizedResource::new(Default::default(), Resource::None);
+
+        // localized resources
+        assert_eq!(
+            DisplayableResource::from(Some(file.clone())).to_string(),
+            "file::///tmp/test.txt@127.0.0.1"
+        );
+        assert_eq!(
+            DisplayableResource::from(Some(process_mock.clone())).to_string(),
+            "process:://1234::0::@127.0.0.1"
+        );
+        assert_eq!(
+            DisplayableResource::from(Some(stream.clone())).to_string(),
+            "stream:://127.0.0.1:8080::127.0.0.1:8081@127.0.0.1"
+        );
+        assert_eq!(DisplayableResource::from(Some(none.clone())).to_string(), "None@");
+
+        assert_eq!(
+            DisplayableResource::from(vec![
+                file.clone(),
+                process_mock.clone(),
+                stream.clone(),
+                none.clone()
+            ])
+            .to_string(),
+            "[file::///tmp/test.txt@127.0.0.1, process:://1234::0::@127.0.0.1, stream:://127.0.0.1:8080::127.0.0.1:8081@127.0.0.1, None@]"
+        );
     }
 }
