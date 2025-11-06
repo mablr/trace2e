@@ -76,8 +76,8 @@ impl ProvenanceService {
         } else {
             destination_prov.extend(source_prov);
             info!(
-                "[provenance-raw] Provenance updated: destination_prov: {}",
-                DisplayableResource::from(&destination_prov)
+                destination_prov = %DisplayableResource::from(&destination_prov),
+                "[provenance-raw] Provenance updated"
             );
             self.provenance.insert(destination.to_owned(), destination_prov);
             ProvenanceResponse::ProvenanceUpdated
@@ -105,22 +105,24 @@ impl Service<ProvenanceRequest> for ProvenanceService {
         Box::pin(async move {
             match request {
                 ProvenanceRequest::GetReferences(resource) => {
-                    info!("[provenance-{}] GetReferences: {}", this.node_id, resource);
+                    info!(node_id = %this.node_id, resource = %resource, "[provenance] GetReferences");
                     Ok(ProvenanceResponse::Provenance(this.get_prov(&resource)))
                 }
                 ProvenanceRequest::UpdateProvenance { source, destination } => {
                     info!(
-                        "[provenance-{}] UpdateProvenance: source: {}, destination: {}",
-                        this.node_id, source, destination
+                        node_id = %this.node_id,
+                        source = %source,
+                        destination = %destination,
+                        "[provenance] UpdateProvenance"
                     );
                     Ok(this.update(&source, &destination))
                 }
                 ProvenanceRequest::UpdateProvenanceRaw { source_prov, destination } => {
                     info!(
-                        "[provenance-{}] UpdateProvenanceRaw: source_prov: {}, destination: {}",
-                        this.node_id,
-                        DisplayableResource::from(&source_prov),
-                        destination
+                        node_id = %this.node_id,
+                        source_prov = %DisplayableResource::from(&source_prov),
+                        destination = %destination,
+                        "[provenance] UpdateProvenanceRaw"
                     );
                     Ok(this.update_raw(source_prov, &destination))
                 }

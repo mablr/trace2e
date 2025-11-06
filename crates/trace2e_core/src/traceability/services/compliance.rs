@@ -418,9 +418,9 @@ impl ComplianceService<ConsentService> {
             // If the source or destination policy is deleted, the flow is not compliant
             if source_policy.is_deleted() || destination_policy.is_deleted() {
                 info!(
-                    "[compliance] EvalPolicies: source_policy.deleted: {}, destination_policy.deleted: {}",
-                    source_policy.is_deleted(),
-                    destination_policy.is_deleted()
+                    source_deleted = source_policy.is_deleted(),
+                    destination_deleted = destination_policy.is_deleted(),
+                    "[compliance] EvalPolicies: deleted policies detected"
                 );
                 #[cfg(feature = "enforcement_mocking")]
                 if source_policy.is_pending_deletion() {
@@ -666,55 +666,63 @@ impl Service<ComplianceRequest> for ComplianceService<ConsentService> {
             match request {
                 ComplianceRequest::EvalCompliance { sources, destination, destination_policy } => {
                     info!(
-                        "[compliance-{}] CheckCompliance: sources: {}, destination: {}, destination_policy: {:?}",
-                        this.node_id,
-                        DisplayableResource::from(&sources),
-                        destination,
-                        destination_policy
+                        node_id = %this.node_id,
+                        sources = %DisplayableResource::from(&sources),
+                        destination = %destination,
+                        destination_policy = ?destination_policy,
+                        "[compliance] EvalCompliance"
                     );
                     this.eval_compliance(sources, destination, destination_policy).await
                 }
                 ComplianceRequest::GetPolicy(resource) => {
-                    info!("[compliance-{}] GetPolicy: resource: {}", this.node_id, resource);
+                    info!(node_id = %this.node_id, resource = %resource, "[compliance] GetPolicy");
                     Ok(ComplianceResponse::Policy(this.get_policy(&resource)))
                 }
                 ComplianceRequest::GetPolicies(resources) => {
                     info!(
-                        "[compliance-{}] GetPolicies: resources: {}",
-                        this.node_id,
-                        DisplayableResource::from(&resources)
+                        node_id = %this.node_id,
+                        resources = %DisplayableResource::from(&resources),
+                        "[compliance] GetPolicies"
                     );
                     Ok(ComplianceResponse::Policies(this.get_localized_policies(resources)))
                 }
                 ComplianceRequest::SetPolicy { resource, policy } => {
                     info!(
-                        "[compliance-{}] SetPolicy: resource: {}, policy: {:?}",
-                        this.node_id, resource, policy
+                        node_id = %this.node_id,
+                        resource = %resource,
+                        policy = ?policy,
+                        "[compliance] SetPolicy"
                     );
                     Ok(this.set_policy(resource, policy))
                 }
                 ComplianceRequest::SetConfidentiality { resource, confidentiality } => {
                     info!(
-                        "[compliance-{}] SetConfidentiality: resource: {}, confidentiality: {:?}",
-                        this.node_id, resource, confidentiality
+                        node_id = %this.node_id,
+                        resource = %resource,
+                        confidentiality = ?confidentiality,
+                        "[compliance] SetConfidentiality"
                     );
                     Ok(this.set_confidentiality(resource, confidentiality))
                 }
                 ComplianceRequest::SetIntegrity { resource, integrity } => {
                     info!(
-                        "[compliance-{}] SetIntegrity: resource: {}, integrity: {:?}",
-                        this.node_id, resource, integrity
+                        node_id = %this.node_id,
+                        resource = %resource,
+                        integrity = ?integrity,
+                        "[compliance] SetIntegrity"
                     );
                     Ok(this.set_integrity(resource, integrity))
                 }
                 ComplianceRequest::SetDeleted(resource) => {
-                    info!("[compliance-{}] SetDeleted: resource: {}", this.node_id, resource);
+                    info!(node_id = %this.node_id, resource = %resource, "[compliance] SetDeleted");
                     Ok(this.set_deleted(resource))
                 }
                 ComplianceRequest::EnforceConsent { resource, consent } => {
                     info!(
-                        "[compliance-{}] EnforceConsent: resource: {}, consent: {:?}",
-                        this.node_id, resource, consent
+                        node_id = %this.node_id,
+                        resource = %resource,
+                        consent = ?consent,
+                        "[compliance] EnforceConsent"
                     );
                     Ok(this.enforce_consent(resource, consent))
                 }

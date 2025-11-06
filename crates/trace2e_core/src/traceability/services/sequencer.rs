@@ -8,7 +8,6 @@ use dashmap::DashMap;
 use tokio::{join, sync::oneshot};
 use tower::Service;
 
-use crate::traceability::infrastructure::naming::DisplayableResource;
 use tracing::{debug, info};
 
 use crate::traceability::{
@@ -96,14 +95,11 @@ impl Service<SequencerRequest> for SequencerService {
         Box::pin(async move {
             match request {
                 SequencerRequest::ReserveFlow { source, destination } => {
-                    info!(
-                        "[sequencer] ReserveFlow: source: {}, destination: {}",
-                        source, destination
-                    );
+                    info!(source = %source, destination = %destination, "[sequencer] ReserveFlow");
                     this.make_flow(source, destination).await
                 }
                 SequencerRequest::ReleaseFlow { destination } => {
-                    info!("[sequencer] ReleaseFlow: destination: {}", destination);
+                    info!(destination = %destination, "[sequencer] ReleaseFlow");
                     this.drop_flow(&destination).await
                 }
             }
@@ -187,20 +183,20 @@ where
                             this.notify_waiting_queue(&destination)
                         );
                         debug!(
-                            "[sequencer] FlowReleased: source: {}, destination: {}",
-                            DisplayableResource::from(&source),
-                            DisplayableResource::from(&destination)
+                            source = ?source,
+                            destination = ?destination,
+                            "[sequencer] FlowReleased"
                         );
                         return Ok(SequencerResponse::FlowReleased { source, destination });
                     }
                     Err(TraceabilityError::UnavailableSource(source)) => {
                         let rx = this.join_waiting_queue(&source).await;
-                        debug!("[sequencer] waiting source: {}", source);
+                        debug!(source = %source, "[sequencer] waiting source");
                         let _ = rx.await;
                     }
                     Err(TraceabilityError::UnavailableDestination(destination)) => {
                         let rx = this.join_waiting_queue(&destination).await;
-                        debug!("[sequencer] waiting destination: {}", destination);
+                        debug!(destination = %destination, "[sequencer] waiting");
                         let _ = rx.await;
                     }
                     Err(TraceabilityError::UnavailableSourceAndDestination(
@@ -210,8 +206,9 @@ where
                         let rx1 = this.join_waiting_queue(&source).await;
                         let rx2 = this.join_waiting_queue(&destination).await;
                         debug!(
-                            "[sequencer] waiting source: {}, destination: {}",
-                            source, destination
+                            source = %source,
+                            destination = %destination,
+                            "[sequencer] waiting"
                         );
                         let (_, _) = join!(rx1, rx2);
                     }

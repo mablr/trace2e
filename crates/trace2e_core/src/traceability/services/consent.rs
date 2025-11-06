@@ -230,22 +230,16 @@ impl Service<ConsentRequest> for ConsentService {
         Box::pin(async move {
             match request {
                 ConsentRequest::RequestConsent { source, destination } => {
-                    info!(
-                        "[consent] RequestConsent from source: {:?} to destination: {:?}",
-                        source, destination
-                    );
+                    info!(source = %source, destination = ?destination, "[consent] RequestConsent");
                     this.get_consent(source, destination).await.map(ConsentResponse::Consent)
                 }
                 ConsentRequest::SetConsent { source, destination, consent } => {
-                    info!(
-                        "[consent] SetConsent {} from source: {:?} to destination: {:?}",
-                        consent, source, destination
-                    );
+                    info!(consent = %consent, source = %source, destination = ?destination, "[consent] SetConsent");
                     this.set_consent(source, destination, consent);
                     Ok(ConsentResponse::Ack)
                 }
                 ConsentRequest::TakeResourceOwnership(resource) => {
-                    info!("[consent] TakeResourceOwnership for resource: {}", resource);
+                    info!(resource = %resource, "[consent] TakeResourceOwnership");
                     Ok(ConsentResponse::Notifications(this.take_resource_ownership(resource)))
                 }
             }
