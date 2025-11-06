@@ -17,12 +17,13 @@ TracE2E is a **distributed traceability system** that controls and monitors I/O 
 TracE2E intercepts **process I/O operations**:
 - **File operations**: Reading and writing files on disk
 - **Network operations**: Sending and receiving data over TCP connections
-- **Data flows**: Tracking which data came from which sources and where it flows
 
 The system integrates with applications through:
 - Custom I/O library wrappers (e.g., `stde2e` for standard library, patches for async libraries)
 - One middleware instance per node
 - Processes register resources before use and request permission for each I/O operation
+
+These I/O operations are abstracted as data flows between resources.
 
 ## Architecture
 
@@ -30,7 +31,7 @@ The system integrates with applications through:
 
 - **P2M**: Processes request permission for I/O operations
 - **M2M**: Middleware instances coordinate to check compliance across nodes
-- **O2M**: Operators manage policies and query audit trails
+- **O2M**: Operators manage policies and handle consent/deletion requests
 
 ### Compliance Check Design
 
@@ -57,7 +58,7 @@ Question: Is it OK for this mixed data to be written to report.txt?
    - Local node (Node 1) has: File A + locally created data
    - Remote nodes have: File B from Node 2
    
-2. **Each source node checks its own resources**
+2. **Each source node checks its own resources compliance**
    - Node 1 checks: Can File A → report.txt? (using its policies & consent)
    - Node 1 asks Node 2: Can File B → report.txt?
    - Node 2 checks locally: Can File B → report.txt?
@@ -98,9 +99,8 @@ Question: Is it OK for this mixed data to be written to report.txt?
 When a process performs an I/O operation:
 
 1. **Process requests permission** through P2M (e.g., "Can I write this data to file X?")
-2. **Local middleware checks provenance** - what are the sources of this data?
+2. **Local middleware gathers provenance** - what are the sources of this data?
 3. **Local middleware checks compliance** - are all sources allowed to flow to destination X?
 4. **For remote sources, M2M requests** are sent to other nodes to verify their compliance
 5. **Remote nodes check locally** - can their resources flow to destination X?
 6. **Results aggregate** - if all sources approve, the operation proceeds
-7. **Audit trail records** the decision and all checked sources
