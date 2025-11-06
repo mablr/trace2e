@@ -199,7 +199,7 @@ async fn run_all_in_one() {
     io::stdin().read_line(&mut input).unwrap();
     let input = input.trim().to_uppercase();
 
-    if input != "DELETE" && input != "" {
+    if input != "DELETE" && !input.is_empty() {
         println!("\n✗ Cancelled. Expected 'DELETE' but got '{}'", input);
         return;
     }

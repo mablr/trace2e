@@ -122,14 +122,10 @@ async fn run_all_in_one(auto_grant: bool) {
 
     // Spawn 3 middleware instances with 500ms timeout per operation
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
-    let mut middlewares =
-        spawn_loopback_middlewares(ips.clone()).await.into_iter().map(|(p2m, o2m)| {
-            (
-                ServiceBuilder::new()
-                    .service(p2m),
-                o2m,
-            )
-        });
+    let mut middlewares = spawn_loopback_middlewares(ips.clone())
+        .await
+        .into_iter()
+        .map(|(p2m, o2m)| (ServiceBuilder::new().service(p2m), o2m));
 
     let (mut p2m_1, mut o2m_1) = middlewares.next().unwrap();
     let (mut p2m_2, _) = middlewares.next().unwrap();
