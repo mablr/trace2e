@@ -38,6 +38,41 @@ Node1 (10.0.0.1)           Node2 (10.0.0.2)           Node3 (10.0.0.3)
 
 Demonstrates that deleting a resource on one node propagates deletion status to all other nodes and blocks all I/O operations that depend on the deleted resource.
 
+### User Experience
+
+The demo is **fully interactive**:
+
+1. **Phase 2B**: Visual display of data lineage showing the complete 3-node flow
+2. **Phase 3**: User prompted to type `DELETE` to trigger deletion (intentional action)
+3. **Phase 3B**: Real-time status update showing deletion was broadcast and marked as "PENDING"
+4. **Phase 4**: Sequential tests showing each downstream operation being blocked with clear reasons
+5. **Summary**: Final verification that compliance enforcement works across all nodes
+
+Example output:
+```
+╭────────────────────────────────────────────────────────────╮
+│ DATA LINEAGE FLOW                                          │
+├────────────────────────────────────────────────────────────┤
+│ File: /tmp/cascade.txt (Node1)                             │
+│    ↓ Process1 → Stream1 → Node2 → Stream2 → Node3          │
+│ Process3 (Node3)                                           │
+╰────────────────────────────────────────────────────────────╯
+File status: ACTIVE (can flow through all nodes)
+
+[User types: DELETE]
+
+╭────────────────────────────────────────────────────────────╮
+│ DELETION STATUS UPDATE                                       │
+│ File status: PENDING DELETION                              │
+│ ✓ Deletion broadcasted to all nodes                        │
+│ Result: All downstream operations will now be BLOCKED      │
+╰────────────────────────────────────────────────────────────╯
+
+Test 1: Node2 READ → Result: ✓ BLOCKED
+Test 2: Node2 WRITE → Result: ✓ BLOCKED  
+Test 3: Node3 READ → Result: ✓ BLOCKED
+```
+
 ### Execution Flow
 
 1. **Setup**: Enroll file on Node1 and streams on all nodes
@@ -106,7 +141,68 @@ cargo run --bin deletion-demo
 
 ### Purpose
 
-Demonstrates how consent requests are routed to the resource owner and how the system waits for user feedback before allowing data flow.
+Demonstrates how consent requests are routed to the resource owner and how the system waits for user feedback before allowing data flow. Features **fully interactive UI** where users control data flow decisions.
+
+### User Experience
+
+The demo is **fully interactive** and walks through the complete consent lifecycle:
+
+1. **Phase 2**: Visual display of data lineage showing the complete 3-node flow
+2. **Phase 5**: Trigger data flow operations
+3. **Consent Request #1**: User prompted to GRANT or DENY the first data flow
+   - Default: User responds **Y** (GRANT) → flow proceeds
+4. **Consent Request #2**: User prompted again for second data flow
+   - Default: User responds **N** (DENY) → flow is blocked
+5. **Summary**: Display of granted vs denied counts
+
+Example output:
+```
+╭────────────────────────────────────────────────────────────╮
+│ DATA LINEAGE FLOW                                          │
+├────────────────────────────────────────────────────────────┤
+│ File: /tmp/sensitive.txt (Node1) - CONSENT REQUIRED       │
+│    ↓                                                        │
+│ Process1 (Node1)                                           │
+│    ↓                                                        │
+│ Stream1 (Node1:1337 → Node2:1338)                          │
+│    ↓                                                        │
+│ Process2 (Node2)                                           │
+│    ↓                                                        │
+│ Stream2 (Node2:1339 → Node3:1340)                          │
+│    ↓                                                        │
+│ Process3 (Node3)                                           │
+╰────────────────────────────────────────────────────────────╯
+
+╭────────────────────────────────────────────────────────────╮
+│ PHASE 5: TRIGGERING CONSENT REQUESTS                      │
+├────────────────────────────────────────────────────────────┤
+│ As data flows through the system, consent will be         │
+│ requested. You will be prompted to make decisions.        │
+│                                                            │
+│ Expected: First request (GRANT) then second (DENY)        │
+╰────────────────────────────────────────────────────────────╯
+
+[Request #1 triggers...]
+
+✓ Consent GRANTED for request #1
+  Flow will proceed with data transfer
+
+[Request #2 triggers...]
+
+✗ Consent DENIED for request #2
+  Flow will be blocked at the resource owner
+
+╭────────────────────────────────────────────────────────────╮
+│ DEMO COMPLETE ✓                                            │
+├────────────────────────────────────────────────────────────┤
+│ Consent decisions processed:                              │
+│   ✓ GRANTED: 1                                               │
+│   ✗ DENIED:  1                                               │
+│                                                            │
+│ Data flows were allowed or blocked based on your choices │
+│ Consent enforcement working as expected                   │
+╰────────────────────────────────────────────────────────────╯
+```
 
 ### Key Concept: Consent Routing
 
@@ -117,29 +213,31 @@ Demonstrates how consent requests are routed to the resource owner and how the s
 
 ### Execution Flow
 
-1. **Setup**: Enroll file on Node1 and streams on all nodes
-2. **Enable Consent**: Call `EnforceConsent(file)` on Node1
-3. **Broker**: Spawn task to listen for consent notifications
-4. **Trigger I/O**: Perform read/write operations
-5. **Interactive**: System prompts user for Y/N consent decision
-6. **Response**: User input → `SetConsentDecision` sent back
-7. **Complete**: I/O completes or fails based on decision
+1. **Phase 1**: Enroll file on Node1 and streams on all nodes
+2. **Phase 2**: Enable consent enforcement on file
+3. **Phase 3**: Spawn consent broker to listen for notifications
+4. **Phase 4**: Trigger I/O operations across all nodes
+5. **Phase 5**: For each consent notification:
+   - Display detailed prompt with destination info
+   - Wait for user Y/N response (or auto-grant)
+6. **Phase 6**: Wait for decision to grant or deny flow
+7. **Summary**: Display final count of granted vs denied
 
 ### Key Properties Demonstrated
 
 - ✅ Consent notifications routed to resource owner
 - ✅ System waits for user decision (with timeout)
-- ✅ User can grant or deny consent
-- ✅ Decisions recorded with timestamp
-- ✅ Multiple consent flows handled sequentially
+- ✅ User can grant or deny consent with visual feedback
+- ✅ Decisions instantly reflected in data flow outcomes
+- ✅ Multiple consent flows handled with clear UI per request
 
 ### Running
 
 ```bash
-# Run with interactive prompts
+# Run with interactive prompts (user types y/n)
 cargo run --bin consent-demo
 
-# Run in auto-grant mode (no prompts)
+# Run in auto-grant mode (all requests approved)
 cargo run --bin consent-demo -- --auto-grant
 
 # Run single node (for multi-terminal coordination)
@@ -151,16 +249,21 @@ cargo run --bin consent-demo -- node3  # In terminal 3
 ### Interactive Prompt Example
 
 ```
-╭────────────────────────────────────────────╮
-│  CONSENT DECISION REQUIRED                 │
-├────────────────────────────────────────────┤
-│  Allow data flow to destination?           │
-│                                            │
-│  Enter 'y' to GRANT or 'n' to DENY        │
-│  (Default: DENY after 30 seconds)        │
-╰────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────╮
+│  CONSENT REQUEST #1                                        │
+├────────────────────────────────────────────────────────────┤
+│  Data flow destination: Destination { ... }                │
+│                                                            │
+│  Allow data flow?                                          │
+│                                                            │
+│  Enter 'y' to GRANT or 'n' to DENY                         │
+│  (Default: DENY after 30 seconds)                          │
+╰────────────────────────────────────────────────────────────╯
 
-Your decision [y/n]: _
+Your decision [y/n]: y
+
+✓ Consent GRANTED for request #1
+  Flow is done...
 ```
 
 ### Example Output (Auto-Grant Mode)
@@ -172,28 +275,26 @@ Your decision [y/n]: _
     Stream1→2: 10.0.0.1:1337→10.0.0.2:1338
     Stream2→3: 10.0.0.2:1339→10.0.0.3:1340
 
-[PHASE 2] Enabling consent enforcement on file
+[PHASE 2] Data lineage will be established
+[Shows visual ASCII representation]
+
+[PHASE 3] Enabling consent enforcement on file
   Consent enforcement enabled, notification channel ready
 
-[PHASE 3] Spawning consent broker for user decisions
-  AUTO-GRANT mode: All consent requests will be automatically approved
+[PHASE 4] Spawning consent broker for user decisions
 
-[PHASE 4] Establishing initial data flow
+[PHASE 5] Establishing initial data flow
   Step 1: File → Process1 (node1)
-  Step 2: Process1 → Socket1 (node1)
-    [Triggers consent request for flow to node2...]
-  [CONSENT BROKER] Received consent request for destination: ...
+  Step 2: Process1 → Socket1 (node1) [Request #1 incoming...]
+  [CONSENT BROKER] Received consent request #1
   [CONSENT BROKER] AUTO-GRANTING consent (--auto-grant mode)
-  [CONSENT BROKER] Decision recorded: GRANT
+  ✓ Consent GRANTED for request #1
   ...
 
 === Demo Complete ===
 Consent requests processed:
-  ✓ Granted: 2
+  ✓ Granted: 5
   ✗ Denied: 0
-Decision history:
-  [1] {:?} → GRANT
-  [2] {:?} → GRANT
 ✓ Consent enforcement working as expected
 ```
 
@@ -222,7 +323,7 @@ RUST_LOG=trace2e_core=debug,demos=info cargo run --bin deletion-demo
 RUST_LOG=debug cargo run --bin deletion-demo
 ```
 
-### Log Splitting (Future)
+### Log Splitting
 
 Once logs are captured to files, they can be split by node_id:
 
@@ -235,99 +336,5 @@ grep "node_id: 10.0.0.1" deletion_demo_full.log > deletion_demo_node1.log
 grep "node_id: 10.0.0.2" deletion_demo_full.log > deletion_demo_node2.log
 grep "node_id: 10.0.0.3" deletion_demo_full.log > deletion_demo_node3.log
 ```
-
-## Implementation Details
-
-### Shared Utilities
-
-Located in `src/`:
-
-- **`logging.rs`**: Structured tracing setup with `init_tracing_for_node()`
-- **`orchestration.rs`**: Resource mapping structures (FileMapping, StreamMapping)
-- **`macros.rs`**: Helper macros for common operations:
-  - `local_enroll!`, `remote_enroll!`
-  - `read_request!`, `write_request!`, `io_report!`
-  - `demo_read!`, `demo_write!` (combined request + report)
-  - `broadcast_deletion!`, `enforce_consent!`, `set_consent_decision!`
-
-### Binaries
-
-- **`bin/deletion_demo.rs`**: Deletion cascade demonstration (~300 lines)
-- **`bin/consent_demo.rs`**: Consent enforcement with interactive CLI (~330 lines)
-
-### No Changes to trace2e_core
-
-✅ All demos use only public APIs from `trace2e_core`:
-- `P2mRequest`, `P2mResponse`
-- `O2mRequest`, `O2mResponse`
-- `M2mRequest`, `M2mResponse`
-- `spawn_loopback_middlewares()`
-- `FileMapping`, `StreamMapping` (test fixtures)
-
-## Future Enhancements
-
-1. **Multi-Terminal Mode**: Run each node in separate terminal/process
-2. **Mermaid Diagram Generation**: Convert logs to visual flowcharts
-3. **Timing Analysis**: Measure end-to-end latency of operations
-4. **Metrics Export**: Prometheus-compatible metrics output
-5. **Compliance Report**: Automated compliance verification summary
-
-## Troubleshooting
-
-### Demo Hangs
-
-**Problem**: Demo appears to hang or takes too long to complete
-
-**Solution**: 
-- Check that loopback transport is properly initialized
-- Verify timeout values are not too long
-- Enable debug logging: `RUST_LOG=debug`
-
-### Consent Never Granted
-
-**Problem**: Interactive consent demo waits forever for user input
-
-**Solution**:
-- Type 'y' or 'n' followed by Enter
-- Or use `--auto-grant` flag for unattended mode
-- Default timeout is 30 seconds (auto-deny)
-
-### No Output
-
-**Problem**: Demo runs but produces no log output
-
-**Solution**:
-- Set `RUST_LOG=info` or higher
-- Try: `RUST_LOG=trace2e=info cargo run --bin deletion-demo`
-- Add `tracing_subscriber::fmt()` debugging
-
-## Architecture Notes
-
-### Loopback Transport Benefits
-
-1. ✅ All 3 nodes in single process = easy debugging
-2. ✅ No network overhead or delays
-3. ✅ Deterministic M2M communication
-4. ✅ Easy to add breakpoints and inspect state
-
-### Limitations
-
-1. ⚠️ Cannot simulate network failures
-2. ⚠️ Cannot test gRPC serialization
-3. ⚠️ Logs from all nodes mixed (need parsing to split)
-4. ⚠️ Single-process resource constraints
-
-### Design Choices
-
-- **No modifications to trace2e_core**: Demonstrates external instrumentation capability
-- **Test fixture reuse**: Leverages existing `FileMapping`, `StreamMapping` patterns
-- **Macro-based helpers**: Reduces boilerplate in demo code
-- **Structured tracing**: Enables future log analysis and visualization
-
-## References
-
-- See `crates/trace2e_core/src/tests/` for unit test patterns
-- See `crates/demos/src/macros.rs` for available helper macros
-- Consult `trace2e_core` docs for API details
 
 
