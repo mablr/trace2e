@@ -1,0 +1,25 @@
+[package]
+name = "demos"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+trace2e_core = { path = "../trace2e_core" }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
+tower = { workspace = true, features = ["timeout", "util"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "ansi"] }
+clap = { workspace = true, features = ["derive"] }
+dashmap.workspace = true
+futures.workspace = true
+
+[[bin]]
+name = "deletion-demo"
+path = "src/bin/deletion_demo.rs"
+
+[[bin]]
+name = "consent-demo"
+path = "src/bin/consent_demo.rs"
+

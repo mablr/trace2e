@@ -338,6 +338,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "demos"
+version = "0.0.3"
+dependencies = [
+ "clap",
+ "dashmap",
+ "futures",
+ "tokio",
+ "tower",
+ "trace2e_core",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "either"
 version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
