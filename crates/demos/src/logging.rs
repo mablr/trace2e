@@ -17,7 +17,7 @@ static INIT: Once = Once::new();
 pub fn init_tracing_for_node(node_id: &str) {
     INIT.call_once(|| {
         let filter = EnvFilter::try_from_default_env()
-            .or_else(|_| EnvFilter::try_new("trace2e=debug,demos=debug"))
+            .or_else(|_| EnvFilter::try_new("off"))
             .unwrap();
 
         tracing_subscriber::registry()
