@@ -196,7 +196,7 @@ where
                     }
                     Err(TraceabilityError::UnavailableDestination(destination)) => {
                         let rx = this.join_waiting_queue(&destination).await;
-                        debug!(destination = %destination, "[sequencer] waiting");
+                        debug!(destination = %destination, "[sequencer] waiting destination");
                         let _ = rx.await;
                     }
                     Err(TraceabilityError::UnavailableSourceAndDestination(
