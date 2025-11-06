@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["traceability","transport"]};
+window.SIDEBAR_ITEMS = {"mod":["trace2e_tracing","traceability","transport"]};
