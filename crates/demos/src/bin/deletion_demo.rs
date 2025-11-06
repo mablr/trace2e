@@ -190,7 +190,7 @@ async fn run_all_in_one() {
     println!("│ This will mark the file for deletion on Node1 and          │");
     println!("│ broadcast deletion status to all other nodes.              │");
     println!("│                                                            │");
-    println!("│ Type 'DELETE' to proceed:                                  │");
+    println!("│ Type 'DELETE' or press ENTER to proceed:                   │");
     println!("╰────────────────────────────────────────────────────────────╯");
     print!("\nEnter command: ");
     io::stdout().flush().unwrap();
@@ -199,7 +199,7 @@ async fn run_all_in_one() {
     io::stdin().read_line(&mut input).unwrap();
     let input = input.trim().to_uppercase();
 
-    if input != "DELETE" {
+    if input != "DELETE" && input != "" {
         println!("\n✗ Cancelled. Expected 'DELETE' but got '{}'", input);
         return;
     }
