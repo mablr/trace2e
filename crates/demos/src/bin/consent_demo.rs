@@ -60,7 +60,7 @@ use demos::orchestration::{FileMapping, StreamMapping};
 use std::io::{self, Write};
 use std::time::Duration;
 use tokio::time::timeout;
-use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
+use tower::{Service, ServiceBuilder};
 use trace2e_core::transport::loopback::spawn_loopback_middlewares;
 use tracing::{info, warn};
 
@@ -126,7 +126,6 @@ async fn run_all_in_one(auto_grant: bool) {
         spawn_loopback_middlewares(ips.clone()).await.into_iter().map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
-                    .layer(TimeoutLayer::new(Duration::from_millis(500)))
                     .service(p2m),
                 o2m,
             )
