@@ -103,9 +103,9 @@ where
             match request {
                 M2mRequest::GetDestinationPolicy(destination) => {
                     info!(
-                        "[m2m-{}] GetDestinationPolicy: destination: {}",
-                        provenance.node_id(),
-                        destination
+                        node_id = %provenance.node_id(),
+                        destination = %destination,
+                        "[m2m] GetDestinationPolicy"
                     );
                     // check if the destination is local
                     let destination = if *destination.node_id() == provenance.node_id() {
@@ -134,11 +134,11 @@ where
                 }
                 M2mRequest::CheckSourceCompliance { sources, destination } => {
                     info!(
-                        "[m2m-{}] CheckSourceCompliance: sources: {}, destination: {}, destination_policy: {:?}",
-                        provenance.node_id(),
-                        DisplayableResource::from(&sources),
-                        destination.0,
-                        destination.1
+                        node_id = %provenance.node_id(),
+                        sources = %DisplayableResource::from(&sources),
+                        destination = %destination.0,
+                        destination_policy = ?destination.1,
+                        "[m2m] CheckSourceCompliance"
                     );
                     let sources = sources
                         .iter()
@@ -160,10 +160,10 @@ where
                 }
                 M2mRequest::UpdateProvenance { source_prov, destination } => {
                     info!(
-                        "[m2m-{}] UpdateProvenance: source_prov: {}, destination: {}",
-                        provenance.node_id(),
-                        DisplayableResource::from(&source_prov),
-                        destination
+                        node_id = %provenance.node_id(),
+                        source_prov = %DisplayableResource::from(&source_prov),
+                        destination = %destination,
+                        "[m2m] UpdateProvenance"
                     );
                     // check if the destination is local
                     let destination = if *destination.node_id() == provenance.node_id() {
@@ -193,9 +193,9 @@ where
                 }
                 M2mRequest::BroadcastDeletion(resource) => {
                     info!(
-                        "[m2m-{}] BroadcastDeletion: resource: {}",
-                        provenance.node_id(),
-                        resource
+                        node_id = %provenance.node_id(),
+                        resource = %resource,
+                        "[m2m] BroadcastDeletion"
                     );
                     // check if the resource is local
                     if *resource.node_id() == provenance.node_id() {

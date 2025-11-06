@@ -113,7 +113,7 @@ where
         Box::pin(async move {
             match request {
                 O2mRequest::GetPolicies(resources) => {
-                    info!("[o2m-{}] GetPolicies: resources: {:?}", provenance.node_id(), resources);
+                    info!(node_id = %provenance.node_id(), resources = ?resources, "[o2m] GetPolicies");
                     match compliance.call(ComplianceRequest::GetPolicies(resources)).await? {
                         ComplianceResponse::Policies(policies) => {
                             Ok(O2mResponse::Policies(policies))
@@ -123,10 +123,10 @@ where
                 }
                 O2mRequest::SetPolicy { resource, policy } => {
                     info!(
-                        "[o2m-{}] SetPolicy: resource: {}, policy: {:?}",
-                        provenance.node_id(),
-                        resource,
-                        policy
+                        node_id = %provenance.node_id(),
+                        resource = %resource,
+                        policy = ?policy,
+                        "[o2m] SetPolicy"
                     );
                     match compliance.call(ComplianceRequest::SetPolicy { resource, policy }).await?
                     {
@@ -136,10 +136,10 @@ where
                 }
                 O2mRequest::SetConfidentiality { resource, confidentiality } => {
                     info!(
-                        "[o2m-{}] SetConfidentiality: resource: {}, confidentiality: {:?}",
-                        provenance.node_id(),
-                        resource,
-                        confidentiality
+                        node_id = %provenance.node_id(),
+                        resource = %resource,
+                        confidentiality = ?confidentiality,
+                        "[o2m] SetConfidentiality"
                     );
                     match compliance
                         .call(ComplianceRequest::SetConfidentiality { resource, confidentiality })
@@ -151,10 +151,10 @@ where
                 }
                 O2mRequest::SetIntegrity { resource, integrity } => {
                     info!(
-                        "[o2m-{}] SetIntegrity: resource: {}, integrity: {:?}",
-                        provenance.node_id(),
-                        resource,
-                        integrity
+                        node_id = %provenance.node_id(),
+                        resource = %resource,
+                        integrity = ?integrity,
+                        "[o2m] SetIntegrity"
                     );
                     match compliance
                         .call(ComplianceRequest::SetIntegrity { resource, integrity })
@@ -165,7 +165,7 @@ where
                     }
                 }
                 O2mRequest::SetDeleted(resource) => {
-                    info!("[o2m-{}] SetDeleted: resource: {}", provenance.node_id(), resource);
+                    info!(node_id = %provenance.node_id(), resource = %resource, "[o2m] SetDeleted");
                     match compliance.call(ComplianceRequest::SetDeleted(resource)).await? {
                         ComplianceResponse::PolicyUpdated => Ok(O2mResponse::Ack),
                         _ => Err(TraceabilityError::InternalTrace2eError),
@@ -173,9 +173,9 @@ where
                 }
                 O2mRequest::BroadcastDeletion(resource) => {
                     info!(
-                        "[o2m-{}] BroadcastDeletion: resource: {}",
-                        provenance.node_id(),
-                        resource
+                        node_id = %provenance.node_id(),
+                        resource = %resource,
+                        "[o2m] BroadcastDeletion"
                     );
                     let localized_resource =
                         LocalizedResource::new(provenance.node_id().clone(), resource);
@@ -185,7 +185,7 @@ where
                     }
                 }
                 O2mRequest::EnforceConsent(resource) => {
-                    info!("[o2m-{}] EnforceConsent: resource: {}", provenance.node_id(), resource);
+                    info!(node_id = %provenance.node_id(), resource = %resource, "[o2m] EnforceConsent");
                     let notifications = match consent
                         .call(ConsentRequest::TakeResourceOwnership(resource.clone()))
                         .await?
@@ -204,7 +204,7 @@ where
                     }
                 }
                 O2mRequest::GetReferences(resource) => {
-                    info!("[o2m-{}] GetReferences: resource: {}", provenance.node_id(), resource);
+                    info!(node_id = %provenance.node_id(), resource = %resource, "[o2m] GetReferences");
                     match provenance.call(ProvenanceRequest::GetReferences(resource)).await? {
                         ProvenanceResponse::Provenance(references) => {
                             Ok(O2mResponse::References(references))

@@ -312,11 +312,11 @@ where
             match request {
                 P2mRequest::LocalEnroll { pid, fd, path } => {
                     info!(
-                        "[p2m-{}] LocalEnroll: pid: {}, fd: {}, path: {}",
-                        provenance.node_id(),
-                        pid,
-                        fd,
-                        path
+                        node_id = %provenance.node_id(),
+                        pid = %pid,
+                        fd = %fd,
+                        path = %path,
+                        "[p2m] LocalEnroll"
                     );
                     resource_map
                         .insert((pid, fd), (Resource::new_process(pid), Resource::new_file(path)));
@@ -324,12 +324,12 @@ where
                 }
                 P2mRequest::RemoteEnroll { pid, fd, local_socket, peer_socket } => {
                     info!(
-                        "[p2m-{}] RemoteEnroll: pid: {}, fd: {}, local_socket: {}, peer_socket: {}",
-                        provenance.node_id(),
-                        pid,
-                        fd,
-                        local_socket,
-                        peer_socket
+                        node_id = %provenance.node_id(),
+                        pid = %pid,
+                        fd = %fd,
+                        local_socket = %local_socket,
+                        peer_socket = %peer_socket,
+                        "[p2m] RemoteEnroll"
                     );
                     resource_map.insert(
                         (pid, fd),
@@ -348,10 +348,10 @@ where
                             (resource.1.to_owned(), resource.0.to_owned())
                         };
                         info!(
-                            "[p2m-{}] IoRequest: source: {}, destination: {}",
-                            provenance.node_id(),
-                            source,
-                            destination
+                            node_id = %provenance.node_id(),
+                            source = %source,
+                            destination = %destination,
+                            "[p2m] IoRequest"
                         );
                         match sequencer
                             .call(SequencerRequest::ReserveFlow {
@@ -368,9 +368,9 @@ where
                                     .is_stream()
                                 {
                                     debug!(
-                                        "[p2m-{}] Querying destination policy for remote stream on node: {}",
-                                        provenance.node_id(),
-                                        localized_destination
+                                        node_id = %provenance.node_id(),
+                                        destination = %localized_destination,
+                                        "[p2m] Querying destination policy for remote stream"
                                     );
                                     match m2m
                                         .ready()
@@ -414,8 +414,8 @@ where
                                                 // Destination policy is required for remote sources compliance checking.
                                                 if remote_references.is_empty() {
                                                     debug!(
-                                                        "[p2m-{}] Local compliance check passed, no remote references, granting flow",
-                                                        provenance.node_id()
+                                                        node_id = %provenance.node_id(),
+                                                        "[p2m] Local compliance check passed, granting flow"
                                                     );
                                                     Ok(Self::flow_id())
                                                 } else {
@@ -436,8 +436,8 @@ where
                                                         );
                                                     };
                                                     debug!(
-                                                        "[p2m-{}] Local compliance check passed, remote references found, querying remote sources compliance",
-                                                        provenance.node_id()
+                                                        node_id = %provenance.node_id(),
+                                                        "[p2m] Querying remote sources compliance"
                                                     );
                                                     match m2m
                                                         .ready()
@@ -478,9 +478,9 @@ where
                                     }
                                     Err(e) => {
                                         debug!(
-                                            "[p2m-{}] Compliance check failed, releasing flow: {}",
-                                            provenance.node_id(),
-                                            e
+                                            node_id = %provenance.node_id(),
+                                            error = ?e,
+                                            "[p2m] Compliance check failed, releasing flow"
                                         );
                                         // release the flow, and then forward the error
                                         sequencer
@@ -499,10 +499,10 @@ where
                 P2mRequest::IoReport { grant_id, .. } => {
                     if let Some((_, (source, destination))) = flow_map.remove(&grant_id) {
                         info!(
-                            "[p2m-{}] IoReport: source: {}, destination: {}",
-                            provenance.node_id(),
-                            source,
-                            destination
+                            node_id = %provenance.node_id(),
+                            source = %source,
+                            destination = %destination,
+                            "[p2m] IoReport"
                         );
                         if let Some(remote_stream) = destination.try_into_localized_peer_stream() {
                             match provenance
