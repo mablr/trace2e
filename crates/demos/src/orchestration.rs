@@ -104,5 +104,3 @@ impl StreamMapping {
         self.stream.to_owned()
     }
 }
-
-

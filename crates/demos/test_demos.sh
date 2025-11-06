@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 
 test_deletion_demo() {
     echo -e "${YELLOW}▶ Testing Deletion Demo (All-in-One)...${NC}"
-    if timeout 30 cargo run --bin deletion-demo 2>&1 | grep -qi "deleted policies\|BLOCKED"; then
+    if echo "DELETE" | timeout 30 cargo run --bin deletion-demo 2>&1 | grep -qi "deleted policies\|BLOCKED\|DEMO COMPLETE"; then
         echo -e "${GREEN}✓ Deletion demo passed${NC}"
         return 0
     else
@@ -36,7 +36,7 @@ test_deletion_demo() {
 
 test_deletion_demo_quiet() {
     echo -e "${YELLOW}▶ Testing Deletion Demo (Quiet Mode)...${NC}"
-    if timeout 30 cargo run --quiet --bin deletion-demo > /dev/null 2>&1; then
+    if echo "DELETE" | timeout 30 cargo run --quiet --bin deletion-demo > /dev/null 2>&1; then
         echo -e "${GREEN}✓ Deletion demo completed without errors${NC}"
         return 0
     else

@@ -270,4 +270,3 @@ macro_rules! set_consent_decision {
         }
     };
 }
-

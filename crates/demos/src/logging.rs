@@ -4,7 +4,7 @@
 //! and organization by node.
 
 use std::sync::Once;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 static INIT: Once = Once::new();
 
@@ -35,4 +35,3 @@ pub fn init_tracing_for_node(node_id: &str) {
         tracing::info!(node_id = %node_id, "=== Node initialized ===");
     });
 }
-

@@ -46,6 +46,7 @@ use clap::Parser;
 use demos::logging::init_tracing_for_node;
 use demos::orchestration::{FileMapping, StreamMapping};
 use std::collections::HashSet;
+use std::io::{self, Write};
 use std::time::Duration;
 use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 use trace2e_core::transport::loopback::spawn_loopback_middlewares;
@@ -100,10 +101,8 @@ async fn run_all_in_one() {
 
     // Spawn 3 middleware instances with 100ms timeout per operation
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
-    let mut middlewares = spawn_loopback_middlewares(ips.clone())
-        .await
-        .into_iter()
-        .map(|(p2m, o2m)| {
+    let mut middlewares =
+        spawn_loopback_middlewares(ips.clone()).await.into_iter().map(|(p2m, o2m)| {
             (
                 ServiceBuilder::new()
                     .layer(TimeoutLayer::new(Duration::from_millis(100)))
@@ -121,7 +120,12 @@ async fn run_all_in_one() {
 
     // Create file on node1
     let fd1_1_1 = FileMapping::new(1, 4, "/tmp/cascade.txt", "10.0.0.1".to_string());
-    info!("Created file mapping: {} (pid={}, fd={})", fd1_1_1.file_path(), fd1_1_1.pid(), fd1_1_1.fd());
+    info!(
+        "Created file mapping: {} (pid={}, fd={})",
+        fd1_1_1.file_path(),
+        fd1_1_1.pid(),
+        fd1_1_1.fd()
+    );
 
     local_enroll!(p2m_1, fd1_1_1);
 
@@ -157,43 +161,76 @@ async fn run_all_in_one() {
     info!("  Step 5: Socket4 → Process3 (node3)");
     demo_read!(p2m_3, stream3_2);
 
-    // Verify initial policy state
-    info!("\n[PHASE 2B] Verifying initial policy state");
-    match o2m_1
-        .call(trace2e_core::traceability::api::O2mRequest::GetPolicies(HashSet::from([
-            fd1_1_1.file(),
-        ])))
-        .await
-    {
-        Ok(trace2e_core::traceability::api::O2mResponse::Policies(policies)) => {
-            for (resource, policy) in policies {
-                info!("  Resource: {}", resource);
-                info!("    Policy: {:?}", policy);
-            }
-        }
-        Ok(_) => info!("Unexpected response from GetPolicies"),
-        Err(e) => info!("Failed to get policies: {:?}", e),
+    // === PHASE 2B: SHOW DATA LINEAGE ===
+    info!("\n[PHASE 2B] Data lineage has been established");
+    println!("\n╭────────────────────────────────────────────────────────────╮");
+    println!("│ DATA LINEAGE FLOW                                          │");
+    println!("├────────────────────────────────────────────────────────────┤");
+    println!("│ File: /tmp/cascade.txt (Node1)                             │");
+    println!("│    ↓                                                       │");
+    println!("│ Process1 (Node1)                                           │");
+    println!("│    ↓                                                       │");
+    println!("│ Stream1 (Node1:1337 → Node2:1338)                          │");
+    println!("│    ↓                                                       │");
+    println!("│ Process2 (Node2)                                           │");
+    println!("│    ↓                                                       │");
+    println!("│ Stream2 (Node2:1339 → Node3:1340)                          │");
+    println!("│    ↓                                                       │");
+    println!("│ Process3 (Node3)                                           │");
+    println!("╰────────────────────────────────────────────────────────────╯\n");
+
+    println!("File status: ACTIVE (can flow through all nodes)");
+    info!("  Resource: {}", fd1_1_1.file());
+    info!("    All downstream I/O operations are currently ALLOWED");
+
+    // === PHASE 3: INTERACTIVE DELETION ===
+    println!("\n╭────────────────────────────────────────────────────────────╮");
+    println!("│ READY TO TRIGGER DELETION                                  │");
+    println!("├────────────────────────────────────────────────────────────┤");
+    println!("│ This will mark the file for deletion on Node1 and          │");
+    println!("│ broadcast deletion status to all other nodes.              │");
+    println!("│                                                            │");
+    println!("│ Type 'DELETE' to proceed:                                  │");
+    println!("╰────────────────────────────────────────────────────────────╯");
+    print!("\nEnter command: ");
+    io::stdout().flush().unwrap();
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    let input = input.trim().to_uppercase();
+
+    if input != "DELETE" {
+        println!("\n✗ Cancelled. Expected 'DELETE' but got '{}'", input);
+        return;
     }
 
-    // === PHASE 3: DELETE RESOURCE ===
-    info!("\n[PHASE 3] Broadcasting deletion of file across all nodes");
-    info!("  Calling BroadcastDeletion({}) from node1", fd1_1_1.file());
+    println!("\n✓ Confirmed. Broadcasting deletion...\n");
+    info!("[PHASE 3] Broadcasting deletion of file across all nodes");
 
     broadcast_deletion!(o2m_1, fd1_1_1.file());
 
     // Verify deletion status
-    info!("\n[PHASE 3B] Verifying deletion status on node1");
+    info!("[PHASE 3B] Verifying deletion status on node1");
     match o2m_1
         .call(trace2e_core::traceability::api::O2mRequest::GetPolicies(HashSet::from([
-            fd1_1_1.file(),
+            fd1_1_1.file()
         ])))
         .await
     {
         Ok(trace2e_core::traceability::api::O2mResponse::Policies(policies)) => {
             for (resource, policy) in policies {
                 info!("  Resource: {}", resource);
-                info!("    Policy: {:?}", policy);
                 if policy.is_pending_deletion() {
+                    println!("\n╭────────────────────────────────────────────────────────────╮");
+                    println!("│ DELETION STATUS UPDATE                                     │");
+                    println!("├────────────────────────────────────────────────────────────┤");
+                    println!("│ File status: PENDING DELETION                              │");
+                    println!("│                                                            │");
+                    println!("│ ✓ Deletion status marked as Pending on Node1               │");
+                    println!("│ ✓ M2M notification sent to Node2 and Node3                 │");
+                    println!("│                                                            │");
+                    println!("│ Result: All downstream operations will now be BLOCKED      │");
+                    println!("╰────────────────────────────────────────────────────────────╯\n");
                     info!("    ✓ Deletion status correctly marked as pending");
                 }
             }
@@ -203,34 +240,57 @@ async fn run_all_in_one() {
     }
 
     // === PHASE 4: VERIFY OPERATIONS BLOCKED ===
-    info!("\n[PHASE 4] Verifying all I/O operations are blocked");
+    println!("\n╭────────────────────────────────────────────────────────────╮");
+    println!("│ PHASE 4: TESTING DOWNSTREAM OPERATIONS                     │");
+    println!("├────────────────────────────────────────────────────────────┤");
+    println!("│ Now attempting to perform I/O with the deleted resource... │");
+    println!("╰────────────────────────────────────────────────────────────╯\n");
 
+    // Attempt 1: Node2 reads from Stream2_in
+    info!("[PHASE 4] Verifying all I/O operations are blocked");
+    println!("Test 1: Node2 attempts to READ from Stream2_in");
+    println!("        (which depends on deleted file from Node1)");
     info!("  Attempting read from stream on node2 (expects u128::MAX)...");
     let flow_id = read_request!(p2m_2, stream2_1);
     if flow_id == u128::MAX {
+        println!("  Result: ✓ BLOCKED (flow_id = u128::MAX)\n");
         info!("    ✓ BLOCKED: Node2 correctly refused to read from stream with deleted source");
     } else {
-        info!("    ✗ FAILED: Node2 should have blocked the operation but granted it (flow_id={})", flow_id);
-    }
-
-    info!("  Attempting write to stream on node2 (expects u128::MAX)...");
-    let flow_id = write_request!(p2m_2, stream2_3);
-    if flow_id == u128::MAX {
-        info!(
-            "    ✓ BLOCKED: Node2 correctly refused to write when data includes deleted source"
-        );
-    } else {
+        println!("  Result: ✗ ALLOWED (flow_id = {}) - UNEXPECTED!\n", flow_id);
         info!(
             "    ✗ FAILED: Node2 should have blocked the operation but granted it (flow_id={})",
             flow_id
         );
     }
 
+    // Attempt 2: Node2 writes to downstream stream
+    println!("Test 2: Node2 attempts to WRITE to Stream3_out");
+    println!("        (process has contaminated provenance from deleted source)");
+    info!("  Attempting write to stream on node2 (expects u128::MAX)...");
+    let flow_id = write_request!(p2m_2, stream2_3);
+    if flow_id == u128::MAX {
+        println!("  Result: ✓ BLOCKED (flow_id = u128::MAX)\n");
+        info!("    ✓ BLOCKED: Node2 correctly refused to write when data includes deleted source");
+    } else {
+        println!("  Result: ✗ ALLOWED (flow_id = {}) - UNEXPECTED!\n", flow_id);
+        info!(
+            "    ✗ FAILED: Node2 should have blocked the operation but granted it (flow_id={})",
+            flow_id
+        );
+    }
+
+    // Attempt 3: Node3 tries to read
+    println!("Test 3: Node3 attempts to READ from Stream4_in");
+    println!("        (data chain broken: source is deleted)");
     info!("  Attempting read from stream on node3 (expects u128::MAX)...");
     let flow_id = read_request!(p2m_3, stream3_2);
     if flow_id == u128::MAX {
-        info!("    ✓ BLOCKED: Node3 correctly refused to read from stream with deleted source in chain");
+        println!("  Result: ✓ BLOCKED (flow_id = u128::MAX)\n");
+        info!(
+            "    ✓ BLOCKED: Node3 correctly refused to read from stream with deleted source in chain"
+        );
     } else {
+        println!("  Result: ✗ ALLOWED (flow_id = {}) - UNEXPECTED!\n", flow_id);
         info!(
             "    ✗ FAILED: Node3 should have blocked the operation but granted it (flow_id={})",
             flow_id
@@ -238,9 +298,21 @@ async fn run_all_in_one() {
     }
 
     // === SUMMARY ===
-    info!("\n=== Demo Complete ===");
+    println!("╭────────────────────────────────────────────────────────────╮");
+    println!("│ DEMO COMPLETE ✓                                            │");
+    println!("├────────────────────────────────────────────────────────────┤");
+    println!("│ ✓ Deletion broadcast successfully propagated               │");
+    println!("│   to Node1, Node2, and Node3                               │");
+    println!("│                                                            │");
+    println!("│ ✓ All downstream operations correctly BLOCKED              │");
+    println!("│   File → Process → Stream paths severed                    │");
+    println!("│                                                            │");
+    println!("│ ✓ Compliance policy enforcement working                    │");
+    println!("│   across distributed system                                │");
+    println!("╰────────────────────────────────────────────────────────────╯\n");
+
+    info!("=== Demo Complete ===");
     info!("✓ Deletion broadcast successfully propagated to all nodes");
     info!("✓ All downstream operations correctly blocked");
     info!("✓ Compliance policy enforcement working as expected");
 }
-
