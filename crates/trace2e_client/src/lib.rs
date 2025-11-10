@@ -25,7 +25,7 @@ mod grpc {
     // The URL for the gRPC service
     const GRPC_URL: &str = "http://[::1]:50051";
 
-    static GRPC_CLIENT: Lazy<proto::p2m_client::P2mClient<Channel>> = Lazy::new(|| {
+    static P2M_CLIENT: Lazy<proto::p2m_client::P2mClient<Channel>> = Lazy::new(|| {
         let rt = &*TOKIO_RUNTIME;
         rt.block_on(proto::p2m_client::P2mClient::connect(GRPC_URL)).unwrap()
     });
@@ -36,8 +36,8 @@ mod grpc {
         rt.block_on(proto::o2m_client::O2mClient::connect(GRPC_URL)).unwrap()
     });
 
-    // Gets an appropriate gRPC client for the current runtime context
-    fn get_client() -> proto::p2m_client::P2mClient<Channel> {
+    // Gets an appropriate P2M  client for the current runtime context
+    fn get_p2m_client() -> proto::p2m_client::P2mClient<Channel> {
         if Handle::try_current().is_ok() {
             // We're already in a Tokio runtime, use thread-local client for this runtime
             thread_local! {
@@ -57,7 +57,7 @@ mod grpc {
             })
         } else {
             // Use the global client
-            GRPC_CLIENT.clone()
+            P2M_CLIENT.clone()
         }
     }
 
@@ -95,11 +95,11 @@ mod grpc {
 
         if let Ok(handle) = Handle::try_current() {
             task::block_in_place(move || {
-                let mut client = get_client();
+                let mut client = get_p2m_client();
                 let _ = handle.block_on(client.p2m_local_enroll(request));
             });
         } else {
-            let mut client = get_client();
+            let mut client = get_p2m_client();
             let _ = TOKIO_RUNTIME.block_on(client.p2m_local_enroll(request));
         }
     }
@@ -114,11 +114,11 @@ mod grpc {
 
         if let Ok(handle) = Handle::try_current() {
             block_in_place(move || {
-                let mut client = get_client();
+                let mut client = get_p2m_client();
                 let _ = handle.block_on(client.p2m_remote_enroll(request));
             });
         } else {
-            let mut client = get_client();
+            let mut client = get_p2m_client();
             let _ = TOKIO_RUNTIME.block_on(client.p2m_remote_enroll(request));
         }
     }
@@ -132,14 +132,14 @@ mod grpc {
 
         let result = if let Ok(handle) = Handle::try_current() {
             match task::block_in_place(move || {
-                let mut client = get_client();
+                let mut client = get_p2m_client();
                 handle.block_on(client.p2m_io_request(request))
             }) {
                 Ok(response) => Ok(response.into_inner().id),
                 Err(_) => Err(Box::new(std::io::Error::from(std::io::ErrorKind::PermissionDenied))),
             }
         } else {
-            let mut client = get_client();
+            let mut client = get_p2m_client();
             match TOKIO_RUNTIME.block_on(client.p2m_io_request(request)) {
                 Ok(response) => Ok(response.into_inner().id),
                 Err(_) => Err(Box::new(std::io::Error::from(std::io::ErrorKind::PermissionDenied))),
@@ -160,14 +160,14 @@ mod grpc {
 
         if let Ok(handle) = Handle::try_current() {
             match block_in_place(move || {
-                let mut client = get_client();
+                let mut client = get_p2m_client();
                 handle.block_on(client.p2m_io_report(request))
             }) {
                 Ok(_) => Ok(()),
                 Err(_) => Err(std::io::Error::from(std::io::ErrorKind::Other)),
             }
         } else {
-            let mut client = get_client();
+            let mut client = get_p2m_client();
             match TOKIO_RUNTIME.block_on(client.p2m_io_report(request)) {
                 Ok(_) => Ok(()),
                 Err(_) => Err(std::io::Error::from(std::io::ErrorKind::Other)),
