@@ -40,17 +40,17 @@
 //! ```
 
 #[macro_use]
-extern crate demos;
+extern crate unattended_deletion_consent;
 
 use clap::Parser;
-use demos::logging::init_tracing_for_node;
-use demos::orchestration::{FileMapping, StreamMapping};
 use std::collections::HashSet;
 use std::io::{self, Write};
 use std::time::Duration;
 use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 use trace2e_core::transport::loopback::spawn_loopback_middlewares;
 use tracing::info;
+use unattended_deletion_consent::logging::init_tracing_for_node;
+use unattended_deletion_consent::orchestration::{FileMapping, StreamMapping};
 
 #[derive(Parser, Debug)]
 #[command(

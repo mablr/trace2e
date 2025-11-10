@@ -1,12 +1,12 @@
 [package]
-name = "demos"
+name = "unattended_deletion_consent"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
 [dependencies]
-trace2e_core = { path = "../trace2e_core" }
+trace2e_core = { path = "../../trace2e_core" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync", "time"] }
 tower = { workspace = true, features = ["timeout", "util"] }
 tracing = { workspace = true }
