@@ -284,9 +284,8 @@ mod grpc {
     pub fn set_deleted(
         resource: proto::primitives::Resource,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let request = tonic::Request::new(proto::messages::SetDeletedRequest {
-            resource: Some(resource),
-        });
+        let request =
+            tonic::Request::new(proto::messages::SetDeletedRequest { resource: Some(resource) });
 
         if let Ok(handle) = Handle::try_current() {
             match block_in_place(move || {
@@ -366,9 +365,8 @@ mod grpc {
     pub fn get_references(
         resource: proto::primitives::Resource,
     ) -> Result<Vec<proto::primitives::References>, Box<dyn std::error::Error>> {
-        let request = tonic::Request::new(proto::messages::GetReferencesRequest {
-            resource: Some(resource),
-        });
+        let request =
+            tonic::Request::new(proto::messages::GetReferencesRequest { resource: Some(resource) });
 
         if let Ok(handle) = Handle::try_current() {
             match task::block_in_place(move || {
