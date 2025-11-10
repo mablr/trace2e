@@ -3,7 +3,7 @@ use std::{
     os::fd::AsRawFd,
 };
 
-use trace2e_client::local_enroll;
+use trace2e_client::p2m::local_enroll;
 
 pub struct File;
 

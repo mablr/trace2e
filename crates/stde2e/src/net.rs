@@ -3,7 +3,7 @@ use std::{
     os::fd::AsRawFd,
 };
 
-use trace2e_client::remote_enroll;
+use trace2e_client::p2m::remote_enroll;
 
 pub struct TcpListener(StdTcpListener);
 
