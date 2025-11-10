@@ -17,6 +17,9 @@ tonic-build.workspace = true
 [dev-dependencies]
 criterion.workspace = true
 
+[features]
+o2m = []
+
 [[bench]]
 name = "p2m"
 harness = false
