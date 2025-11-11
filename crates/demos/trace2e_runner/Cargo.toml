@@ -1,0 +1,16 @@
+[package]
+name = "trace2e_runner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "trace2e-runner"
+path = "src/main.rs"
+
+[dependencies]
+stde2e = { path = "../../stde2e" }
+trace2e_core = { path = "../../trace2e_core" }
+clap = { workspace = true, features = ["derive"] }
+anyhow.workspace = true

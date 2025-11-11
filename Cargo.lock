@@ -1460,6 +1460,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "trace2e_runner"
+version = "0.0.3"
+dependencies = [
+ "anyhow",
+ "clap",
+ "stde2e",
+ "trace2e_core",
+]
+
+[[package]]
 name = "tracing"
 version = "0.1.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"

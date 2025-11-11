@@ -11,10 +11,12 @@ members = [
     "crates/trace2e_core",
     "crates/trace2e_middleware",
     "crates/stde2e",
-    "crates/demos/unattended_deletion_consent"
+    "crates/demos/unattended_deletion_consent",
+    "crates/demos/trace2e_runner"
 ]
 
 [workspace.dependencies]
+anyhow = "1"
 clap = "4"
 criterion = "0.5"
 dashmap = "6.1"
