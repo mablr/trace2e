@@ -31,6 +31,8 @@ use std::{
 
 use sysinfo::{Pid, System};
 
+use crate::traceability::error::TraceabilityError;
+
 /// Represents a file resource in the filesystem.
 ///
 /// Files are identified by their path, which can be absolute or relative.
@@ -248,6 +250,74 @@ impl LocalizedResource {
     }
 }
 
+impl TryFrom<&str> for Resource {
+    type Error = TraceabilityError;
+
+    /// Parse a resource string (without node_id) into a Resource.
+    ///
+    /// Supports the following formats:
+    /// - `file:///path` - File resource
+    /// - `stream://local::peer` - Stream resource
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        if let Some(path) = s.strip_prefix("file://") {
+            Ok(Resource::new_file(path.to_string()))
+        } else if let Some(stream_part) = s.strip_prefix("stream://") {
+            let sockets: Vec<&str> = stream_part.split("::").collect();
+            if sockets.len() != 2 {
+                return Err(TraceabilityError::InvalidResourceFormat(
+                    "Invalid stream format: expected 'stream://local::peer'".to_string(),
+                ));
+            }
+            Ok(Resource::new_stream(sockets[0].to_string(), sockets[1].to_string()))
+        } else {
+            Err(TraceabilityError::InvalidResourceFormat(
+                "Resource must start with 'file://' or 'stream://'".to_string(),
+            ))
+        }
+    }
+}
+
+impl TryFrom<String> for Resource {
+    type Error = TraceabilityError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Resource::try_from(s.as_str())
+    }
+}
+
+impl TryFrom<&str> for LocalizedResource {
+    type Error = TraceabilityError;
+
+    /// Parse a localized resource string into a LocalizedResource.
+    ///
+    /// Supports the format: `resource@node_id`
+    /// where resource is either:
+    /// - `file:///path` - File resource
+    /// - `stream://local::peer` - Stream resource
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        // Split by '@' to separate resource and node_id
+        let parts: Vec<&str> = s.rsplitn(2, '@').collect();
+        if parts.len() != 2 {
+            return Err(TraceabilityError::InvalidResourceFormat(
+                "Missing '@node_id' separator".to_string(),
+            ));
+        }
+
+        let (node_id, resource_part) = (parts[0], parts[1]);
+        let resource = Resource::try_from(resource_part)?;
+
+        Ok(LocalizedResource::new(node_id.to_string(), resource))
+    }
+}
+
+impl TryFrom<String> for LocalizedResource {
+    type Error = TraceabilityError;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        LocalizedResource::try_from(s.as_str())
+    }
+}
+
 impl Display for LocalizedResource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}@{}", self.resource, self.node_id)
@@ -403,5 +473,69 @@ mod tests {
                 .to_string(),
             "[file::///tmp/test.txt@127.0.0.1, process:://1234::0::@127.0.0.1, stream:://127.0.0.1:8080::127.0.0.1:8081@127.0.0.1, None@]"
         );
+    }
+
+    #[test]
+    fn test_resource_try_from_file() {
+        let resource = Resource::try_from("file:///tmp/test.txt").unwrap();
+        assert!(resource.is_file());
+    }
+
+    #[test]
+    fn test_resource_try_from_stream() {
+        let resource = Resource::try_from("stream://127.0.0.1:8080::192.168.1.1:9000").unwrap();
+        assert!(resource.is_stream());
+    }
+
+    #[test]
+    fn test_resource_try_from_string() {
+        let resource = Resource::try_from("file:///tmp/test.txt".to_string()).unwrap();
+        assert!(resource.is_file());
+    }
+
+    #[test]
+    fn test_localized_resource_try_from_file() {
+        let localized = LocalizedResource::try_from("file:///tmp/test.txt@127.0.0.1").unwrap();
+        assert_eq!(localized.node_id(), "127.0.0.1");
+        assert!(localized.resource().is_file());
+    }
+
+    #[test]
+    fn test_localized_resource_try_from_stream() {
+        let localized =
+            LocalizedResource::try_from("stream://127.0.0.1:8080::192.168.1.1:9000@10.0.0.1")
+                .unwrap();
+        assert_eq!(localized.node_id(), "10.0.0.1");
+        assert!(localized.resource().is_stream());
+    }
+
+    #[test]
+    fn test_localized_resource_try_from_string() {
+        let localized =
+            LocalizedResource::try_from("file:///tmp/test.txt@127.0.0.1".to_string()).unwrap();
+        assert_eq!(localized.node_id(), "127.0.0.1");
+        assert!(localized.resource().is_file());
+    }
+
+    #[test]
+    fn test_resource_try_from_invalid() {
+        let result = Resource::try_from("invalid_resource");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(TraceabilityError::InvalidResourceFormat(_))));
+
+        let result = Resource::try_from("stream://no_peer");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(TraceabilityError::InvalidResourceFormat(_))));
+    }
+
+    #[test]
+    fn test_localized_resource_try_from_invalid() {
+        let result = LocalizedResource::try_from("file:///tmp/test.txt");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(TraceabilityError::InvalidResourceFormat(_))));
+
+        let result = LocalizedResource::try_from("stream://127.0.0.1:8080::192.168.1.1:9000");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(TraceabilityError::InvalidResourceFormat(_))));
     }
 }

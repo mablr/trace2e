@@ -75,4 +75,7 @@ pub enum TraceabilityError {
 
     #[error("Traceability error, consent request timeout")]
     ConsentRequestTimeout,
+
+    #[error("Traceability error, invalid resource format: {0}")]
+    InvalidResourceFormat(String),
 }
