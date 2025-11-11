@@ -91,19 +91,14 @@ impl TryFrom<&str> for Instruction {
             ));
         } else if command.arity() == 2 {
             // Parse resource
-            resource = Resource::try_from(parts[1].trim()).map_err(|e| {
-                anyhow::anyhow!(
-                    "Failed to parse resource for command {}: {}",
-                    parts[0],
-                    e
-                )
-            }).ok();
+            resource = Resource::try_from(parts[1].trim())
+                .map_err(|e| {
+                    anyhow::anyhow!("Failed to parse resource for command {}: {}", parts[0], e)
+                })
+                .ok();
         }
 
-        Ok(Instruction {
-            command,
-            resource,
-        })
+        Ok(Instruction { command, resource })
     }
 }
 
