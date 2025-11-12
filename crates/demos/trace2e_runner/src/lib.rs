@@ -137,8 +137,8 @@ impl TryFrom<String> for Instruction {
 /// Tracks opened file handles and network streams
 #[derive(Debug, Default)]
 pub struct Resources {
-    files: HashMap<Resource, std::fs::File>,
-    streams: HashMap<Resource, std::net::TcpStream>,
+    files: HashMap<(Resource, bool, bool, bool, bool, bool, bool), std::fs::File>,
+    streams: HashMap<(Resource, bool, bool, bool, bool, bool, bool), std::net::TcpStream>,
 }
 
 /// Combines resource management with shared I/O buffer handling
@@ -186,14 +186,41 @@ impl Resources {
         &mut self,
         resource: &Resource,
         path: &str,
+        read: bool,
+        write: bool,
+        append: bool,
+        truncate: bool,
+        create: bool,
+        create_new: bool,
     ) -> anyhow::Result<&mut std::fs::File> {
-        if !self.files.contains_key(resource) {
-            let f = stde2e::fs::File::open(path)
-                .with_context(|| format!("Failed to open file: {}", path))?;
+        if !self.files.contains_key(&(
+            resource.to_owned(),
+            read,
+            write,
+            append,
+            truncate,
+            create,
+            create_new,
+        )) {
+            let f = stde2e::fs::OpenOptions::new()
+                .read(read)
+                .write(write)
+                .append(append)
+                .truncate(truncate)
+                .create(create)
+                .create_new(create_new)
+                .open(path)
+                .map_err(|e| anyhow::anyhow!("Failed to open file '{}': {}", path, e))?;
             println!("✓ Opened file: {}", path);
-            self.files.insert(resource.to_owned(), f);
+            self.files.insert(
+                (resource.to_owned(), read, write, append, truncate, create, create_new),
+                f,
+            );
         }
-        Ok(self.files.get_mut(resource).unwrap())
+        Ok(self
+            .files
+            .get_mut(&(resource.to_owned(), read, write, append, truncate, create, create_new))
+            .unwrap())
     }
 
     /// Get or open a stream handle, creating it if necessary
@@ -201,14 +228,34 @@ impl Resources {
         &mut self,
         resource: &Resource,
         peer_socket: &str,
+        read: bool,
+        write: bool,
+        append: bool,
+        truncate: bool,
+        create: bool,
+        create_new: bool,
     ) -> anyhow::Result<&mut std::net::TcpStream> {
-        if !self.streams.contains_key(resource) {
+        if !self.streams.contains_key(&(
+            resource.to_owned(),
+            read,
+            write,
+            append,
+            truncate,
+            create,
+            create_new,
+        )) {
             let s = stde2e::net::TcpStream::connect(peer_socket)
                 .with_context(|| format!("Failed to connect to: {}", peer_socket))?;
             println!("✓ Connected to stream: {}", peer_socket);
-            self.streams.insert(resource.to_owned(), s);
+            self.streams.insert(
+                (resource.to_owned(), read, write, append, truncate, create, create_new),
+                s,
+            );
         }
-        Ok(self.streams.get_mut(resource).unwrap())
+        Ok(self
+            .streams
+            .get_mut(&(resource.to_owned(), read, write, append, truncate, create, create_new))
+            .unwrap())
     }
 
     /// Execute a READ command, appending data to the shared buffer
@@ -220,18 +267,29 @@ impl Resources {
 
         match resource {
             Resource::Fd(Fd::File(file)) => {
-                let f = self.get_or_open_file(resource, &file.path)?;
-                let n = f
-                    .read(&mut temp_buf)
-                    .with_context(|| format!("Failed to read from file: {}", file.path))?;
+                let f = self.get_or_open_file(
+                    resource, &file.path, true, false, false, false, false, false,
+                )?;
+                let n = f.read(&mut temp_buf).map_err(|e| {
+                    anyhow::anyhow!("Failed to read from file '{}': {}", file.path, e)
+                })?;
                 buffer.extend_from_slice(&temp_buf[..n]);
                 println!("✓ Read {} bytes from file: {}", n, file.path);
                 Ok(())
             }
             Resource::Fd(Fd::Stream(stream)) => {
-                let s = self.get_or_open_stream(resource, &stream.peer_socket)?;
-                let n = s.read(&mut temp_buf).with_context(|| {
-                    format!("Failed to read from stream: {}", stream.peer_socket)
+                let s = self.get_or_open_stream(
+                    resource,
+                    &stream.peer_socket,
+                    true,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                )?;
+                let n = s.read(&mut temp_buf).map_err(|e| {
+                    anyhow::anyhow!("Failed to read from stream '{}': {}", stream.peer_socket, e)
                 })?;
                 buffer.extend_from_slice(&temp_buf[..n]);
                 println!("✓ Read {} bytes from stream: {}", n, stream.peer_socket);
@@ -248,17 +306,28 @@ impl Resources {
 
         match resource {
             Resource::Fd(Fd::File(file)) => {
-                let f = self.get_or_open_file(resource, &file.path)?;
-                let n = f
-                    .write(buffer)
-                    .with_context(|| format!("Failed to write to file: {}", file.path))?;
+                let f = self.get_or_open_file(
+                    resource, &file.path, false, true, true, false, false, false,
+                )?;
+                let n = f.write(buffer).map_err(|e| {
+                    anyhow::anyhow!("Failed to write to file '{}': {}", file.path, e)
+                })?;
                 println!("✓ Wrote {} bytes to file: {}", n, file.path);
                 Ok(())
             }
             Resource::Fd(Fd::Stream(stream)) => {
-                let s = self.get_or_open_stream(resource, &stream.peer_socket)?;
-                let n = s.write(buffer).with_context(|| {
-                    format!("Failed to write to stream: {}", stream.peer_socket)
+                let s = self.get_or_open_stream(
+                    resource,
+                    &stream.peer_socket,
+                    false,
+                    true,
+                    true,
+                    false,
+                    false,
+                    false,
+                )?;
+                let n = s.write(buffer).map_err(|e| {
+                    anyhow::anyhow!("Failed to write to stream '{}': {}", stream.peer_socket, e)
                 })?;
                 println!("✓ Wrote {} bytes to stream: {}", n, stream.peer_socket);
                 Ok(())
