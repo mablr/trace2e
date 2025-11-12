@@ -31,6 +31,7 @@ use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
 use std::convert::TryFrom;
 use tokio_stream::StreamExt;
+use trace2e_client::primitives::References;
 use trace2e_client::{o2m, primitives};
 use trace2e_core::traceability::infrastructure::naming;
 use trace2e_core::traceability::services::consent::Destination;
@@ -306,12 +307,23 @@ async fn main() -> Result<()> {
         Commands::GetReferences { resource } => {
             let res = parse_resource(&resource)?;
 
-            match o2m::get_references(res) {
+            match o2m::get_references(res.clone()) {
                 Ok(references) => {
                     println!("Provenance references for {}:", resource);
-                    for ref_item in references {
-                        println!("  {:?}", ref_item);
-                    }
+                    let references: Vec<naming::LocalizedResource> = references
+                        .iter()
+                        .map(|References { node, resources }| {
+                            resources.iter().map(|r| {
+                                naming::LocalizedResource::new(node.clone(), r.clone().into())
+                            })
+                        })
+                        .flatten()
+                        .collect();
+                    println!(
+                        "{}: {}",
+                        res,
+                        naming::DisplayableResource::from(references.as_slice())
+                    );
                     Ok(())
                 }
                 Err(e) => Err(anyhow!("Failed to get references: {}", e)),
