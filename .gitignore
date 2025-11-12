@@ -8,3 +8,4 @@ target/
 flamegraph.svg
 perf.data*
 .research/
+settings.*
