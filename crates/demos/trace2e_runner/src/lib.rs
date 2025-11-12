@@ -30,19 +30,9 @@ impl BufferHandler {
         Self { buffer: Vec::with_capacity(4096) }
     }
 
-    /// Get the buffer content as bytes
-    pub fn buffer(&self) -> &[u8] {
-        &self.buffer
-    }
-
     /// Get mutable reference to buffer
     pub fn buffer_mut(&mut self) -> &mut Vec<u8> {
         &mut self.buffer
-    }
-
-    /// Clear the buffer for reuse
-    pub fn clear(&mut self) {
-        self.buffer.clear();
     }
 }
 
@@ -164,31 +154,6 @@ impl IoHandler {
         Self { resources: Resources::default(), buffer: BufferHandler::new() }
     }
 
-    /// Get immutable reference to the buffer
-    pub fn buffer(&self) -> &[u8] {
-        self.buffer.buffer()
-    }
-
-    /// Get mutable reference to the buffer
-    pub fn buffer_mut(&mut self) -> &mut Vec<u8> {
-        self.buffer.buffer_mut()
-    }
-
-    /// Clear the shared buffer for reuse
-    pub fn clear_buffer(&mut self) {
-        self.buffer.clear();
-    }
-
-    /// Execute a READ command, using the shared buffer
-    pub fn read(&mut self, resource: &Resource) -> anyhow::Result<()> {
-        self.resources.read(resource, self.buffer.buffer_mut())
-    }
-
-    /// Execute a WRITE command, using the shared buffer
-    pub fn write(&mut self, resource: &Resource) -> anyhow::Result<()> {
-        self.resources.write(resource, self.buffer.buffer_mut())
-    }
-
     /// Execute an instruction using the managed resources and buffer
     pub fn execute(&mut self, instruction: &Instruction) -> anyhow::Result<()> {
         self.resources.execute(instruction, self.buffer.buffer_mut())
@@ -208,11 +173,11 @@ fn print_help() {
     println!(" $ HELP               # Show this help message");
     println!(" $ # [comment]        # Comment line");
     println!(" $                    # No operation");
-    println!("");
+    println!();
     println!("Resource format:");
     println!(" - file:///path/to/file");
     println!(" - stream://local_socket::peer_socket");
-    println!("");
+    println!();
 }
 
 impl Resources {
@@ -277,8 +242,7 @@ impl Resources {
     }
 
     /// Execute a WRITE command using the shared buffer
-    #[allow(clippy::ptr_arg)]
-    pub fn write(&mut self, resource: &Resource, buffer: &Vec<u8>) -> anyhow::Result<()> {
+    pub fn write(&mut self, resource: &Resource, buffer: &[u8]) -> anyhow::Result<()> {
         use stde2e::io::Write;
         use trace2e_core::traceability::infrastructure::naming::Fd;
 
