@@ -258,6 +258,9 @@ async fn main() -> Result<()> {
             let res = parse_resource(&resource)?;
 
             println!("Listening for consent requests on {}...", resource);
+            println!(
+                "To approve: e2e-op set-consent-decision --source <source> --destination <dest> --grant"
+            );
             println!("Press Ctrl+C to stop.\n");
 
             match o2m::enforce_consent(res) {
@@ -270,10 +273,6 @@ async fn main() -> Result<()> {
                                     "[{:?}] Consent Request: {}",
                                     tokio::time::Instant::now(),
                                     consent_request
-                                );
-                                println!(
-                                    "      To approve: trace2e-operator set-consent-decision \\\n\
-                                       --source <source> --destination <dest> --grant"
                                 );
                                 println!();
                             }
