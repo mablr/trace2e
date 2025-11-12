@@ -15,6 +15,7 @@
 
 use anyhow::Context;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::convert::TryFrom;
 use trace2e_core::traceability::infrastructure::naming::Resource;
 
@@ -193,7 +194,7 @@ impl Resources {
         create: bool,
         create_new: bool,
     ) -> anyhow::Result<&mut std::fs::File> {
-        if !self.files.contains_key(&(
+        if let Entry::Vacant(e) = self.files.entry((
             resource.to_owned(),
             read,
             write,
@@ -212,15 +213,11 @@ impl Resources {
                 .open(path)
                 .map_err(|e| anyhow::anyhow!("Failed to open file '{}': {}", path, e))?;
             println!("✓ Opened file: {}", path);
-            self.files.insert(
-                (resource.to_owned(), read, write, append, truncate, create, create_new),
-                f,
-            );
+            e.insert(f);
         }
-        Ok(self
-            .files
+        self.files
             .get_mut(&(resource.to_owned(), read, write, append, truncate, create, create_new))
-            .ok_or(anyhow::anyhow!("Failed to handle file descriptor."))?)
+            .ok_or(anyhow::anyhow!("Failed to handle file descriptor."))
     }
 
     /// Get or open a stream handle, creating it if necessary
@@ -235,7 +232,7 @@ impl Resources {
         create: bool,
         create_new: bool,
     ) -> anyhow::Result<&mut std::net::TcpStream> {
-        if !self.streams.contains_key(&(
+        if let Entry::Vacant(e) = self.streams.entry((
             resource.to_owned(),
             read,
             write,
@@ -247,15 +244,11 @@ impl Resources {
             let s = stde2e::net::TcpStream::connect(peer_socket)
                 .with_context(|| format!("Failed to connect to: {}", peer_socket))?;
             println!("✓ Connected to stream: {}", peer_socket);
-            self.streams.insert(
-                (resource.to_owned(), read, write, append, truncate, create, create_new),
-                s,
-            );
+            e.insert(s);
         }
-        Ok(self
-            .streams
+        self.streams
             .get_mut(&(resource.to_owned(), read, write, append, truncate, create, create_new))
-            .ok_or(anyhow::anyhow!("Failed to handle stream descriptor."))?)
+            .ok_or(anyhow::anyhow!("Failed to handle stream descriptor."))
     }
 
     /// Execute a READ command, appending data to the shared buffer
