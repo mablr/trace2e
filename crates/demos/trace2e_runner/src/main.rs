@@ -22,7 +22,7 @@
 use clap::Parser;
 use std::convert::TryFrom;
 use std::io::{self, BufRead, Write};
-use trace2e_runner::{Instruction, Resources};
+use trace2e_runner::{Instruction, IoHandler};
 
 #[derive(Parser, Debug)]
 #[command(name = "trace2e-runner")]
@@ -36,21 +36,21 @@ struct Args {
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    let mut resources = Resources::default();
+    let mut handler = IoHandler::default();
 
     if let Some(playbook_path) = args.playbook {
         // Batch mode: read from file
-        run_batch_mode(&mut resources, &playbook_path)?;
+        run_batch_mode(&mut handler, &playbook_path)?;
     } else {
         // Interactive mode: read from stdin
-        run_interactive_mode(&mut resources)?;
+        run_interactive_mode(&mut handler)?;
     }
 
     Ok(())
 }
 
 /// Run in batch mode, reading instructions from a file
-fn run_batch_mode(resources: &mut Resources, file_path: &str) -> anyhow::Result<()> {
+fn run_batch_mode(handler: &mut IoHandler, file_path: &str) -> anyhow::Result<()> {
     println!("Running batch mode from file: {}", file_path);
     println!();
 
@@ -71,7 +71,7 @@ fn run_batch_mode(resources: &mut Resources, file_path: &str) -> anyhow::Result<
 
         match Instruction::try_from(line) {
             Ok(instruction) => {
-                if let Err(e) = resources.execute(&instruction) {
+                if let Err(e) = handler.execute(&instruction) {
                     println!("✗ Error: {}", e);
                     return Err(e);
                 }
@@ -89,7 +89,7 @@ fn run_batch_mode(resources: &mut Resources, file_path: &str) -> anyhow::Result<
 }
 
 /// Run in interactive mode, reading instructions from stdin
-fn run_interactive_mode(resources: &mut Resources) -> anyhow::Result<()> {
+fn run_interactive_mode(handler: &mut IoHandler) -> anyhow::Result<()> {
     println!("trace2e-runner - Interactive Mode");
     println!("==================================");
     println!("Press Ctrl+D to exit");
@@ -123,7 +123,7 @@ fn run_interactive_mode(resources: &mut Resources) -> anyhow::Result<()> {
         // Parse and execute instruction
         match Instruction::try_from(trimmed) {
             Ok(instruction) => {
-                if let Err(e) = resources.execute(&instruction) {
+                if let Err(e) = handler.execute(&instruction) {
                     eprintln!("✗ Error: {}", e);
                     // Continue in interactive mode even after errors
                 }

@@ -18,6 +18,40 @@ use std::collections::HashMap;
 use std::convert::TryFrom;
 use trace2e_core::traceability::infrastructure::naming::Resource;
 
+/// Handles shared I/O buffer for read/write operations across resources
+#[derive(Debug)]
+pub struct BufferHandler {
+    buffer: Vec<u8>,
+}
+
+impl BufferHandler {
+    /// Create a new buffer handler with 4KB capacity
+    pub fn new() -> Self {
+        Self { buffer: Vec::with_capacity(4096) }
+    }
+
+    /// Get the buffer content as bytes
+    pub fn buffer(&self) -> &[u8] {
+        &self.buffer
+    }
+
+    /// Get mutable reference to buffer
+    pub fn buffer_mut(&mut self) -> &mut Vec<u8> {
+        &mut self.buffer
+    }
+
+    /// Clear the buffer for reuse
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+    }
+}
+
+impl Default for BufferHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Represents a command action
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
@@ -117,6 +151,56 @@ pub struct Resources {
     streams: HashMap<Resource, std::net::TcpStream>,
 }
 
+/// Combines resource management with shared I/O buffer handling
+#[derive(Debug)]
+pub struct IoHandler {
+    resources: Resources,
+    buffer: BufferHandler,
+}
+
+impl IoHandler {
+    /// Create a new IoHandler with default resources and buffer
+    pub fn new() -> Self {
+        Self { resources: Resources::default(), buffer: BufferHandler::new() }
+    }
+
+    /// Get immutable reference to the buffer
+    pub fn buffer(&self) -> &[u8] {
+        self.buffer.buffer()
+    }
+
+    /// Get mutable reference to the buffer
+    pub fn buffer_mut(&mut self) -> &mut Vec<u8> {
+        self.buffer.buffer_mut()
+    }
+
+    /// Clear the shared buffer for reuse
+    pub fn clear_buffer(&mut self) {
+        self.buffer.clear();
+    }
+
+    /// Execute a READ command, using the shared buffer
+    pub fn read(&mut self, resource: &Resource) -> anyhow::Result<()> {
+        self.resources.read(resource, self.buffer.buffer_mut())
+    }
+
+    /// Execute a WRITE command, using the shared buffer
+    pub fn write(&mut self, resource: &Resource) -> anyhow::Result<()> {
+        self.resources.write(resource, self.buffer.buffer_mut())
+    }
+
+    /// Execute an instruction using the managed resources and buffer
+    pub fn execute(&mut self, instruction: &Instruction) -> anyhow::Result<()> {
+        self.resources.execute(instruction, self.buffer.buffer_mut())
+    }
+}
+
+impl Default for IoHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Resources {
     /// Get or open a file handle, creating it if necessary
     fn get_or_open_file(
@@ -148,27 +232,29 @@ impl Resources {
         Ok(self.streams.get_mut(resource).unwrap())
     }
 
-    /// Execute a READ command
-    pub fn read(&mut self, resource: &Resource) -> anyhow::Result<()> {
+    /// Execute a READ command, appending data to the shared buffer
+    pub fn read(&mut self, resource: &Resource, buffer: &mut Vec<u8>) -> anyhow::Result<()> {
         use stde2e::io::Read;
         use trace2e_core::traceability::infrastructure::naming::Fd;
+
+        let mut temp_buf = [0u8; 4096];
 
         match resource {
             Resource::Fd(Fd::File(file)) => {
                 let f = self.get_or_open_file(resource, &file.path)?;
-                let mut buffer = [0u8; 4096];
                 let n = f
-                    .read(&mut buffer)
+                    .read(&mut temp_buf)
                     .with_context(|| format!("Failed to read from file: {}", file.path))?;
+                buffer.extend_from_slice(&temp_buf[..n]);
                 println!("✓ Read {} bytes from file: {}", n, file.path);
                 Ok(())
             }
             Resource::Fd(Fd::Stream(stream)) => {
                 let s = self.get_or_open_stream(resource, &stream.peer_socket)?;
-                let mut buffer = [0u8; 4096];
-                let n = s.read(&mut buffer).with_context(|| {
+                let n = s.read(&mut temp_buf).with_context(|| {
                     format!("Failed to read from stream: {}", stream.peer_socket)
                 })?;
+                buffer.extend_from_slice(&temp_buf[..n]);
                 println!("✓ Read {} bytes from stream: {}", n, stream.peer_socket);
                 Ok(())
             }
@@ -176,25 +262,24 @@ impl Resources {
         }
     }
 
-    /// Execute a WRITE command
-    pub fn write(&mut self, resource: &Resource) -> anyhow::Result<()> {
+    /// Execute a WRITE command using the shared buffer
+    #[allow(clippy::ptr_arg)]
+    pub fn write(&mut self, resource: &Resource, buffer: &Vec<u8>) -> anyhow::Result<()> {
         use stde2e::io::Write;
         use trace2e_core::traceability::infrastructure::naming::Fd;
-
-        let data = b"trace2e test data\n";
 
         match resource {
             Resource::Fd(Fd::File(file)) => {
                 let f = self.get_or_open_file(resource, &file.path)?;
                 let n = f
-                    .write(data)
+                    .write(buffer)
                     .with_context(|| format!("Failed to write to file: {}", file.path))?;
                 println!("✓ Wrote {} bytes to file: {}", n, file.path);
                 Ok(())
             }
             Resource::Fd(Fd::Stream(stream)) => {
                 let s = self.get_or_open_stream(resource, &stream.peer_socket)?;
-                let n = s.write(data).with_context(|| {
+                let n = s.write(buffer).with_context(|| {
                     format!("Failed to write to stream: {}", stream.peer_socket)
                 })?;
                 println!("✓ Wrote {} bytes to stream: {}", n, stream.peer_socket);
@@ -212,20 +297,24 @@ impl Resources {
         Ok(())
     }
 
-    /// Execute an instruction
-    pub fn execute(&mut self, instruction: &Instruction) -> anyhow::Result<()> {
+    /// Execute an instruction with a shared buffer
+    pub fn execute(
+        &mut self,
+        instruction: &Instruction,
+        buffer: &mut Vec<u8>,
+    ) -> anyhow::Result<()> {
         match instruction.command {
             Command::Nil => Ok(()),
             Command::Read => {
                 if let Some(resource) = &instruction.resource {
-                    self.read(resource)
+                    self.read(resource, buffer)
                 } else {
                     Err(anyhow::anyhow!("READ command requires a valid resource"))
                 }
             }
             Command::Write => {
                 if let Some(resource) = &instruction.resource {
-                    self.write(resource)
+                    self.write(resource, buffer)
                 } else {
                     Err(anyhow::anyhow!("WRITE command requires a valid resource"))
                 }
