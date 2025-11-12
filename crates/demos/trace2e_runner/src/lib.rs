@@ -201,6 +201,20 @@ impl Default for IoHandler {
     }
 }
 
+fn print_help() {
+    println!("Available instructions:");
+    println!(" $ READ <resource>    # Read from the specified resource");
+    println!(" $ WRITE <resource>   # Write to the specified resource");
+    println!(" $ HELP               # Show this help message");
+    println!(" $ # [comment]        # Comment line");
+    println!(" $                    # No operation");
+    println!("");
+    println!("Resource format:");
+    println!(" - file:///path/to/file");
+    println!(" - stream://local_socket::peer_socket");
+    println!("");
+}
+
 impl Resources {
     /// Get or open a file handle, creating it if necessary
     fn get_or_open_file(
@@ -289,14 +303,6 @@ impl Resources {
         }
     }
 
-    fn help(&self) -> anyhow::Result<()> {
-        println!("Available instructions:");
-        println!("> READ -- resource    # Read from the specified resource");
-        println!("> WRITE -- resource   # Write to the specified resource");
-        println!("> HELP                # Show this help message");
-        Ok(())
-    }
-
     /// Execute an instruction with a shared buffer
     pub fn execute(
         &mut self,
@@ -319,7 +325,10 @@ impl Resources {
                     Err(anyhow::anyhow!("WRITE command requires a valid resource"))
                 }
             }
-            Command::Help => self.help(),
+            Command::Help => {
+                print_help();
+                Ok(())
+            }
         }
     }
 }
