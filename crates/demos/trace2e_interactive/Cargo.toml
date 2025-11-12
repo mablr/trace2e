@@ -1,0 +1,23 @@
+[package]
+name = "trace2e_interactive"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "e2e-proc"
+path = "src/bin/interactive.rs"
+
+[[bin]]
+name = "e2e-op"
+path = "src/bin/operator.rs"
+
+[dependencies]
+stde2e = { path = "../../stde2e" }
+trace2e_core = { path = "../../trace2e_core" }
+trace2e_client = { path = "../../trace2e_client", features = ["o2m"] }
+clap = { workspace = true, features = ["derive", "env"] }
+anyhow.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-stream.workspace = true

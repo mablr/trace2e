@@ -81,6 +81,54 @@ impl From<LocalizedResource> for Destination {
     }
 }
 
+/// Parse a Destination from a string.
+/// Tries three formats in order:
+/// 1. LocalizedResource: "node_id@resource_spec"
+/// 2. Resource: "file:///path" or "stream://local::peer"
+/// 3. Node ID: a simple string without whitespaces
+impl TryFrom<&str> for Destination {
+    type Error = String;
+
+    fn try_from(s: &str) -> Result<Destination, Self::Error> {
+        let s = s.trim();
+
+        // Try parsing as LocalizedResource first (contains '@')
+        if s.contains('@')
+            && let Ok(lr) = LocalizedResource::try_from(s)
+        {
+            return Ok(Destination::Resource {
+                resource: lr.resource().clone(),
+                parent: Some(Box::new(Destination::Node(lr.node_id().clone()))),
+            });
+        }
+
+        // Try parsing as Resource (contains '://' or starts with specific patterns)
+        if s.contains("://")
+            && let Ok(resource) = Resource::try_from(s)
+        {
+            return Ok(Destination::Resource { resource, parent: None });
+        }
+
+        // Try as node ID (simple string without whitespaces)
+        if !s.contains(char::is_whitespace) && !s.is_empty() {
+            return Ok(Destination::Node(s.to_string()));
+        }
+
+        Err(format!(
+            "Failed to parse destination: '{}'. Expected one of: node_id, resource (file:// or stream://), or localized_resource (node_id@resource)",
+            s
+        ))
+    }
+}
+
+impl TryFrom<String> for Destination {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Destination, Self::Error> {
+        Destination::try_from(s.as_str())
+    }
+}
+
 impl Destination {
     /// Create a new destination from optional node_id and resource.
     pub fn new(node_id: Option<String>, resource: Option<Resource>) -> Self {

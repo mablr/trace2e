@@ -1,4 +1,4 @@
-//! CLI entry point for trace2e_runner
+//! CLI entry point for trace2e_proc
 //!
 //! Supports two execution modes:
 //! - Interactive: Read commands from stdin line-by-line
@@ -22,10 +22,10 @@
 use clap::Parser;
 use std::convert::TryFrom;
 use std::io::{self, BufRead, Write};
-use trace2e_runner::{Instruction, IoHandler};
+use trace2e_interactive::{Instruction, IoHandler};
 
 #[derive(Parser, Debug)]
-#[command(name = "trace2e-runner")]
+#[command(name = "trace2e-proc")]
 #[command(about = "Execute trace2e instruction scenarios", long_about = None)]
 struct Args {
     /// Path to a playbook file containing instructions to execute (batch mode)
@@ -90,7 +90,7 @@ fn run_batch_mode(handler: &mut IoHandler, file_path: &str) -> anyhow::Result<()
 
 /// Run in interactive mode, reading instructions from stdin
 fn run_interactive_mode(handler: &mut IoHandler) -> anyhow::Result<()> {
-    println!("trace2e-runner - Interactive Mode");
+    println!("trace2e-proc - Interactive Mode");
     println!("==================================");
     println!("Press Ctrl+D to exit");
     println!();

@@ -6,7 +6,7 @@ use tokio::{
 };
 use tonic::transport::Channel;
 
-use crate::proto;
+use trace2e_core::transport::grpc::proto;
 
 static TOKIO_RUNTIME: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap());

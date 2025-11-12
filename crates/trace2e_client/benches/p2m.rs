@@ -1,8 +1,6 @@
 use criterion::{Criterion, criterion_group, criterion_main};
-use trace2e_client::{
-    p2m::{io_report, io_request, local_enroll},
-    primitives::Flow,
-};
+use trace2e_client::p2m::{io_report, io_request, local_enroll};
+use trace2e_core::transport::grpc::proto::primitives::Flow;
 
 fn bench_p2m_service(c: &mut Criterion) {
     local_enroll("/dev/null", 3);

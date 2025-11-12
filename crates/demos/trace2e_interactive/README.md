@@ -62,8 +62,8 @@ READ file:///tmp/input.txt
 WRITE file:///tmp/output.txt
 
 # Stream operations (requires server)
-# READ stream://127.0.0.1:8080::192.168.1.1:9000
-# WRITE stream://127.0.0.1:8080::192.168.1.1:9000
+# READ stream://192.168.1.1:8080::192.168.1.2:9000
+# WRITE stream://192.168.1.1:8080::192.168.1.2:9000
 ```
 
 ## Requirements

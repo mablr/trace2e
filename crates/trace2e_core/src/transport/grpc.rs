@@ -899,42 +899,48 @@ impl From<proto::primitives::Destination> for Destination {
 /// Preserves LocalizedResource context by reconstructing the hierarchical structure.
 impl From<Destination> for proto::primitives::Destination {
     fn from(dest: Destination) -> Self {
-        match dest {
-            Destination::Resource { resource, parent } => {
-                // When converting back to proto, we reconstruct the LocalizedResource
-                // If parent is None, we use empty string for node_id (local)
-                // If parent is Some(Node(...)), we extract the node_id
-                let (node_id, proto_parent) = match &parent {
-                    Some(p) => {
-                        match &(**p) {
-                            Destination::Node(node) => {
-                                (node.clone(), parent.map(|p| Box::new((*p).clone().into())))
-                            }
-                            _ => {
-                                // If parent is another Resource, preserve it as-is
-                                (String::new(), parent.map(|p| Box::new((*p).clone().into())))
-                            }
+        destination_to_proto_node_variant(dest)
+    }
+}
+
+/// Helper function that performs the actual Destination -> proto conversion logic.
+/// This can be reused by other modules that need the same conversion.
+pub fn destination_to_proto_node_variant(dest: Destination) -> proto::primitives::Destination {
+    match dest {
+        Destination::Resource { resource, parent } => {
+            // When converting back to proto, we reconstruct the LocalizedResource
+            // If parent is None, we use empty string for node_id (local)
+            // If parent is Some(Node(...)), we extract the node_id
+            let (node_id, proto_parent) = match &parent {
+                Some(p) => {
+                    match &(**p) {
+                        Destination::Node(node) => {
+                            (node.clone(), parent.map(|p| Box::new((*p).clone().into())))
+                        }
+                        _ => {
+                            // If parent is another Resource, preserve it as-is
+                            (String::new(), parent.map(|p| Box::new((*p).clone().into())))
                         }
                     }
-                    None => {
-                        // No parent, local resource
-                        (String::new(), None)
-                    }
-                };
-
-                proto::primitives::Destination {
-                    destination: Some(proto::primitives::destination::Destination::Resource(
-                        Box::new(proto::primitives::LocalizedResourceWithParent {
-                            resource: Some(LocalizedResource::new(node_id, resource).into()),
-                            parent: proto_parent,
-                        }),
-                    )),
                 }
+                None => {
+                    // No parent, local resource
+                    (String::new(), None)
+                }
+            };
+
+            proto::primitives::Destination {
+                destination: Some(proto::primitives::destination::Destination::Resource(Box::new(
+                    proto::primitives::LocalizedResourceWithParent {
+                        resource: Some(LocalizedResource::new(node_id, resource).into()),
+                        parent: proto_parent,
+                    },
+                ))),
             }
-            Destination::Node(node_id) => proto::primitives::Destination {
-                destination: Some(proto::primitives::destination::Destination::Node(node_id)),
-            },
         }
+        Destination::Node(node_id) => proto::primitives::Destination {
+            destination: Some(proto::primitives::destination::Destination::Node(node_id)),
+        },
     }
 }
 

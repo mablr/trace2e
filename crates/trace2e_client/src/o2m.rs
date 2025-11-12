@@ -4,8 +4,8 @@ use tokio::{
     task::{self, block_in_place},
 };
 use tonic::transport::Channel;
-
-use crate::proto;
+use trace2e_core::traceability::{infrastructure::naming, services::consent};
+use trace2e_core::transport::grpc::proto;
 
 static TOKIO_RUNTIME: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap());
@@ -43,9 +43,12 @@ fn get_o2m_client() -> proto::o2m_client::O2mClient<Channel> {
 }
 
 pub fn get_policies(
-    resources: Vec<proto::primitives::Resource>,
+    resources: Vec<naming::Resource>,
 ) -> Result<Vec<proto::primitives::MappedLocalizedPolicy>, Box<dyn std::error::Error>> {
-    let request = tonic::Request::new(proto::messages::GetPoliciesRequest { resources });
+    let proto_resources: Vec<proto::primitives::Resource> =
+        resources.into_iter().map(|r| r.into()).collect();
+    let request =
+        tonic::Request::new(proto::messages::GetPoliciesRequest { resources: proto_resources });
 
     if let Ok(handle) = Handle::try_current() {
         match task::block_in_place(move || {
@@ -65,11 +68,12 @@ pub fn get_policies(
 }
 
 pub fn set_policy(
-    resource: proto::primitives::Resource,
+    resource: naming::Resource,
     policy: proto::primitives::Policy,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let proto_resource: proto::primitives::Resource = resource.into();
     let request = tonic::Request::new(proto::messages::SetPolicyRequest {
-        resource: Some(resource),
+        resource: Some(proto_resource),
         policy: Some(policy),
     });
 
@@ -91,11 +95,12 @@ pub fn set_policy(
 }
 
 pub fn set_confidentiality(
-    resource: proto::primitives::Resource,
+    resource: naming::Resource,
     confidentiality: i32,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let proto_resource: proto::primitives::Resource = resource.into();
     let request = tonic::Request::new(proto::messages::SetConfidentialityRequest {
-        resource: Some(resource),
+        resource: Some(proto_resource),
         confidentiality,
     });
 
@@ -117,11 +122,12 @@ pub fn set_confidentiality(
 }
 
 pub fn set_integrity(
-    resource: proto::primitives::Resource,
+    resource: naming::Resource,
     integrity: u32,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let proto_resource: proto::primitives::Resource = resource.into();
     let request = tonic::Request::new(proto::messages::SetIntegrityRequest {
-        resource: Some(resource),
+        resource: Some(proto_resource),
         integrity,
     });
 
@@ -142,11 +148,10 @@ pub fn set_integrity(
     }
 }
 
-pub fn set_deleted(
-    resource: proto::primitives::Resource,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn set_deleted(resource: naming::Resource) -> Result<(), Box<dyn std::error::Error>> {
+    let proto_resource: proto::primitives::Resource = resource.into();
     let request =
-        tonic::Request::new(proto::messages::SetDeletedRequest { resource: Some(resource) });
+        tonic::Request::new(proto::messages::SetDeletedRequest { resource: Some(proto_resource) });
 
     if let Ok(handle) = Handle::try_current() {
         match block_in_place(move || {
@@ -166,11 +171,13 @@ pub fn set_deleted(
 }
 
 pub fn enforce_consent(
-    resource: proto::primitives::Resource,
+    resource: naming::Resource,
 ) -> Result<tonic::codec::Streaming<proto::messages::ConsentNotification>, Box<dyn std::error::Error>>
 {
-    let request =
-        tonic::Request::new(proto::messages::EnforceConsentRequest { resource: Some(resource) });
+    let proto_resource: proto::primitives::Resource = resource.into();
+    let request = tonic::Request::new(proto::messages::EnforceConsentRequest {
+        resource: Some(proto_resource),
+    });
 
     if let Ok(handle) = Handle::try_current() {
         match task::block_in_place(move || {
@@ -190,13 +197,15 @@ pub fn enforce_consent(
 }
 
 pub fn set_consent_decision(
-    source: proto::primitives::Resource,
-    destination: proto::primitives::Destination,
+    source: naming::Resource,
+    destination: consent::Destination,
     decision: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let proto_source: proto::primitives::Resource = source.into();
+    let proto_destination: proto::primitives::Destination = destination.into();
     let request = tonic::Request::new(proto::messages::SetConsentDecisionRequest {
-        source: Some(source),
-        destination: Some(destination),
+        source: Some(proto_source),
+        destination: Some(proto_destination),
         decision,
     });
 
@@ -218,10 +227,12 @@ pub fn set_consent_decision(
 }
 
 pub fn get_references(
-    resource: proto::primitives::Resource,
+    resource: naming::Resource,
 ) -> Result<Vec<proto::primitives::References>, Box<dyn std::error::Error>> {
-    let request =
-        tonic::Request::new(proto::messages::GetReferencesRequest { resource: Some(resource) });
+    let proto_resource: proto::primitives::Resource = resource.into();
+    let request = tonic::Request::new(proto::messages::GetReferencesRequest {
+        resource: Some(proto_resource),
+    });
 
     if let Ok(handle) = Handle::try_current() {
         match task::block_in_place(move || {

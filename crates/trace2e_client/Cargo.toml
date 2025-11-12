@@ -6,10 +6,10 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-prost.workspace = true
+once_cell.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tonic.workspace = true
-once_cell.workspace = true
+trace2e_core = { path = "../trace2e_core"}
 
 [build-dependencies]
 tonic-build.workspace = true
