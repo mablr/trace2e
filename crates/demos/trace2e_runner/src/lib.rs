@@ -220,7 +220,7 @@ impl Resources {
         Ok(self
             .files
             .get_mut(&(resource.to_owned(), read, write, append, truncate, create, create_new))
-            .unwrap())
+            .ok_or(anyhow::anyhow!("Failed to handle file descriptor."))?)
     }
 
     /// Get or open a stream handle, creating it if necessary
@@ -255,7 +255,7 @@ impl Resources {
         Ok(self
             .streams
             .get_mut(&(resource.to_owned(), read, write, append, truncate, create, create_new))
-            .unwrap())
+            .ok_or(anyhow::anyhow!("Failed to handle stream descriptor."))?)
     }
 
     /// Execute a READ command, appending data to the shared buffer
