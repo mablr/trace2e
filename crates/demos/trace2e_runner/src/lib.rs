@@ -3,7 +3,7 @@
 //! This module provides a simple DSL for executing traced I/O operations
 //! using the stde2e library. Instructions follow the format:
 //!
-//! `ACTION resource@node_id`
+//! `ACTION resource`
 //!
 //! where:
 //! - ACTION := "READ" | "WRITE"
@@ -82,7 +82,7 @@ impl Command {
     }
 }
 
-/// Represents a complete instruction: ACTION RESOURCE@NODE_ID
+/// Represents a complete instruction: ACTION RESOURCE
 #[derive(Debug, Clone)]
 pub struct Instruction {
     pub command: Command,
@@ -92,7 +92,7 @@ pub struct Instruction {
 impl TryFrom<&str> for Instruction {
     type Error = anyhow::Error;
 
-    /// Parse an instruction string in the format "ACTION resource@node_id"
+    /// Parse an instruction string in the format "ACTION resource"
     ///
     /// # Examples
     /// - `READ -- stream://127.0.0.1:8080::192.168.1.1:9000`
