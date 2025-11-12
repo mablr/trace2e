@@ -118,46 +118,57 @@ pub struct Resources {
 }
 
 impl Resources {
+    /// Get or open a file handle, creating it if necessary
+    fn get_or_open_file(
+        &mut self,
+        resource: &Resource,
+        path: &str,
+    ) -> anyhow::Result<&mut std::fs::File> {
+        if !self.files.contains_key(resource) {
+            let f = stde2e::fs::File::open(path)
+                .with_context(|| format!("Failed to open file: {}", path))?;
+            println!("✓ Opened file: {}", path);
+            self.files.insert(resource.to_owned(), f);
+        }
+        Ok(self.files.get_mut(resource).unwrap())
+    }
+
+    /// Get or open a stream handle, creating it if necessary
+    fn get_or_open_stream(
+        &mut self,
+        resource: &Resource,
+        peer_socket: &str,
+    ) -> anyhow::Result<&mut std::net::TcpStream> {
+        if !self.streams.contains_key(resource) {
+            let s = stde2e::net::TcpStream::connect(peer_socket)
+                .with_context(|| format!("Failed to connect to: {}", peer_socket))?;
+            println!("✓ Connected to stream: {}", peer_socket);
+            self.streams.insert(resource.to_owned(), s);
+        }
+        Ok(self.streams.get_mut(resource).unwrap())
+    }
+
     /// Execute a READ command
     pub fn read(&mut self, resource: &Resource) -> anyhow::Result<()> {
         use stde2e::io::Read;
+        use trace2e_core::traceability::infrastructure::naming::Fd;
 
         match resource {
-            Resource::Fd(trace2e_core::traceability::infrastructure::naming::Fd::File(file)) => {
-                // Get or open file handle
-                if !self.files.contains_key(resource) {
-                    let f = stde2e::fs::File::open(&file.path)
-                        .with_context(|| format!("Failed to open file: {}", file.path))?;
-                    println!("✓ Opened file: {}", file.path);
-                    self.files.insert(resource.to_owned(), f);
-                }
-
-                let f = self.files.get_mut(resource).unwrap();
+            Resource::Fd(Fd::File(file)) => {
+                let f = self.get_or_open_file(resource, &file.path)?;
                 let mut buffer = [0u8; 4096];
                 let n = f
                     .read(&mut buffer)
                     .with_context(|| format!("Failed to read from file: {}", file.path))?;
-
                 println!("✓ Read {} bytes from file: {}", n, file.path);
                 Ok(())
             }
-            Resource::Fd(trace2e_core::traceability::infrastructure::naming::Fd::Stream(
-                stream,
-            )) => {
-                // Get or open stream handle
-                if !self.streams.contains_key(resource) {
-                    let s = stde2e::net::TcpStream::connect(&stream.peer_socket)
-                        .with_context(|| format!("Failed to connect to: {}", stream.peer_socket))?;
-                    println!("✓ Connected to stream: {}", stream.peer_socket);
-                    self.streams.insert(resource.to_owned(), s);
-                }
-
-                let s = self.streams.get_mut(resource).unwrap();
+            Resource::Fd(Fd::Stream(stream)) => {
+                let s = self.get_or_open_stream(resource, &stream.peer_socket)?;
                 let mut buffer = [0u8; 4096];
                 let n = s.read(&mut buffer).with_context(|| {
                     format!("Failed to read from stream: {}", stream.peer_socket)
                 })?;
-
                 println!("✓ Read {} bytes from stream: {}", n, stream.peer_socket);
                 Ok(())
             }
@@ -168,43 +179,24 @@ impl Resources {
     /// Execute a WRITE command
     pub fn write(&mut self, resource: &Resource) -> anyhow::Result<()> {
         use stde2e::io::Write;
+        use trace2e_core::traceability::infrastructure::naming::Fd;
 
         let data = b"trace2e test data\n";
 
         match resource {
-            Resource::Fd(trace2e_core::traceability::infrastructure::naming::Fd::File(file)) => {
-                // Get or open file handle
-                if !self.files.contains_key(resource) {
-                    let f = stde2e::fs::File::open(&file.path)
-                        .with_context(|| format!("Failed to open file: {}", file.path))?;
-                    println!("✓ Opened file: {}", file.path);
-                    self.files.insert(resource.to_owned(), f);
-                }
-
-                let f = self.files.get_mut(resource).unwrap();
+            Resource::Fd(Fd::File(file)) => {
+                let f = self.get_or_open_file(resource, &file.path)?;
                 let n = f
                     .write(data)
                     .with_context(|| format!("Failed to write to file: {}", file.path))?;
-
                 println!("✓ Wrote {} bytes to file: {}", n, file.path);
                 Ok(())
             }
-            Resource::Fd(trace2e_core::traceability::infrastructure::naming::Fd::Stream(
-                stream,
-            )) => {
-                // Get or open stream handle
-                if !self.streams.contains_key(resource) {
-                    let s = stde2e::net::TcpStream::connect(&stream.peer_socket)
-                        .with_context(|| format!("Failed to connect to: {}", stream.peer_socket))?;
-                    println!("✓ Connected to stream: {}", stream.peer_socket);
-                    self.streams.insert(resource.to_owned(), s);
-                }
-
-                let s = self.streams.get_mut(resource).unwrap();
+            Resource::Fd(Fd::Stream(stream)) => {
+                let s = self.get_or_open_stream(resource, &stream.peer_socket)?;
                 let n = s.write(data).with_context(|| {
                     format!("Failed to write to stream: {}", stream.peer_socket)
                 })?;
-
                 println!("✓ Wrote {} bytes to stream: {}", n, stream.peer_socket);
                 Ok(())
             }
