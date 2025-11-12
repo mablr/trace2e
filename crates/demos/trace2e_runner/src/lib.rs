@@ -113,77 +113,56 @@ impl TryFrom<String> for Instruction {
 /// Tracks opened file handles and network streams
 #[derive(Debug, Default)]
 pub struct Resources {
-    files: HashMap<String, std::fs::File>,
-    streams: HashMap<String, std::net::TcpStream>,
+    files: HashMap<Resource, std::fs::File>,
+    streams: HashMap<Resource, std::net::TcpStream>,
 }
 
 impl Resources {
-    /// Execute an OPEN command
-    pub fn open(&mut self, resource: &Resource) -> anyhow::Result<()> {
-        match resource {
-            Resource::Fd(trace2e_core::traceability::infrastructure::naming::Fd::File(file)) => {
-                let f = stde2e::fs::File::open(&file.path)
-                    .with_context(|| format!("Failed to open file: {}", file.path))?;
-                self.files.insert(file.path.clone(), f);
-                println!("✓ Opened file: {}", file.path);
-            }
-            Resource::Fd(trace2e_core::traceability::infrastructure::naming::Fd::Stream(
-                stream,
-            )) => {
-                let s = stde2e::net::TcpStream::connect(&stream.peer_socket)
-                    .with_context(|| format!("Failed to connect to: {}", stream.peer_socket))?;
-                self.streams.insert(stream.peer_socket.clone(), s);
-                println!("✓ Connected to stream: {}", stream.peer_socket);
-            }
-            _ => {
-                return anyhow::Result::Err(anyhow::anyhow!(
-                    "Unsupported resource type for OPEN operation"
-                ));
-            }
-        }
-        Ok(())
-    }
-
     /// Execute a READ command
     pub fn read(&mut self, resource: &Resource) -> anyhow::Result<()> {
         use stde2e::io::Read;
 
         match resource {
             Resource::Fd(trace2e_core::traceability::infrastructure::naming::Fd::File(file)) => {
-                let f = self
-                    .files
-                    .get_mut(&file.path)
-                    .ok_or_else(|| anyhow::anyhow!("File not opened: {}", file.path))?;
+                // Get or open file handle
+                if !self.files.contains_key(resource) {
+                    let f = stde2e::fs::File::open(&file.path)
+                        .with_context(|| format!("Failed to open file: {}", file.path))?;
+                    println!("✓ Opened file: {}", file.path);
+                    self.files.insert(resource.to_owned(), f);
+                }
 
+                let f = self.files.get_mut(resource).unwrap();
                 let mut buffer = [0u8; 4096];
                 let n = f
                     .read(&mut buffer)
                     .with_context(|| format!("Failed to read from file: {}", file.path))?;
 
                 println!("✓ Read {} bytes from file: {}", n, file.path);
+                Ok(())
             }
             Resource::Fd(trace2e_core::traceability::infrastructure::naming::Fd::Stream(
                 stream,
             )) => {
-                let s = self
-                    .streams
-                    .get_mut(&stream.peer_socket)
-                    .ok_or_else(|| anyhow::anyhow!("Stream not opened: {}", stream.peer_socket))?;
+                // Get or open stream handle
+                if !self.streams.contains_key(resource) {
+                    let s = stde2e::net::TcpStream::connect(&stream.peer_socket)
+                        .with_context(|| format!("Failed to connect to: {}", stream.peer_socket))?;
+                    println!("✓ Connected to stream: {}", stream.peer_socket);
+                    self.streams.insert(resource.to_owned(), s);
+                }
 
+                let s = self.streams.get_mut(resource).unwrap();
                 let mut buffer = [0u8; 4096];
                 let n = s.read(&mut buffer).with_context(|| {
                     format!("Failed to read from stream: {}", stream.peer_socket)
                 })?;
 
                 println!("✓ Read {} bytes from stream: {}", n, stream.peer_socket);
+                Ok(())
             }
-            _ => {
-                return anyhow::Result::Err(anyhow::anyhow!(
-                    "Unsupported resource type for READ operation"
-                ));
-            }
+            _ => Err(anyhow::anyhow!("Unsupported resource type for READ operation")),
         }
-        Ok(())
     }
 
     /// Execute a WRITE command
@@ -194,38 +173,43 @@ impl Resources {
 
         match resource {
             Resource::Fd(trace2e_core::traceability::infrastructure::naming::Fd::File(file)) => {
-                let f = self
-                    .files
-                    .get_mut(&file.path)
-                    .ok_or_else(|| anyhow::anyhow!("File not opened: {}", file.path))?;
+                // Get or open file handle
+                if !self.files.contains_key(resource) {
+                    let f = stde2e::fs::File::open(&file.path)
+                        .with_context(|| format!("Failed to open file: {}", file.path))?;
+                    println!("✓ Opened file: {}", file.path);
+                    self.files.insert(resource.to_owned(), f);
+                }
 
+                let f = self.files.get_mut(resource).unwrap();
                 let n = f
                     .write(data)
                     .with_context(|| format!("Failed to write to file: {}", file.path))?;
 
                 println!("✓ Wrote {} bytes to file: {}", n, file.path);
+                Ok(())
             }
             Resource::Fd(trace2e_core::traceability::infrastructure::naming::Fd::Stream(
                 stream,
             )) => {
-                let s = self
-                    .streams
-                    .get_mut(&stream.peer_socket)
-                    .ok_or_else(|| anyhow::anyhow!("Stream not opened: {}", stream.peer_socket))?;
+                // Get or open stream handle
+                if !self.streams.contains_key(resource) {
+                    let s = stde2e::net::TcpStream::connect(&stream.peer_socket)
+                        .with_context(|| format!("Failed to connect to: {}", stream.peer_socket))?;
+                    println!("✓ Connected to stream: {}", stream.peer_socket);
+                    self.streams.insert(resource.to_owned(), s);
+                }
 
+                let s = self.streams.get_mut(resource).unwrap();
                 let n = s.write(data).with_context(|| {
                     format!("Failed to write to stream: {}", stream.peer_socket)
                 })?;
 
                 println!("✓ Wrote {} bytes to stream: {}", n, stream.peer_socket);
+                Ok(())
             }
-            _ => {
-                return anyhow::Result::Err(anyhow::anyhow!(
-                    "Unsupported resource type for WRITE operation"
-                ));
-            }
+            _ => Err(anyhow::anyhow!("Unsupported resource type for WRITE operation")),
         }
-        Ok(())
     }
 
     fn help(&self) -> anyhow::Result<()> {
