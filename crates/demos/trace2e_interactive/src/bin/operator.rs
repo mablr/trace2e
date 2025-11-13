@@ -164,10 +164,7 @@ async fn main() -> Result<()> {
 
             match o2m::get_policies(resources) {
                 Ok(policies) => {
-                    println!("Policies:");
-                    for policy in policies {
-                        println!("  {:?}", policy);
-                    }
+                    println!("Policies: {:?}", policies);
                     Ok(())
                 }
                 Err(e) => Err(anyhow!("Failed to get policies: {}", e)),
@@ -244,15 +241,9 @@ async fn main() -> Result<()> {
         }
 
         Commands::BroadcastDeletion { resource } => {
-            let res = parse_resource(&resource)?;
+            let _res = parse_resource(&resource)?;
 
-            match o2m::set_deleted(res) {
-                Ok(_) => {
-                    println!("✓ Deletion broadcast for {}", resource);
-                    Ok(())
-                }
-                Err(e) => Err(anyhow!("Failed to broadcast deletion: {}", e)),
-            }
+            Err(anyhow!("Broadcasting deletion is not yet implemented."))
         }
 
         Commands::EnforceConsent { resource } => {
