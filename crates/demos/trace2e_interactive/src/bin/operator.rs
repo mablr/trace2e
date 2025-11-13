@@ -312,12 +312,11 @@ async fn main() -> Result<()> {
                     println!("Provenance references for {}:", resource);
                     let references: Vec<naming::LocalizedResource> = references
                         .iter()
-                        .map(|References { node, resources }| {
+                        .flat_map(|References { node, resources }| {
                             resources.iter().map(|r| {
                                 naming::LocalizedResource::new(node.clone(), r.clone().into())
                             })
                         })
-                        .flatten()
                         .collect();
                     println!(
                         "{}: {}",
