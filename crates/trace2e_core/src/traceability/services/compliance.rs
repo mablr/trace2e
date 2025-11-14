@@ -391,6 +391,9 @@ impl ComplianceService<ConsentService> {
         destination: LocalizedResource,
         destination_policy: Option<Policy>,
     ) -> Result<ComplianceResponse, TraceabilityError> {
+        let mut result: Result<ComplianceResponse, TraceabilityError> =
+            Ok(ComplianceResponse::Grant);
+
         // Get the destination policy if it is local or use the provided policy
         let destination_policy = if let Some(destination) = self.as_local_resource(&destination) {
             self.get_policy(&destination)
@@ -408,9 +411,10 @@ impl ComplianceService<ConsentService> {
             if source_policy.get_consent() {
                 let mut consent_service = self.consent.clone();
                 let destination = destination.clone().into();
+                let source_clone = source.clone();
                 consent_tasks.spawn(async move {
                     consent_service
-                        .call(ConsentRequest::RequestConsent { source, destination })
+                        .call(ConsentRequest::RequestConsent { source: source_clone, destination })
                         .await
                 });
             }
@@ -422,29 +426,40 @@ impl ComplianceService<ConsentService> {
                     destination_deleted = destination_policy.is_deleted(),
                     "[compliance] EvalPolicies: deleted policies detected"
                 );
-                #[cfg(feature = "enforcement_mocking")]
                 if source_policy.is_pending_deletion() {
                     info!("[compliance] Enforcing deletion policy for source");
                 }
-                #[cfg(feature = "enforcement_mocking")]
                 if destination_policy.is_pending_deletion() {
                     info!("[compliance] Enforcing deletion policy for destination");
                 }
 
-                return Err(TraceabilityError::DirectPolicyViolation);
+                #[cfg(feature = "deletion_enforcement")]
+                if let Resource::Fd(crate::traceability::infrastructure::naming::Fd::File(file)) =
+                    &source
+                {
+                    let _ = std::fs::remove_file(&file.path);
+                }
+                #[cfg(feature = "deletion_enforcement")]
+                if let Resource::Fd(crate::traceability::infrastructure::naming::Fd::File(file)) =
+                    &destination.resource()
+                {
+                    let _ = std::fs::remove_file(&file.path);
+                }
+
+                result = Err(TraceabilityError::DirectPolicyViolation);
             }
 
             // Integrity check: Source integrity must be greater than or equal to destination
             // integrity
             if source_policy.integrity < destination_policy.integrity {
-                return Err(TraceabilityError::DirectPolicyViolation);
+                result = Err(TraceabilityError::DirectPolicyViolation);
             }
 
             // Confidentiality check: Secret data cannot flow to public destinations
             if source_policy.confidentiality == ConfidentialityPolicy::Secret
                 && destination_policy.confidentiality == ConfidentialityPolicy::Public
             {
-                return Err(TraceabilityError::DirectPolicyViolation);
+                result = Err(TraceabilityError::DirectPolicyViolation);
             }
         }
 
@@ -462,8 +477,7 @@ impl ComplianceService<ConsentService> {
                 _ => return Err(TraceabilityError::InternalTrace2eError),
             }
         }
-
-        Ok(ComplianceResponse::Grant)
+        result
     }
 }
 

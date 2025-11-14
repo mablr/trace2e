@@ -26,7 +26,7 @@ tonic-build.workspace = true
 criterion = { workspace = true, features = ["async_tokio"] }
 
 [features]
-enforcement_mocking = []
+deletion_enforcement = []
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
