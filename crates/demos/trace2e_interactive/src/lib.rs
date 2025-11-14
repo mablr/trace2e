@@ -13,7 +13,6 @@
 //! - `READ stream://192.168.1.1:8080::192.168.1.2:9000`
 //! - `WRITE file:///tmp/output.txt`
 
-use anyhow::Context;
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::convert::TryFrom;
@@ -210,16 +209,29 @@ impl Resources {
     fn get_or_open_stream(
         &mut self,
         resource: &Resource,
+        local_socket: &str,
         peer_socket: &str,
         read: bool,
         write: bool,
         append: bool,
     ) -> anyhow::Result<&mut std::net::TcpStream> {
         if let Entry::Vacant(e) = self.streams.entry((resource.to_owned(), read, write, append)) {
-            let s = stde2e::net::TcpStream::connect(peer_socket)
-                .with_context(|| format!("Failed to connect to: {}", peer_socket))?;
-            println!("✓ Connected to stream: {}", peer_socket);
-            e.insert(s);
+            match stde2e::net::TcpStream::connect(peer_socket) {
+                Ok(s) => {
+                    println!("✓ Connected to stream: {}", peer_socket);
+                    e.insert(s);
+                }
+                Err(e) => {
+                    if e.kind() != std::io::ErrorKind::ConnectionRefused {
+                        return Err(anyhow::anyhow!(
+                            "Failed to establish stream '{}::{}': {}",
+                            local_socket,
+                            peer_socket,
+                            e
+                        ));
+                    }
+                }
+            }
         }
         self.streams
             .get_mut(&(resource.to_owned(), read, write, append))
@@ -244,8 +256,14 @@ impl Resources {
                 Ok(())
             }
             Resource::Fd(Fd::Stream(stream)) => {
-                let s =
-                    self.get_or_open_stream(resource, &stream.peer_socket, true, false, false)?;
+                let s = self.get_or_open_stream(
+                    resource,
+                    &stream.local_socket,
+                    &stream.peer_socket,
+                    true,
+                    false,
+                    false,
+                )?;
                 let n = s.read(&mut temp_buf).map_err(|e| {
                     anyhow::anyhow!("Failed to read from stream '{}': {}", stream.peer_socket, e)
                 })?;
@@ -272,8 +290,14 @@ impl Resources {
                 Ok(())
             }
             Resource::Fd(Fd::Stream(stream)) => {
-                let s =
-                    self.get_or_open_stream(resource, &stream.peer_socket, false, true, true)?;
+                let s = self.get_or_open_stream(
+                    resource,
+                    &stream.local_socket,
+                    &stream.peer_socket,
+                    false,
+                    true,
+                    true,
+                )?;
                 let n = s.write(buffer).map_err(|e| {
                     anyhow::anyhow!("Failed to write to stream '{}': {}", stream.peer_socket, e)
                 })?;
