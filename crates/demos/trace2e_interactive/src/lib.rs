@@ -16,7 +16,8 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::convert::TryFrom;
-use trace2e_core::traceability::infrastructure::naming::Resource;
+use stde2e::io::{Read, Write};
+use trace2e_core::traceability::infrastructure::naming::{Fd, Resource};
 
 /// Handles shared I/O buffer for read/write operations across resources
 #[derive(Debug)]
@@ -240,9 +241,6 @@ impl Resources {
 
     /// Execute a READ command, appending data to the shared buffer
     pub fn read(&mut self, resource: &Resource, buffer: &mut Vec<u8>) -> anyhow::Result<()> {
-        use stde2e::io::Read;
-        use trace2e_core::traceability::infrastructure::naming::Fd;
-
         let mut temp_buf = [0u8; 4096];
 
         match resource {
@@ -277,9 +275,6 @@ impl Resources {
 
     /// Execute a WRITE command using the shared buffer
     pub fn write(&mut self, resource: &Resource, buffer: &[u8]) -> anyhow::Result<()> {
-        use stde2e::io::Write;
-        use trace2e_core::traceability::infrastructure::naming::Fd;
-
         match resource {
             Resource::Fd(Fd::File(file)) => {
                 let f = self.get_or_open_file(resource, &file.path, false, true, true)?;
