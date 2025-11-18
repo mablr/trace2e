@@ -160,7 +160,6 @@ impl Destination {
 struct ConsentKey(Resource, Destination);
 
 #[derive(Default, Debug, Clone)]
-
 pub struct ConsentService {
     timeout: u64,
     /// Unified store of consent states keyed by (source, node_id, destination)
@@ -212,42 +211,99 @@ impl ConsentService {
 
         // No existing decision, proceed with request flow
         let key = ConsentKey(source, destination);
-        if let Some(notif_feed) = self.notifications_channels.get(&key.0) {
-            // Send consent request notification
-            // Then subscribe to decision channel if it exists or create a new one
-            let mut decision_rx = if let Some(decision_feed) = self.decision_channels.get(&key) {
-                notif_feed.send(key.1).map_err(|_| TraceabilityError::InternalTrace2eError)?;
-                decision_feed.subscribe()
-            } else {
-                let (tx, rx) = broadcast::channel(100);
-                self.decision_channels.insert(key.clone(), tx);
-                notif_feed.send(key.1).map_err(|_| TraceabilityError::InternalTrace2eError)?;
-                rx
-            };
-            // Handle timeout
-            if self.timeout > 0 {
-                tokio::time::timeout(Duration::from_millis(self.timeout), decision_rx.recv())
-                    .await
-                    .map_err(|_| TraceabilityError::ConsentRequestTimeout)?
-                    .map_err(|_| TraceabilityError::InternalTrace2eError)
-            } else {
-                decision_rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
+
+        // CRITICAL: Clone the broadcast sender OUTSIDE the DashMap guard
+        // to avoid holding a lock during async recv() operations
+        let notif_sender = match self.notifications_channels.get(&key.0) {
+            Some(sender_ref) => sender_ref.clone(),
+            None => {
+                // No notifications feed, so nobody will ever know about this consent request
+                // and it will never be granted
+                return Ok(false);
             }
+        };
+        // The sender is now cloned and the guard is dropped above
+
+        // Send consent request notification and get decision receiver
+        // CRITICAL: Clone the decision sender OUTSIDE the DashMap guard to avoid lock issues
+        let decision_sender = self.decision_channels.get(&key).map(|feed| feed.clone());
+        // Guard is now dropped
+
+        let mut decision_rx = if let Some(decision_sender) = decision_sender {
+            // Existing decision channel - subscribe to it
+            notif_sender
+                .send(key.1.clone())
+                .map_err(|_| TraceabilityError::InternalTrace2eError)?;
+            decision_sender.subscribe() // ✅ No DashMap lock held
         } else {
-            // No notifications feed, so nobody will ever know about this consent request
-            // and it will never be granted
-            Ok(false)
+            // First request for this source→destination - create new decision channel
+            let (tx, rx) = broadcast::channel::<bool>(100);
+            self.decision_channels.insert(key.clone(), tx);
+            notif_sender.send(key.1).map_err(|_| TraceabilityError::InternalTrace2eError)?;
+            rx
+        };
+
+        // Handle timeout - no DashMap locks held here
+        if self.timeout > 0 {
+            tokio::time::timeout(Duration::from_millis(self.timeout), decision_rx.recv())
+                .await
+                .map_err(|_| TraceabilityError::ConsentRequestTimeout)?
+                .map_err(|_| TraceabilityError::InternalTrace2eError)
+        } else {
+            decision_rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
         }
     }
 
     /// Internal method to set consent
     fn set_consent(&self, source: Resource, destination: Destination, consent: bool) {
-        let key = ConsentKey(source, destination);
-        if self.states.insert(key.clone(), consent).is_none()
-            && let Some((_, decision_feed)) = self.decision_channels.remove(&key)
-        {
-            // Ignore send errors as the receiver might have been dropped due to timeout
+        let key = ConsentKey(source.clone(), destination.clone());
+        // Insert the consent decision into the persistent state
+        self.states.insert(key.clone(), consent);
+
+        // Always attempt to notify any waiting decision receivers
+        // This includes:
+        // 1. Exact key match (specific resource request)
+        // 2. Hierarchical matches (parent destinations like nodes)
+
+        // First, try exact match
+        if let Some((_, decision_feed)) = self.decision_channels.remove(&key) {
             let _ = decision_feed.send(consent);
+        }
+
+        // Then, try to notify any child destinations that might be waiting
+        // For example, if we set consent at Node level, notify all Resource-level requests
+        // with that node as parent
+        let mut keys_to_remove = Vec::new();
+        for entry in self.decision_channels.iter() {
+            let other_key = entry.key();
+            // Check if this other_key matches our hierarchy
+            // It matches if: same source AND other_key's destination has our destination as parent
+            if other_key.0 == source {
+                // Check if setting destination satisfies the hierarchy requirement for other_key
+                let other_dest = &other_key.1;
+
+                // Build the hierarchy of other_dest and check if our destination is in it
+                let mut current: Option<&Destination> = Some(other_dest);
+                while let Some(dest) = current {
+                    if dest == &destination {
+                        // Found a match! This waiting request should be notified
+                        keys_to_remove.push(other_key.clone());
+                        break;
+                    }
+                    // Move to parent in hierarchy
+                    current = match dest {
+                        Destination::Resource { parent, .. } => parent.as_deref(),
+                        Destination::Node(_) => None,
+                    };
+                }
+            }
+        }
+
+        // Remove and notify all matching keys
+        for key_to_remove in keys_to_remove {
+            if let Some((_, decision_feed)) = self.decision_channels.remove(&key_to_remove) {
+                let _ = decision_feed.send(consent);
+            }
         }
     }
 
