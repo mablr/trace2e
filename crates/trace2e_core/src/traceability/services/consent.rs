@@ -198,7 +198,29 @@ impl ConsentService {
         })
     }
 
+    /// Helper method to get or create a decision channel for a given key.
+    ///
+    /// This method ensures that a broadcast channel exists for the given ConsentKey,
+    /// creating one if necessary. Returns a receiver for subscribing to the decision.
+    fn get_or_create_decision_channel(&self, key: &ConsentKey) -> broadcast::Receiver<bool> {
+        let sender = self.decision_channels.get(key).map(|feed| feed.clone());
+
+        if let Some(sender) = sender {
+            sender.subscribe()
+        } else {
+            let (tx, rx) = broadcast::channel::<bool>(100);
+            self.decision_channels.insert(key.clone(), tx);
+            rx
+        }
+    }
+
     /// Internal method to get consent
+    ///
+    /// Uses a dual subscription pattern when the destination has a parent node:
+    /// - Subscribes to both resource-level and node-level decision channels
+    /// - Uses tokio::select! to wait on whichever resolves first
+    ///
+    /// This eliminates the need for hierarchical scanning in set_consent
     async fn get_consent(
         &self,
         source: Resource,
@@ -210,11 +232,18 @@ impl ConsentService {
         }
 
         // No existing decision, proceed with request flow
-        let key = ConsentKey(source, destination);
+        let resource_key = ConsentKey(source.clone(), destination.clone());
 
-        // CRITICAL: Clone the broadcast sender OUTSIDE the DashMap guard
-        // to avoid holding a lock during async recv() operations
-        let notif_sender = match self.notifications_channels.get(&key.0) {
+        // Extract node-level key if destination has a parent node
+        let node_key = match &destination {
+            Destination::Resource { parent: Some(parent), .. } => {
+                Some(ConsentKey(source.clone(), (**parent).clone()))
+            }
+            _ => None,
+        };
+
+        // Get notification sender
+        let notif_sender = match self.notifications_channels.get(&resource_key.0) {
             Some(sender_ref) => sender_ref.clone(),
             None => {
                 // No notifications feed, so nobody will ever know about this consent request
@@ -222,88 +251,62 @@ impl ConsentService {
                 return Ok(false);
             }
         };
-        // The sender is now cloned and the guard is dropped above
 
-        // Send consent request notification and get decision receiver
-        // CRITICAL: Clone the decision sender OUTSIDE the DashMap guard to avoid lock issues
-        let decision_sender = self.decision_channels.get(&key).map(|feed| feed.clone());
-        // Guard is now dropped
+        // Subscribe to resource-level decision channel
+        let mut resource_rx = self.get_or_create_decision_channel(&resource_key);
 
-        let mut decision_rx = if let Some(decision_sender) = decision_sender {
-            // Existing decision channel - subscribe to it
-            notif_sender
-                .send(key.1.clone())
-                .map_err(|_| TraceabilityError::InternalTrace2eError)?;
-            decision_sender.subscribe() // ✅ No DashMap lock held
-        } else {
-            // First request for this source→destination - create new decision channel
-            let (tx, rx) = broadcast::channel::<bool>(100);
-            self.decision_channels.insert(key.clone(), tx);
-            notif_sender.send(key.1).map_err(|_| TraceabilityError::InternalTrace2eError)?;
-            rx
-        };
+        // Subscribe to node-level decision channel (if applicable)
+        let node_rx = node_key.as_ref().map(|key| self.get_or_create_decision_channel(key));
 
-        // Handle timeout - no DashMap locks held here
-        if self.timeout > 0 {
-            tokio::time::timeout(Duration::from_millis(self.timeout), decision_rx.recv())
+        // Send notification
+        notif_sender.send(destination).map_err(|_| TraceabilityError::InternalTrace2eError)?;
+
+        // Wait for either channel to resolve using tokio::select!
+        if let Some(mut node_rx) = node_rx {
+            if self.timeout > 0 {
+                tokio::time::timeout(Duration::from_millis(self.timeout), async {
+                    tokio::select! {
+                        result = resource_rx.recv() => result,
+                        result = node_rx.recv() => result,
+                    }
+                })
                 .await
                 .map_err(|_| TraceabilityError::ConsentRequestTimeout)?
                 .map_err(|_| TraceabilityError::InternalTrace2eError)
+            } else {
+                tokio::select! {
+                    result = resource_rx.recv() => result,
+                    result = node_rx.recv() => result,
+                }
+                .map_err(|_| TraceabilityError::InternalTrace2eError)
+            }
         } else {
-            decision_rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
+            // No parent node, just wait on resource channel
+            if self.timeout > 0 {
+                tokio::time::timeout(Duration::from_millis(self.timeout), resource_rx.recv())
+                    .await
+                    .map_err(|_| TraceabilityError::ConsentRequestTimeout)?
+                    .map_err(|_| TraceabilityError::InternalTrace2eError)
+            } else {
+                resource_rx.recv().await.map_err(|_| TraceabilityError::InternalTrace2eError)
+            }
         }
     }
 
     /// Internal method to set consent
+    ///
+    /// With the dual subscription pattern, subscribers to hierarchical destinations
+    /// are already listening to both their specific key and their parent's key,
+    /// so we only need to notify the exact key. No hierarchical scanning needed.
     fn set_consent(&self, source: Resource, destination: Destination, consent: bool) {
-        let key = ConsentKey(source.clone(), destination.clone());
+        let key = ConsentKey(source, destination);
         // Insert the consent decision into the persistent state
         self.states.insert(key.clone(), consent);
 
-        // Always attempt to notify any waiting decision receivers
-        // This includes:
-        // 1. Exact key match (specific resource request)
-        // 2. Hierarchical matches (parent destinations like nodes)
-
-        // First, try exact match
+        // Notify the exact key's channel
+        // Subscribers are already listening to both resource and node channels via dual subscription
         if let Some((_, decision_feed)) = self.decision_channels.remove(&key) {
             let _ = decision_feed.send(consent);
-        }
-
-        // Then, try to notify any child destinations that might be waiting
-        // For example, if we set consent at Node level, notify all Resource-level requests
-        // with that node as parent
-        let mut keys_to_remove = Vec::new();
-        for entry in self.decision_channels.iter() {
-            let other_key = entry.key();
-            // Check if this other_key matches our hierarchy
-            // It matches if: same source AND other_key's destination has our destination as parent
-            if other_key.0 == source {
-                // Check if setting destination satisfies the hierarchy requirement for other_key
-                let other_dest = &other_key.1;
-
-                // Build the hierarchy of other_dest and check if our destination is in it
-                let mut current: Option<&Destination> = Some(other_dest);
-                while let Some(dest) = current {
-                    if dest == &destination {
-                        // Found a match! This waiting request should be notified
-                        keys_to_remove.push(other_key.clone());
-                        break;
-                    }
-                    // Move to parent in hierarchy
-                    current = match dest {
-                        Destination::Resource { parent, .. } => parent.as_deref(),
-                        Destination::Node(_) => None,
-                    };
-                }
-            }
-        }
-
-        // Remove and notify all matching keys
-        for key_to_remove in keys_to_remove {
-            if let Some((_, decision_feed)) = self.decision_channels.remove(&key_to_remove) {
-                let _ = decision_feed.send(consent);
-            }
         }
     }
 
