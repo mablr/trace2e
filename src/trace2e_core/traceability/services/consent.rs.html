@@ -198,381 +198,384 @@
 <a href=#198 id=198 data-nosnippet>198</a>        })
 <a href=#199 id=199 data-nosnippet>199</a>    }
 <a href=#200 id=200 data-nosnippet>200</a>
-<a href=#201 id=201 data-nosnippet>201</a>    <span class="doccomment">/// Internal method to get consent
-<a href=#202 id=202 data-nosnippet>202</a>    </span><span class="kw">async fn </span>get_consent(
-<a href=#203 id=203 data-nosnippet>203</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#204 id=204 data-nosnippet>204</a>        source: Resource,
-<a href=#205 id=205 data-nosnippet>205</a>        destination: Destination,
-<a href=#206 id=206 data-nosnippet>206</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, TraceabilityError&gt; {
-<a href=#207 id=207 data-nosnippet>207</a>        <span class="comment">// Check hierarchy for existing decision (most specific first)
-<a href=#208 id=208 data-nosnippet>208</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(consent) = <span class="self">self</span>.check_consent_hierarchy(<span class="kw-2">&amp;</span>source, <span class="kw-2">&amp;</span>destination) {
-<a href=#209 id=209 data-nosnippet>209</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(consent);
-<a href=#210 id=210 data-nosnippet>210</a>        }
-<a href=#211 id=211 data-nosnippet>211</a>
-<a href=#212 id=212 data-nosnippet>212</a>        <span class="comment">// No existing decision, proceed with request flow
-<a href=#213 id=213 data-nosnippet>213</a>        </span><span class="kw">let </span>key = ConsentKey(source, destination);
-<a href=#214 id=214 data-nosnippet>214</a>
-<a href=#215 id=215 data-nosnippet>215</a>        <span class="comment">// CRITICAL: Clone the broadcast sender OUTSIDE the DashMap guard
-<a href=#216 id=216 data-nosnippet>216</a>        // to avoid holding a lock during async recv() operations
-<a href=#217 id=217 data-nosnippet>217</a>        </span><span class="kw">let </span>notif_sender = <span class="kw">match </span><span class="self">self</span>.notifications_channels.get(<span class="kw-2">&amp;</span>key.<span class="number">0</span>) {
-<a href=#218 id=218 data-nosnippet>218</a>            <span class="prelude-val">Some</span>(sender_ref) =&gt; sender_ref.clone(),
-<a href=#219 id=219 data-nosnippet>219</a>            <span class="prelude-val">None </span>=&gt; {
-<a href=#220 id=220 data-nosnippet>220</a>                <span class="comment">// No notifications feed, so nobody will ever know about this consent request
-<a href=#221 id=221 data-nosnippet>221</a>                // and it will never be granted
-<a href=#222 id=222 data-nosnippet>222</a>                </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
-<a href=#223 id=223 data-nosnippet>223</a>            }
-<a href=#224 id=224 data-nosnippet>224</a>        };
-<a href=#225 id=225 data-nosnippet>225</a>        <span class="comment">// The sender is now cloned and the guard is dropped above
-<a href=#226 id=226 data-nosnippet>226</a>
-<a href=#227 id=227 data-nosnippet>227</a>        // Send consent request notification and get decision receiver
-<a href=#228 id=228 data-nosnippet>228</a>        // CRITICAL: Clone the decision sender OUTSIDE the DashMap guard to avoid lock issues
-<a href=#229 id=229 data-nosnippet>229</a>        </span><span class="kw">let </span>decision_sender = <span class="self">self</span>.decision_channels.get(<span class="kw-2">&amp;</span>key).map(|feed| feed.clone());
-<a href=#230 id=230 data-nosnippet>230</a>        <span class="comment">// Guard is now dropped
-<a href=#231 id=231 data-nosnippet>231</a>
-<a href=#232 id=232 data-nosnippet>232</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>decision_rx = <span class="kw">if let </span><span class="prelude-val">Some</span>(decision_sender) = decision_sender {
-<a href=#233 id=233 data-nosnippet>233</a>            <span class="comment">// Existing decision channel - subscribe to it
-<a href=#234 id=234 data-nosnippet>234</a>            </span>notif_sender
-<a href=#235 id=235 data-nosnippet>235</a>                .send(key.<span class="number">1</span>.clone())
-<a href=#236 id=236 data-nosnippet>236</a>                .map_err(|<span class="kw">_</span>| TraceabilityError::InternalTrace2eError)<span class="question-mark">?</span>;
-<a href=#237 id=237 data-nosnippet>237</a>            decision_sender.subscribe() <span class="comment">// ✅ No DashMap lock held
-<a href=#238 id=238 data-nosnippet>238</a>        </span>} <span class="kw">else </span>{
-<a href=#239 id=239 data-nosnippet>239</a>            <span class="comment">// First request for this source→destination - create new decision channel
-<a href=#240 id=240 data-nosnippet>240</a>            </span><span class="kw">let </span>(tx, rx) = broadcast::channel::&lt;bool&gt;(<span class="number">100</span>);
-<a href=#241 id=241 data-nosnippet>241</a>            <span class="self">self</span>.decision_channels.insert(key.clone(), tx);
-<a href=#242 id=242 data-nosnippet>242</a>            notif_sender.send(key.<span class="number">1</span>).map_err(|<span class="kw">_</span>| TraceabilityError::InternalTrace2eError)<span class="question-mark">?</span>;
-<a href=#243 id=243 data-nosnippet>243</a>            rx
-<a href=#244 id=244 data-nosnippet>244</a>        };
-<a href=#245 id=245 data-nosnippet>245</a>
-<a href=#246 id=246 data-nosnippet>246</a>        <span class="comment">// Handle timeout - no DashMap locks held here
-<a href=#247 id=247 data-nosnippet>247</a>        </span><span class="kw">if </span><span class="self">self</span>.timeout &gt; <span class="number">0 </span>{
-<a href=#248 id=248 data-nosnippet>248</a>            tokio::time::timeout(Duration::from_millis(<span class="self">self</span>.timeout), decision_rx.recv())
-<a href=#249 id=249 data-nosnippet>249</a>                .<span class="kw">await
-<a href=#250 id=250 data-nosnippet>250</a>                </span>.map_err(|<span class="kw">_</span>| TraceabilityError::ConsentRequestTimeout)<span class="question-mark">?
-<a href=#251 id=251 data-nosnippet>251</a>                </span>.map_err(|<span class="kw">_</span>| TraceabilityError::InternalTrace2eError)
-<a href=#252 id=252 data-nosnippet>252</a>        } <span class="kw">else </span>{
-<a href=#253 id=253 data-nosnippet>253</a>            decision_rx.recv().<span class="kw">await</span>.map_err(|<span class="kw">_</span>| TraceabilityError::InternalTrace2eError)
-<a href=#254 id=254 data-nosnippet>254</a>        }
-<a href=#255 id=255 data-nosnippet>255</a>    }
-<a href=#256 id=256 data-nosnippet>256</a>
-<a href=#257 id=257 data-nosnippet>257</a>    <span class="doccomment">/// Internal method to set consent
-<a href=#258 id=258 data-nosnippet>258</a>    </span><span class="kw">fn </span>set_consent(<span class="kw-2">&amp;</span><span class="self">self</span>, source: Resource, destination: Destination, consent: bool) {
-<a href=#259 id=259 data-nosnippet>259</a>        <span class="kw">let </span>key = ConsentKey(source.clone(), destination.clone());
-<a href=#260 id=260 data-nosnippet>260</a>        <span class="comment">// Insert the consent decision into the persistent state
-<a href=#261 id=261 data-nosnippet>261</a>        </span><span class="self">self</span>.states.insert(key.clone(), consent);
-<a href=#262 id=262 data-nosnippet>262</a>
-<a href=#263 id=263 data-nosnippet>263</a>        <span class="comment">// Always attempt to notify any waiting decision receivers
-<a href=#264 id=264 data-nosnippet>264</a>        // This includes:
-<a href=#265 id=265 data-nosnippet>265</a>        // 1. Exact key match (specific resource request)
-<a href=#266 id=266 data-nosnippet>266</a>        // 2. Hierarchical matches (parent destinations like nodes)
-<a href=#267 id=267 data-nosnippet>267</a>
-<a href=#268 id=268 data-nosnippet>268</a>        // First, try exact match
-<a href=#269 id=269 data-nosnippet>269</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>((<span class="kw">_</span>, decision_feed)) = <span class="self">self</span>.decision_channels.remove(<span class="kw-2">&amp;</span>key) {
-<a href=#270 id=270 data-nosnippet>270</a>            <span class="kw">let _ </span>= decision_feed.send(consent);
-<a href=#271 id=271 data-nosnippet>271</a>        }
-<a href=#272 id=272 data-nosnippet>272</a>
-<a href=#273 id=273 data-nosnippet>273</a>        <span class="comment">// Then, try to notify any child destinations that might be waiting
-<a href=#274 id=274 data-nosnippet>274</a>        // For example, if we set consent at Node level, notify all Resource-level requests
-<a href=#275 id=275 data-nosnippet>275</a>        // with that node as parent
-<a href=#276 id=276 data-nosnippet>276</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>keys_to_remove = Vec::new();
-<a href=#277 id=277 data-nosnippet>277</a>        <span class="kw">for </span>entry <span class="kw">in </span><span class="self">self</span>.decision_channels.iter() {
-<a href=#278 id=278 data-nosnippet>278</a>            <span class="kw">let </span>other_key = entry.key();
-<a href=#279 id=279 data-nosnippet>279</a>            <span class="comment">// Check if this other_key matches our hierarchy
-<a href=#280 id=280 data-nosnippet>280</a>            // It matches if: same source AND other_key's destination has our destination as parent
-<a href=#281 id=281 data-nosnippet>281</a>            </span><span class="kw">if </span>other_key.<span class="number">0 </span>== source {
-<a href=#282 id=282 data-nosnippet>282</a>                <span class="comment">// Check if setting destination satisfies the hierarchy requirement for other_key
-<a href=#283 id=283 data-nosnippet>283</a>                </span><span class="kw">let </span>other_dest = <span class="kw-2">&amp;</span>other_key.<span class="number">1</span>;
-<a href=#284 id=284 data-nosnippet>284</a>
-<a href=#285 id=285 data-nosnippet>285</a>                <span class="comment">// Build the hierarchy of other_dest and check if our destination is in it
-<a href=#286 id=286 data-nosnippet>286</a>                </span><span class="kw">let </span><span class="kw-2">mut </span>current: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Destination&gt; = <span class="prelude-val">Some</span>(other_dest);
-<a href=#287 id=287 data-nosnippet>287</a>                <span class="kw">while let </span><span class="prelude-val">Some</span>(dest) = current {
-<a href=#288 id=288 data-nosnippet>288</a>                    <span class="kw">if </span>dest == <span class="kw-2">&amp;</span>destination {
-<a href=#289 id=289 data-nosnippet>289</a>                        <span class="comment">// Found a match! This waiting request should be notified
-<a href=#290 id=290 data-nosnippet>290</a>                        </span>keys_to_remove.push(other_key.clone());
-<a href=#291 id=291 data-nosnippet>291</a>                        <span class="kw">break</span>;
-<a href=#292 id=292 data-nosnippet>292</a>                    }
-<a href=#293 id=293 data-nosnippet>293</a>                    <span class="comment">// Move to parent in hierarchy
-<a href=#294 id=294 data-nosnippet>294</a>                    </span>current = <span class="kw">match </span>dest {
-<a href=#295 id=295 data-nosnippet>295</a>                        Destination::Resource { parent, .. } =&gt; parent.as_deref(),
-<a href=#296 id=296 data-nosnippet>296</a>                        Destination::Node(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-<a href=#297 id=297 data-nosnippet>297</a>                    };
-<a href=#298 id=298 data-nosnippet>298</a>                }
-<a href=#299 id=299 data-nosnippet>299</a>            }
-<a href=#300 id=300 data-nosnippet>300</a>        }
-<a href=#301 id=301 data-nosnippet>301</a>
-<a href=#302 id=302 data-nosnippet>302</a>        <span class="comment">// Remove and notify all matching keys
-<a href=#303 id=303 data-nosnippet>303</a>        </span><span class="kw">for </span>key_to_remove <span class="kw">in </span>keys_to_remove {
-<a href=#304 id=304 data-nosnippet>304</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>((<span class="kw">_</span>, decision_feed)) = <span class="self">self</span>.decision_channels.remove(<span class="kw-2">&amp;</span>key_to_remove) {
-<a href=#305 id=305 data-nosnippet>305</a>                <span class="kw">let _ </span>= decision_feed.send(consent);
-<a href=#306 id=306 data-nosnippet>306</a>            }
-<a href=#307 id=307 data-nosnippet>307</a>        }
-<a href=#308 id=308 data-nosnippet>308</a>    }
-<a href=#309 id=309 data-nosnippet>309</a>
-<a href=#310 id=310 data-nosnippet>310</a>    <span class="doccomment">/// Internal method to subscribe to consent request notifications
-<a href=#311 id=311 data-nosnippet>311</a>    </span><span class="kw">fn </span>take_resource_ownership(<span class="kw-2">&amp;</span><span class="self">self</span>, resource: Resource) -&gt; broadcast::Receiver&lt;Destination&gt; {
-<a href=#312 id=312 data-nosnippet>312</a>        <span class="kw">match </span><span class="self">self</span>.notifications_channels.entry(resource.clone()) {
-<a href=#313 id=313 data-nosnippet>313</a>            Entry::Occupied(entry) =&gt; entry.get().subscribe(),
-<a href=#314 id=314 data-nosnippet>314</a>            Entry::Vacant(entry) =&gt; {
-<a href=#315 id=315 data-nosnippet>315</a>                <span class="kw">let </span>(tx, rx) = broadcast::channel(<span class="number">100</span>);
-<a href=#316 id=316 data-nosnippet>316</a>                entry.insert(tx);
-<a href=#317 id=317 data-nosnippet>317</a>                rx
-<a href=#318 id=318 data-nosnippet>318</a>            }
-<a href=#319 id=319 data-nosnippet>319</a>        }
-<a href=#320 id=320 data-nosnippet>320</a>    }
-<a href=#321 id=321 data-nosnippet>321</a>}
-<a href=#322 id=322 data-nosnippet>322</a>
-<a href=#323 id=323 data-nosnippet>323</a><span class="kw">impl </span>Service&lt;ConsentRequest&gt; <span class="kw">for </span>ConsentService {
-<a href=#324 id=324 data-nosnippet>324</a>    <span class="kw">type </span>Response = ConsentResponse;
-<a href=#325 id=325 data-nosnippet>325</a>    <span class="kw">type </span>Error = TraceabilityError;
-<a href=#326 id=326 data-nosnippet>326</a>    <span class="kw">type </span>Future = Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Response, <span class="self">Self</span>::Error&gt;&gt; + Send&gt;&gt;;
-<a href=#327 id=327 data-nosnippet>327</a>
-<a href=#328 id=328 data-nosnippet>328</a>    <span class="kw">fn </span>poll_ready(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;mut </span>std::task::Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; Poll&lt;<span class="prelude-ty">Result</span>&lt;(), <span class="self">Self</span>::Error&gt;&gt; {
-<a href=#329 id=329 data-nosnippet>329</a>        Poll::Ready(<span class="prelude-val">Ok</span>(()))
-<a href=#330 id=330 data-nosnippet>330</a>    }
-<a href=#331 id=331 data-nosnippet>331</a>
-<a href=#332 id=332 data-nosnippet>332</a>    <span class="kw">fn </span>call(<span class="kw-2">&amp;mut </span><span class="self">self</span>, request: ConsentRequest) -&gt; <span class="self">Self</span>::Future {
-<a href=#333 id=333 data-nosnippet>333</a>        <span class="kw">let </span>this = <span class="self">self</span>.clone();
-<a href=#334 id=334 data-nosnippet>334</a>        Box::pin(<span class="kw">async move </span>{
-<a href=#335 id=335 data-nosnippet>335</a>            <span class="kw">match </span>request {
-<a href=#336 id=336 data-nosnippet>336</a>                ConsentRequest::RequestConsent { source, destination } =&gt; {
-<a href=#337 id=337 data-nosnippet>337</a>                    <span class="macro">info!</span>(source = %source, destination = <span class="question-mark">?</span>destination, <span class="string">"[consent] RequestConsent"</span>);
-<a href=#338 id=338 data-nosnippet>338</a>                    this.get_consent(source, destination).<span class="kw">await</span>.map(ConsentResponse::Consent)
-<a href=#339 id=339 data-nosnippet>339</a>                }
-<a href=#340 id=340 data-nosnippet>340</a>                ConsentRequest::SetConsent { source, destination, consent } =&gt; {
-<a href=#341 id=341 data-nosnippet>341</a>                    <span class="macro">info!</span>(consent = %consent, source = %source, destination = <span class="question-mark">?</span>destination, <span class="string">"[consent] SetConsent"</span>);
-<a href=#342 id=342 data-nosnippet>342</a>                    this.set_consent(source, destination, consent);
-<a href=#343 id=343 data-nosnippet>343</a>                    <span class="prelude-val">Ok</span>(ConsentResponse::Ack)
-<a href=#344 id=344 data-nosnippet>344</a>                }
-<a href=#345 id=345 data-nosnippet>345</a>                ConsentRequest::TakeResourceOwnership(resource) =&gt; {
-<a href=#346 id=346 data-nosnippet>346</a>                    <span class="macro">info!</span>(resource = %resource, <span class="string">"[consent] TakeResourceOwnership"</span>);
-<a href=#347 id=347 data-nosnippet>347</a>                    <span class="prelude-val">Ok</span>(ConsentResponse::Notifications(this.take_resource_ownership(resource)))
-<a href=#348 id=348 data-nosnippet>348</a>                }
-<a href=#349 id=349 data-nosnippet>349</a>            }
-<a href=#350 id=350 data-nosnippet>350</a>        })
-<a href=#351 id=351 data-nosnippet>351</a>    }
-<a href=#352 id=352 data-nosnippet>352</a>}
-<a href=#353 id=353 data-nosnippet>353</a>
-<a href=#354 id=354 data-nosnippet>354</a><span class="attr">#[cfg(test)]
-<a href=#355 id=355 data-nosnippet>355</a></span><span class="kw">mod </span>tests {
-<a href=#356 id=356 data-nosnippet>356</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#357 id=357 data-nosnippet>357</a>
-<a href=#358 id=358 data-nosnippet>358</a>    <span class="attr">#[tokio::test]
-<a href=#359 id=359 data-nosnippet>359</a>    </span><span class="kw">async fn </span>test_consent_service_no_ownership() {
-<a href=#360 id=360 data-nosnippet>360</a>        <span class="kw">crate</span>::trace2e_tracing::init();
-<a href=#361 id=361 data-nosnippet>361</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">0</span>);
-<a href=#362 id=362 data-nosnippet>362</a>        <span class="kw">let </span>resource = Resource::new_process_mock(<span class="number">0</span>);
-<a href=#363 id=363 data-nosnippet>363</a>        <span class="kw">let </span>destination = Resource::new_file(<span class="string">"/tmp/test.txt"</span>.to_string());
-<a href=#364 id=364 data-nosnippet>364</a>        <span class="kw">let </span>request = ConsentRequest::RequestConsent {
-<a href=#365 id=365 data-nosnippet>365</a>            source: resource.clone(),
-<a href=#366 id=366 data-nosnippet>366</a>            destination: Destination::new(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(destination.clone())),
-<a href=#367 id=367 data-nosnippet>367</a>        };
-<a href=#368 id=368 data-nosnippet>368</a>        <span class="kw">let </span>response = consent_service.call(request).<span class="kw">await</span>.unwrap();
-<a href=#369 id=369 data-nosnippet>369</a>        <span class="comment">// No ownership, so no consent can be granted
-<a href=#370 id=370 data-nosnippet>370</a>        </span><span class="macro">assert!</span>(<span class="macro">matches!</span>(response, ConsentResponse::Consent(<span class="bool-val">false</span>)));
-<a href=#371 id=371 data-nosnippet>371</a>    }
-<a href=#372 id=372 data-nosnippet>372</a>
-<a href=#373 id=373 data-nosnippet>373</a>    <span class="attr">#[tokio::test]
-<a href=#374 id=374 data-nosnippet>374</a>    </span><span class="kw">async fn </span>test_consent_service_with_ownership_with_decision_on_notification() {
-<a href=#375 id=375 data-nosnippet>375</a>        <span class="kw">crate</span>::trace2e_tracing::init();
-<a href=#376 id=376 data-nosnippet>376</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">0</span>);
-<a href=#377 id=377 data-nosnippet>377</a>        <span class="kw">let </span>resource = Resource::new_process_mock(<span class="number">0</span>);
-<a href=#378 id=378 data-nosnippet>378</a>        <span class="kw">let </span>destination =
-<a href=#379 id=379 data-nosnippet>379</a>            Destination::new(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(Resource::new_file(<span class="string">"/tmp/test.txt"</span>.to_string())));
-<a href=#380 id=380 data-nosnippet>380</a>        <span class="kw">let </span>request = ConsentRequest::TakeResourceOwnership(resource.clone());
-<a href=#381 id=381 data-nosnippet>381</a>        <span class="kw">let </span>ownership_response = consent_service.call(request).<span class="kw">await</span>.unwrap();
-<a href=#382 id=382 data-nosnippet>382</a>        <span class="kw">let </span>ConsentResponse::Notifications(<span class="kw-2">mut </span>notifications_feed) = ownership_response <span class="kw">else </span>{
-<a href=#383 id=383 data-nosnippet>383</a>            <span class="macro">panic!</span>(<span class="string">"Expected Notifications"</span>);
-<a href=#384 id=384 data-nosnippet>384</a>        };
-<a href=#385 id=385 data-nosnippet>385</a>        <span class="kw">let </span>resource_clone = resource.clone();
-<a href=#386 id=386 data-nosnippet>386</a>        <span class="kw">let </span>destination_clone = destination.clone();
-<a href=#387 id=387 data-nosnippet>387</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service_clone = consent_service.clone();
-<a href=#388 id=388 data-nosnippet>388</a>        tokio::task::spawn(<span class="kw">async move </span>{
-<a href=#389 id=389 data-nosnippet>389</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#390 id=390 data-nosnippet>390</a>                consent_service_clone
-<a href=#391 id=391 data-nosnippet>391</a>                    .call(ConsentRequest::RequestConsent {
-<a href=#392 id=392 data-nosnippet>392</a>                        source: resource_clone,
-<a href=#393 id=393 data-nosnippet>393</a>                        destination: destination_clone,
-<a href=#394 id=394 data-nosnippet>394</a>                    })
-<a href=#395 id=395 data-nosnippet>395</a>                    .<span class="kw">await
-<a href=#396 id=396 data-nosnippet>396</a>                    </span>.unwrap(),
-<a href=#397 id=397 data-nosnippet>397</a>                ConsentResponse::Consent(<span class="bool-val">true</span>)
-<a href=#398 id=398 data-nosnippet>398</a>            ));
-<a href=#399 id=399 data-nosnippet>399</a>        });
-<a href=#400 id=400 data-nosnippet>400</a>
-<a href=#401 id=401 data-nosnippet>401</a>        <span class="macro">assert_eq!</span>(notifications_feed.recv().<span class="kw">await</span>.unwrap(), destination.clone());
-<a href=#402 id=402 data-nosnippet>402</a>        consent_service
-<a href=#403 id=403 data-nosnippet>403</a>            .call(ConsentRequest::SetConsent { source: resource, destination, consent: <span class="bool-val">true </span>})
-<a href=#404 id=404 data-nosnippet>404</a>            .<span class="kw">await
-<a href=#405 id=405 data-nosnippet>405</a>            </span>.unwrap();
-<a href=#406 id=406 data-nosnippet>406</a>    }
-<a href=#407 id=407 data-nosnippet>407</a>
-<a href=#408 id=408 data-nosnippet>408</a>    <span class="attr">#[tokio::test]
-<a href=#409 id=409 data-nosnippet>409</a>    </span><span class="kw">async fn </span>test_consent_service_with_ownership_with_decision_timeout() {
-<a href=#410 id=410 data-nosnippet>410</a>        <span class="kw">crate</span>::trace2e_tracing::init();
-<a href=#411 id=411 data-nosnippet>411</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">1</span>);
-<a href=#412 id=412 data-nosnippet>412</a>        <span class="kw">let </span>resource = Resource::new_process_mock(<span class="number">0</span>);
-<a href=#413 id=413 data-nosnippet>413</a>        <span class="kw">let </span>destination =
-<a href=#414 id=414 data-nosnippet>414</a>            Destination::new(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(Resource::new_file(<span class="string">"/tmp/test.txt"</span>.to_string())));
-<a href=#415 id=415 data-nosnippet>415</a>        <span class="kw">let </span>request = ConsentRequest::TakeResourceOwnership(resource.clone());
-<a href=#416 id=416 data-nosnippet>416</a>        <span class="kw">let </span>ownership_response = consent_service.call(request).<span class="kw">await</span>.unwrap();
-<a href=#417 id=417 data-nosnippet>417</a>        <span class="kw">let </span>ConsentResponse::Notifications(<span class="kw-2">mut </span>notifications_feed) = ownership_response <span class="kw">else </span>{
-<a href=#418 id=418 data-nosnippet>418</a>            <span class="macro">panic!</span>(<span class="string">"Expected Notifications"</span>);
-<a href=#419 id=419 data-nosnippet>419</a>        };
-<a href=#420 id=420 data-nosnippet>420</a>
-<a href=#421 id=421 data-nosnippet>421</a>        <span class="comment">// Spawn a task to check the consent request timeout before the decision is sent
-<a href=#422 id=422 data-nosnippet>422</a>        </span><span class="kw">let </span>resource_clone = resource.clone();
-<a href=#423 id=423 data-nosnippet>423</a>        <span class="kw">let </span>destination_clone = destination.clone();
-<a href=#424 id=424 data-nosnippet>424</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service_clone = consent_service.clone();
-<a href=#425 id=425 data-nosnippet>425</a>        tokio::task::spawn(<span class="kw">async move </span>{
-<a href=#426 id=426 data-nosnippet>426</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#427 id=427 data-nosnippet>427</a>                consent_service_clone
-<a href=#428 id=428 data-nosnippet>428</a>                    .call(ConsentRequest::RequestConsent {
-<a href=#429 id=429 data-nosnippet>429</a>                        source: resource_clone,
-<a href=#430 id=430 data-nosnippet>430</a>                        destination: destination_clone,
-<a href=#431 id=431 data-nosnippet>431</a>                    })
-<a href=#432 id=432 data-nosnippet>432</a>                    .<span class="kw">await
-<a href=#433 id=433 data-nosnippet>433</a>                    </span>.unwrap_err(),
-<a href=#434 id=434 data-nosnippet>434</a>                TraceabilityError::ConsentRequestTimeout
-<a href=#435 id=435 data-nosnippet>435</a>            ));
-<a href=#436 id=436 data-nosnippet>436</a>        });
-<a href=#437 id=437 data-nosnippet>437</a>
-<a href=#438 id=438 data-nosnippet>438</a>        tokio::time::sleep(Duration::from_millis(<span class="number">2</span>)).<span class="kw">await</span>;
-<a href=#439 id=439 data-nosnippet>439</a>        <span class="macro">assert_eq!</span>(notifications_feed.recv().<span class="kw">await</span>.unwrap(), destination.clone());
-<a href=#440 id=440 data-nosnippet>440</a>        consent_service
-<a href=#441 id=441 data-nosnippet>441</a>            .call(ConsentRequest::SetConsent {
-<a href=#442 id=442 data-nosnippet>442</a>                source: resource.clone(),
-<a href=#443 id=443 data-nosnippet>443</a>                destination: destination.clone(),
-<a href=#444 id=444 data-nosnippet>444</a>                consent: <span class="bool-val">true</span>,
-<a href=#445 id=445 data-nosnippet>445</a>            })
-<a href=#446 id=446 data-nosnippet>446</a>            .<span class="kw">await
-<a href=#447 id=447 data-nosnippet>447</a>            </span>.unwrap();
-<a href=#448 id=448 data-nosnippet>448</a>
-<a href=#449 id=449 data-nosnippet>449</a>        <span class="comment">// Check the consent request timeout after the decision is sent
-<a href=#450 id=450 data-nosnippet>450</a>        </span><span class="macro">assert!</span>(<span class="macro">matches!</span>(
-<a href=#451 id=451 data-nosnippet>451</a>            consent_service
-<a href=#452 id=452 data-nosnippet>452</a>                .call(ConsentRequest::RequestConsent { source: resource, destination })
-<a href=#453 id=453 data-nosnippet>453</a>                .<span class="kw">await
-<a href=#454 id=454 data-nosnippet>454</a>                </span>.unwrap(),
-<a href=#455 id=455 data-nosnippet>455</a>            ConsentResponse::Consent(<span class="bool-val">true</span>)
-<a href=#456 id=456 data-nosnippet>456</a>        ));
-<a href=#457 id=457 data-nosnippet>457</a>    }
-<a href=#458 id=458 data-nosnippet>458</a>
-<a href=#459 id=459 data-nosnippet>459</a>    <span class="attr">#[tokio::test]
-<a href=#460 id=460 data-nosnippet>460</a>    </span><span class="kw">async fn </span>test_hierarchical_consent_resource_overrides_node() {
-<a href=#461 id=461 data-nosnippet>461</a>        <span class="kw">crate</span>::trace2e_tracing::init();
-<a href=#462 id=462 data-nosnippet>462</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">0</span>);
-<a href=#463 id=463 data-nosnippet>463</a>        <span class="kw">let </span>source = Resource::new_process_mock(<span class="number">0</span>);
-<a href=#464 id=464 data-nosnippet>464</a>        <span class="kw">let </span>node_id = <span class="string">"node1"</span>.to_string();
-<a href=#465 id=465 data-nosnippet>465</a>        <span class="kw">let </span>resource = Resource::new_file(<span class="string">"/tmp/test.txt"</span>.to_string());
-<a href=#466 id=466 data-nosnippet>466</a>
-<a href=#467 id=467 data-nosnippet>467</a>        <span class="comment">// Set node-level consent to false
-<a href=#468 id=468 data-nosnippet>468</a>        </span>consent_service
-<a href=#469 id=469 data-nosnippet>469</a>            .call(ConsentRequest::SetConsent {
-<a href=#470 id=470 data-nosnippet>470</a>                source: source.clone(),
-<a href=#471 id=471 data-nosnippet>471</a>                destination: Destination::Node(node_id.clone()),
-<a href=#472 id=472 data-nosnippet>472</a>                consent: <span class="bool-val">false</span>,
-<a href=#473 id=473 data-nosnippet>473</a>            })
-<a href=#474 id=474 data-nosnippet>474</a>            .<span class="kw">await
-<a href=#475 id=475 data-nosnippet>475</a>            </span>.unwrap();
-<a href=#476 id=476 data-nosnippet>476</a>
-<a href=#477 id=477 data-nosnippet>477</a>        <span class="comment">// Set resource-level consent to true (should override node-level)
-<a href=#478 id=478 data-nosnippet>478</a>        </span>consent_service
-<a href=#479 id=479 data-nosnippet>479</a>            .call(ConsentRequest::SetConsent {
-<a href=#480 id=480 data-nosnippet>480</a>                source: source.clone(),
-<a href=#481 id=481 data-nosnippet>481</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id.clone()), <span class="prelude-val">Some</span>(resource.clone())),
-<a href=#482 id=482 data-nosnippet>482</a>                consent: <span class="bool-val">true</span>,
-<a href=#483 id=483 data-nosnippet>483</a>            })
-<a href=#484 id=484 data-nosnippet>484</a>            .<span class="kw">await
-<a href=#485 id=485 data-nosnippet>485</a>            </span>.unwrap();
-<a href=#486 id=486 data-nosnippet>486</a>
-<a href=#487 id=487 data-nosnippet>487</a>        <span class="comment">// Request consent for the resource - should get true (resource-level overrides node-level)
-<a href=#488 id=488 data-nosnippet>488</a>        </span><span class="kw">let </span>response = consent_service
-<a href=#489 id=489 data-nosnippet>489</a>            .call(ConsentRequest::RequestConsent {
-<a href=#490 id=490 data-nosnippet>490</a>                source: source.clone(),
-<a href=#491 id=491 data-nosnippet>491</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id), <span class="prelude-val">Some</span>(resource)),
-<a href=#492 id=492 data-nosnippet>492</a>            })
-<a href=#493 id=493 data-nosnippet>493</a>            .<span class="kw">await
-<a href=#494 id=494 data-nosnippet>494</a>            </span>.unwrap();
-<a href=#495 id=495 data-nosnippet>495</a>
-<a href=#496 id=496 data-nosnippet>496</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response, ConsentResponse::Consent(<span class="bool-val">true</span>)));
-<a href=#497 id=497 data-nosnippet>497</a>    }
+<a href=#201 id=201 data-nosnippet>201</a>    <span class="doccomment">/// Helper method to get or create a decision channel for a given key.
+<a href=#202 id=202 data-nosnippet>202</a>    ///
+<a href=#203 id=203 data-nosnippet>203</a>    /// This method ensures that a broadcast channel exists for the given ConsentKey,
+<a href=#204 id=204 data-nosnippet>204</a>    /// creating one if necessary. Returns a receiver for subscribing to the decision.
+<a href=#205 id=205 data-nosnippet>205</a>    </span><span class="kw">fn </span>get_or_create_decision_channel(<span class="kw-2">&amp;</span><span class="self">self</span>, key: <span class="kw-2">&amp;</span>ConsentKey) -&gt; broadcast::Receiver&lt;bool&gt; {
+<a href=#206 id=206 data-nosnippet>206</a>        <span class="kw">let </span>sender = <span class="self">self</span>.decision_channels.get(key).map(|feed| feed.clone());
+<a href=#207 id=207 data-nosnippet>207</a>
+<a href=#208 id=208 data-nosnippet>208</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(sender) = sender {
+<a href=#209 id=209 data-nosnippet>209</a>            sender.subscribe()
+<a href=#210 id=210 data-nosnippet>210</a>        } <span class="kw">else </span>{
+<a href=#211 id=211 data-nosnippet>211</a>            <span class="kw">let </span>(tx, rx) = broadcast::channel::&lt;bool&gt;(<span class="number">100</span>);
+<a href=#212 id=212 data-nosnippet>212</a>            <span class="self">self</span>.decision_channels.insert(key.clone(), tx);
+<a href=#213 id=213 data-nosnippet>213</a>            rx
+<a href=#214 id=214 data-nosnippet>214</a>        }
+<a href=#215 id=215 data-nosnippet>215</a>    }
+<a href=#216 id=216 data-nosnippet>216</a>
+<a href=#217 id=217 data-nosnippet>217</a>    <span class="doccomment">/// Internal method to get consent
+<a href=#218 id=218 data-nosnippet>218</a>    ///
+<a href=#219 id=219 data-nosnippet>219</a>    /// Uses a dual subscription pattern when the destination has a parent node:
+<a href=#220 id=220 data-nosnippet>220</a>    /// - Subscribes to both resource-level and node-level decision channels
+<a href=#221 id=221 data-nosnippet>221</a>    /// - Uses tokio::select! to wait on whichever resolves first
+<a href=#222 id=222 data-nosnippet>222</a>    ///
+<a href=#223 id=223 data-nosnippet>223</a>    /// This eliminates the need for hierarchical scanning in set_consent
+<a href=#224 id=224 data-nosnippet>224</a>    </span><span class="kw">async fn </span>get_consent(
+<a href=#225 id=225 data-nosnippet>225</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#226 id=226 data-nosnippet>226</a>        source: Resource,
+<a href=#227 id=227 data-nosnippet>227</a>        destination: Destination,
+<a href=#228 id=228 data-nosnippet>228</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, TraceabilityError&gt; {
+<a href=#229 id=229 data-nosnippet>229</a>        <span class="comment">// Check hierarchy for existing decision (most specific first)
+<a href=#230 id=230 data-nosnippet>230</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(consent) = <span class="self">self</span>.check_consent_hierarchy(<span class="kw-2">&amp;</span>source, <span class="kw-2">&amp;</span>destination) {
+<a href=#231 id=231 data-nosnippet>231</a>            <span class="kw">return </span><span class="prelude-val">Ok</span>(consent);
+<a href=#232 id=232 data-nosnippet>232</a>        }
+<a href=#233 id=233 data-nosnippet>233</a>
+<a href=#234 id=234 data-nosnippet>234</a>        <span class="comment">// No existing decision, proceed with request flow
+<a href=#235 id=235 data-nosnippet>235</a>        </span><span class="kw">let </span>resource_key = ConsentKey(source.clone(), destination.clone());
+<a href=#236 id=236 data-nosnippet>236</a>
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="comment">// Extract node-level key if destination has a parent node
+<a href=#238 id=238 data-nosnippet>238</a>        </span><span class="kw">let </span>node_key = <span class="kw">match </span><span class="kw-2">&amp;</span>destination {
+<a href=#239 id=239 data-nosnippet>239</a>            Destination::Resource { parent: <span class="prelude-val">Some</span>(parent), .. } =&gt; {
+<a href=#240 id=240 data-nosnippet>240</a>                <span class="prelude-val">Some</span>(ConsentKey(source.clone(), (<span class="kw-2">**</span>parent).clone()))
+<a href=#241 id=241 data-nosnippet>241</a>            }
+<a href=#242 id=242 data-nosnippet>242</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+<a href=#243 id=243 data-nosnippet>243</a>        };
+<a href=#244 id=244 data-nosnippet>244</a>
+<a href=#245 id=245 data-nosnippet>245</a>        <span class="comment">// Get notification sender
+<a href=#246 id=246 data-nosnippet>246</a>        </span><span class="kw">let </span>notif_sender = <span class="kw">match </span><span class="self">self</span>.notifications_channels.get(<span class="kw-2">&amp;</span>resource_key.<span class="number">0</span>) {
+<a href=#247 id=247 data-nosnippet>247</a>            <span class="prelude-val">Some</span>(sender_ref) =&gt; sender_ref.clone(),
+<a href=#248 id=248 data-nosnippet>248</a>            <span class="prelude-val">None </span>=&gt; {
+<a href=#249 id=249 data-nosnippet>249</a>                <span class="comment">// No notifications feed, so nobody will ever know about this consent request
+<a href=#250 id=250 data-nosnippet>250</a>                // and it will never be granted
+<a href=#251 id=251 data-nosnippet>251</a>                </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
+<a href=#252 id=252 data-nosnippet>252</a>            }
+<a href=#253 id=253 data-nosnippet>253</a>        };
+<a href=#254 id=254 data-nosnippet>254</a>
+<a href=#255 id=255 data-nosnippet>255</a>        <span class="comment">// Subscribe to resource-level decision channel
+<a href=#256 id=256 data-nosnippet>256</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>resource_rx = <span class="self">self</span>.get_or_create_decision_channel(<span class="kw-2">&amp;</span>resource_key);
+<a href=#257 id=257 data-nosnippet>257</a>
+<a href=#258 id=258 data-nosnippet>258</a>        <span class="comment">// Subscribe to node-level decision channel (if applicable)
+<a href=#259 id=259 data-nosnippet>259</a>        </span><span class="kw">let </span>node_rx = node_key.as_ref().map(|key| <span class="self">self</span>.get_or_create_decision_channel(key));
+<a href=#260 id=260 data-nosnippet>260</a>
+<a href=#261 id=261 data-nosnippet>261</a>        <span class="comment">// Send notification
+<a href=#262 id=262 data-nosnippet>262</a>        </span>notif_sender.send(destination).map_err(|<span class="kw">_</span>| TraceabilityError::InternalTrace2eError)<span class="question-mark">?</span>;
+<a href=#263 id=263 data-nosnippet>263</a>
+<a href=#264 id=264 data-nosnippet>264</a>        <span class="comment">// Wait for either channel to resolve using tokio::select!
+<a href=#265 id=265 data-nosnippet>265</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>node_rx) = node_rx {
+<a href=#266 id=266 data-nosnippet>266</a>            <span class="kw">if </span><span class="self">self</span>.timeout &gt; <span class="number">0 </span>{
+<a href=#267 id=267 data-nosnippet>267</a>                tokio::time::timeout(Duration::from_millis(<span class="self">self</span>.timeout), <span class="kw">async </span>{
+<a href=#268 id=268 data-nosnippet>268</a>                    <span class="macro">tokio::select!</span> {
+<a href=#269 id=269 data-nosnippet>269</a>                        result = resource_rx.recv() =&gt; result,
+<a href=#270 id=270 data-nosnippet>270</a>                        result = node_rx.recv() =&gt; result,
+<a href=#271 id=271 data-nosnippet>271</a>                    }
+<a href=#272 id=272 data-nosnippet>272</a>                })
+<a href=#273 id=273 data-nosnippet>273</a>                .<span class="kw">await
+<a href=#274 id=274 data-nosnippet>274</a>                </span>.map_err(|<span class="kw">_</span>| TraceabilityError::ConsentRequestTimeout)<span class="question-mark">?
+<a href=#275 id=275 data-nosnippet>275</a>                </span>.map_err(|<span class="kw">_</span>| TraceabilityError::InternalTrace2eError)
+<a href=#276 id=276 data-nosnippet>276</a>            } <span class="kw">else </span>{
+<a href=#277 id=277 data-nosnippet>277</a>                <span class="macro">tokio::select!</span> {
+<a href=#278 id=278 data-nosnippet>278</a>                    result = resource_rx.recv() =&gt; result,
+<a href=#279 id=279 data-nosnippet>279</a>                    result = node_rx.recv() =&gt; result,
+<a href=#280 id=280 data-nosnippet>280</a>                }
+<a href=#281 id=281 data-nosnippet>281</a>                .map_err(|<span class="kw">_</span>| TraceabilityError::InternalTrace2eError)
+<a href=#282 id=282 data-nosnippet>282</a>            }
+<a href=#283 id=283 data-nosnippet>283</a>        } <span class="kw">else </span>{
+<a href=#284 id=284 data-nosnippet>284</a>            <span class="comment">// No parent node, just wait on resource channel
+<a href=#285 id=285 data-nosnippet>285</a>            </span><span class="kw">if </span><span class="self">self</span>.timeout &gt; <span class="number">0 </span>{
+<a href=#286 id=286 data-nosnippet>286</a>                tokio::time::timeout(Duration::from_millis(<span class="self">self</span>.timeout), resource_rx.recv())
+<a href=#287 id=287 data-nosnippet>287</a>                    .<span class="kw">await
+<a href=#288 id=288 data-nosnippet>288</a>                    </span>.map_err(|<span class="kw">_</span>| TraceabilityError::ConsentRequestTimeout)<span class="question-mark">?
+<a href=#289 id=289 data-nosnippet>289</a>                    </span>.map_err(|<span class="kw">_</span>| TraceabilityError::InternalTrace2eError)
+<a href=#290 id=290 data-nosnippet>290</a>            } <span class="kw">else </span>{
+<a href=#291 id=291 data-nosnippet>291</a>                resource_rx.recv().<span class="kw">await</span>.map_err(|<span class="kw">_</span>| TraceabilityError::InternalTrace2eError)
+<a href=#292 id=292 data-nosnippet>292</a>            }
+<a href=#293 id=293 data-nosnippet>293</a>        }
+<a href=#294 id=294 data-nosnippet>294</a>    }
+<a href=#295 id=295 data-nosnippet>295</a>
+<a href=#296 id=296 data-nosnippet>296</a>    <span class="doccomment">/// Internal method to set consent
+<a href=#297 id=297 data-nosnippet>297</a>    ///
+<a href=#298 id=298 data-nosnippet>298</a>    /// With the dual subscription pattern, subscribers to hierarchical destinations
+<a href=#299 id=299 data-nosnippet>299</a>    /// are already listening to both their specific key and their parent's key,
+<a href=#300 id=300 data-nosnippet>300</a>    /// so we only need to notify the exact key. No hierarchical scanning needed.
+<a href=#301 id=301 data-nosnippet>301</a>    </span><span class="kw">fn </span>set_consent(<span class="kw-2">&amp;</span><span class="self">self</span>, source: Resource, destination: Destination, consent: bool) {
+<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">let </span>key = ConsentKey(source, destination);
+<a href=#303 id=303 data-nosnippet>303</a>        <span class="comment">// Insert the consent decision into the persistent state
+<a href=#304 id=304 data-nosnippet>304</a>        </span><span class="self">self</span>.states.insert(key.clone(), consent);
+<a href=#305 id=305 data-nosnippet>305</a>
+<a href=#306 id=306 data-nosnippet>306</a>        <span class="comment">// Notify the exact key's channel
+<a href=#307 id=307 data-nosnippet>307</a>        // Subscribers are already listening to both resource and node channels via dual subscription
+<a href=#308 id=308 data-nosnippet>308</a>        </span><span class="kw">if let </span><span class="prelude-val">Some</span>((<span class="kw">_</span>, decision_feed)) = <span class="self">self</span>.decision_channels.remove(<span class="kw-2">&amp;</span>key) {
+<a href=#309 id=309 data-nosnippet>309</a>            <span class="kw">let _ </span>= decision_feed.send(consent);
+<a href=#310 id=310 data-nosnippet>310</a>        }
+<a href=#311 id=311 data-nosnippet>311</a>    }
+<a href=#312 id=312 data-nosnippet>312</a>
+<a href=#313 id=313 data-nosnippet>313</a>    <span class="doccomment">/// Internal method to subscribe to consent request notifications
+<a href=#314 id=314 data-nosnippet>314</a>    </span><span class="kw">fn </span>take_resource_ownership(<span class="kw-2">&amp;</span><span class="self">self</span>, resource: Resource) -&gt; broadcast::Receiver&lt;Destination&gt; {
+<a href=#315 id=315 data-nosnippet>315</a>        <span class="kw">match </span><span class="self">self</span>.notifications_channels.entry(resource.clone()) {
+<a href=#316 id=316 data-nosnippet>316</a>            Entry::Occupied(entry) =&gt; entry.get().subscribe(),
+<a href=#317 id=317 data-nosnippet>317</a>            Entry::Vacant(entry) =&gt; {
+<a href=#318 id=318 data-nosnippet>318</a>                <span class="kw">let </span>(tx, rx) = broadcast::channel(<span class="number">100</span>);
+<a href=#319 id=319 data-nosnippet>319</a>                entry.insert(tx);
+<a href=#320 id=320 data-nosnippet>320</a>                rx
+<a href=#321 id=321 data-nosnippet>321</a>            }
+<a href=#322 id=322 data-nosnippet>322</a>        }
+<a href=#323 id=323 data-nosnippet>323</a>    }
+<a href=#324 id=324 data-nosnippet>324</a>}
+<a href=#325 id=325 data-nosnippet>325</a>
+<a href=#326 id=326 data-nosnippet>326</a><span class="kw">impl </span>Service&lt;ConsentRequest&gt; <span class="kw">for </span>ConsentService {
+<a href=#327 id=327 data-nosnippet>327</a>    <span class="kw">type </span>Response = ConsentResponse;
+<a href=#328 id=328 data-nosnippet>328</a>    <span class="kw">type </span>Error = TraceabilityError;
+<a href=#329 id=329 data-nosnippet>329</a>    <span class="kw">type </span>Future = Pin&lt;Box&lt;<span class="kw">dyn </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Response, <span class="self">Self</span>::Error&gt;&gt; + Send&gt;&gt;;
+<a href=#330 id=330 data-nosnippet>330</a>
+<a href=#331 id=331 data-nosnippet>331</a>    <span class="kw">fn </span>poll_ready(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;mut </span>std::task::Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; Poll&lt;<span class="prelude-ty">Result</span>&lt;(), <span class="self">Self</span>::Error&gt;&gt; {
+<a href=#332 id=332 data-nosnippet>332</a>        Poll::Ready(<span class="prelude-val">Ok</span>(()))
+<a href=#333 id=333 data-nosnippet>333</a>    }
+<a href=#334 id=334 data-nosnippet>334</a>
+<a href=#335 id=335 data-nosnippet>335</a>    <span class="kw">fn </span>call(<span class="kw-2">&amp;mut </span><span class="self">self</span>, request: ConsentRequest) -&gt; <span class="self">Self</span>::Future {
+<a href=#336 id=336 data-nosnippet>336</a>        <span class="kw">let </span>this = <span class="self">self</span>.clone();
+<a href=#337 id=337 data-nosnippet>337</a>        Box::pin(<span class="kw">async move </span>{
+<a href=#338 id=338 data-nosnippet>338</a>            <span class="kw">match </span>request {
+<a href=#339 id=339 data-nosnippet>339</a>                ConsentRequest::RequestConsent { source, destination } =&gt; {
+<a href=#340 id=340 data-nosnippet>340</a>                    <span class="macro">info!</span>(source = %source, destination = <span class="question-mark">?</span>destination, <span class="string">"[consent] RequestConsent"</span>);
+<a href=#341 id=341 data-nosnippet>341</a>                    this.get_consent(source, destination).<span class="kw">await</span>.map(ConsentResponse::Consent)
+<a href=#342 id=342 data-nosnippet>342</a>                }
+<a href=#343 id=343 data-nosnippet>343</a>                ConsentRequest::SetConsent { source, destination, consent } =&gt; {
+<a href=#344 id=344 data-nosnippet>344</a>                    <span class="macro">info!</span>(consent = %consent, source = %source, destination = <span class="question-mark">?</span>destination, <span class="string">"[consent] SetConsent"</span>);
+<a href=#345 id=345 data-nosnippet>345</a>                    this.set_consent(source, destination, consent);
+<a href=#346 id=346 data-nosnippet>346</a>                    <span class="prelude-val">Ok</span>(ConsentResponse::Ack)
+<a href=#347 id=347 data-nosnippet>347</a>                }
+<a href=#348 id=348 data-nosnippet>348</a>                ConsentRequest::TakeResourceOwnership(resource) =&gt; {
+<a href=#349 id=349 data-nosnippet>349</a>                    <span class="macro">info!</span>(resource = %resource, <span class="string">"[consent] TakeResourceOwnership"</span>);
+<a href=#350 id=350 data-nosnippet>350</a>                    <span class="prelude-val">Ok</span>(ConsentResponse::Notifications(this.take_resource_ownership(resource)))
+<a href=#351 id=351 data-nosnippet>351</a>                }
+<a href=#352 id=352 data-nosnippet>352</a>            }
+<a href=#353 id=353 data-nosnippet>353</a>        })
+<a href=#354 id=354 data-nosnippet>354</a>    }
+<a href=#355 id=355 data-nosnippet>355</a>}
+<a href=#356 id=356 data-nosnippet>356</a>
+<a href=#357 id=357 data-nosnippet>357</a><span class="attr">#[cfg(test)]
+<a href=#358 id=358 data-nosnippet>358</a></span><span class="kw">mod </span>tests {
+<a href=#359 id=359 data-nosnippet>359</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#360 id=360 data-nosnippet>360</a>
+<a href=#361 id=361 data-nosnippet>361</a>    <span class="attr">#[tokio::test]
+<a href=#362 id=362 data-nosnippet>362</a>    </span><span class="kw">async fn </span>test_consent_service_no_ownership() {
+<a href=#363 id=363 data-nosnippet>363</a>        <span class="kw">crate</span>::trace2e_tracing::init();
+<a href=#364 id=364 data-nosnippet>364</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">0</span>);
+<a href=#365 id=365 data-nosnippet>365</a>        <span class="kw">let </span>resource = Resource::new_process_mock(<span class="number">0</span>);
+<a href=#366 id=366 data-nosnippet>366</a>        <span class="kw">let </span>destination = Resource::new_file(<span class="string">"/tmp/test.txt"</span>.to_string());
+<a href=#367 id=367 data-nosnippet>367</a>        <span class="kw">let </span>request = ConsentRequest::RequestConsent {
+<a href=#368 id=368 data-nosnippet>368</a>            source: resource.clone(),
+<a href=#369 id=369 data-nosnippet>369</a>            destination: Destination::new(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(destination.clone())),
+<a href=#370 id=370 data-nosnippet>370</a>        };
+<a href=#371 id=371 data-nosnippet>371</a>        <span class="kw">let </span>response = consent_service.call(request).<span class="kw">await</span>.unwrap();
+<a href=#372 id=372 data-nosnippet>372</a>        <span class="comment">// No ownership, so no consent can be granted
+<a href=#373 id=373 data-nosnippet>373</a>        </span><span class="macro">assert!</span>(<span class="macro">matches!</span>(response, ConsentResponse::Consent(<span class="bool-val">false</span>)));
+<a href=#374 id=374 data-nosnippet>374</a>    }
+<a href=#375 id=375 data-nosnippet>375</a>
+<a href=#376 id=376 data-nosnippet>376</a>    <span class="attr">#[tokio::test]
+<a href=#377 id=377 data-nosnippet>377</a>    </span><span class="kw">async fn </span>test_consent_service_with_ownership_with_decision_on_notification() {
+<a href=#378 id=378 data-nosnippet>378</a>        <span class="kw">crate</span>::trace2e_tracing::init();
+<a href=#379 id=379 data-nosnippet>379</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">0</span>);
+<a href=#380 id=380 data-nosnippet>380</a>        <span class="kw">let </span>resource = Resource::new_process_mock(<span class="number">0</span>);
+<a href=#381 id=381 data-nosnippet>381</a>        <span class="kw">let </span>destination =
+<a href=#382 id=382 data-nosnippet>382</a>            Destination::new(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(Resource::new_file(<span class="string">"/tmp/test.txt"</span>.to_string())));
+<a href=#383 id=383 data-nosnippet>383</a>        <span class="kw">let </span>request = ConsentRequest::TakeResourceOwnership(resource.clone());
+<a href=#384 id=384 data-nosnippet>384</a>        <span class="kw">let </span>ownership_response = consent_service.call(request).<span class="kw">await</span>.unwrap();
+<a href=#385 id=385 data-nosnippet>385</a>        <span class="kw">let </span>ConsentResponse::Notifications(<span class="kw-2">mut </span>notifications_feed) = ownership_response <span class="kw">else </span>{
+<a href=#386 id=386 data-nosnippet>386</a>            <span class="macro">panic!</span>(<span class="string">"Expected Notifications"</span>);
+<a href=#387 id=387 data-nosnippet>387</a>        };
+<a href=#388 id=388 data-nosnippet>388</a>        <span class="kw">let </span>resource_clone = resource.clone();
+<a href=#389 id=389 data-nosnippet>389</a>        <span class="kw">let </span>destination_clone = destination.clone();
+<a href=#390 id=390 data-nosnippet>390</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service_clone = consent_service.clone();
+<a href=#391 id=391 data-nosnippet>391</a>        tokio::task::spawn(<span class="kw">async move </span>{
+<a href=#392 id=392 data-nosnippet>392</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#393 id=393 data-nosnippet>393</a>                consent_service_clone
+<a href=#394 id=394 data-nosnippet>394</a>                    .call(ConsentRequest::RequestConsent {
+<a href=#395 id=395 data-nosnippet>395</a>                        source: resource_clone,
+<a href=#396 id=396 data-nosnippet>396</a>                        destination: destination_clone,
+<a href=#397 id=397 data-nosnippet>397</a>                    })
+<a href=#398 id=398 data-nosnippet>398</a>                    .<span class="kw">await
+<a href=#399 id=399 data-nosnippet>399</a>                    </span>.unwrap(),
+<a href=#400 id=400 data-nosnippet>400</a>                ConsentResponse::Consent(<span class="bool-val">true</span>)
+<a href=#401 id=401 data-nosnippet>401</a>            ));
+<a href=#402 id=402 data-nosnippet>402</a>        });
+<a href=#403 id=403 data-nosnippet>403</a>
+<a href=#404 id=404 data-nosnippet>404</a>        <span class="macro">assert_eq!</span>(notifications_feed.recv().<span class="kw">await</span>.unwrap(), destination.clone());
+<a href=#405 id=405 data-nosnippet>405</a>        consent_service
+<a href=#406 id=406 data-nosnippet>406</a>            .call(ConsentRequest::SetConsent { source: resource, destination, consent: <span class="bool-val">true </span>})
+<a href=#407 id=407 data-nosnippet>407</a>            .<span class="kw">await
+<a href=#408 id=408 data-nosnippet>408</a>            </span>.unwrap();
+<a href=#409 id=409 data-nosnippet>409</a>    }
+<a href=#410 id=410 data-nosnippet>410</a>
+<a href=#411 id=411 data-nosnippet>411</a>    <span class="attr">#[tokio::test]
+<a href=#412 id=412 data-nosnippet>412</a>    </span><span class="kw">async fn </span>test_consent_service_with_ownership_with_decision_timeout() {
+<a href=#413 id=413 data-nosnippet>413</a>        <span class="kw">crate</span>::trace2e_tracing::init();
+<a href=#414 id=414 data-nosnippet>414</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">1</span>);
+<a href=#415 id=415 data-nosnippet>415</a>        <span class="kw">let </span>resource = Resource::new_process_mock(<span class="number">0</span>);
+<a href=#416 id=416 data-nosnippet>416</a>        <span class="kw">let </span>destination =
+<a href=#417 id=417 data-nosnippet>417</a>            Destination::new(<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(Resource::new_file(<span class="string">"/tmp/test.txt"</span>.to_string())));
+<a href=#418 id=418 data-nosnippet>418</a>        <span class="kw">let </span>request = ConsentRequest::TakeResourceOwnership(resource.clone());
+<a href=#419 id=419 data-nosnippet>419</a>        <span class="kw">let </span>ownership_response = consent_service.call(request).<span class="kw">await</span>.unwrap();
+<a href=#420 id=420 data-nosnippet>420</a>        <span class="kw">let </span>ConsentResponse::Notifications(<span class="kw-2">mut </span>notifications_feed) = ownership_response <span class="kw">else </span>{
+<a href=#421 id=421 data-nosnippet>421</a>            <span class="macro">panic!</span>(<span class="string">"Expected Notifications"</span>);
+<a href=#422 id=422 data-nosnippet>422</a>        };
+<a href=#423 id=423 data-nosnippet>423</a>
+<a href=#424 id=424 data-nosnippet>424</a>        <span class="comment">// Spawn a task to check the consent request timeout before the decision is sent
+<a href=#425 id=425 data-nosnippet>425</a>        </span><span class="kw">let </span>resource_clone = resource.clone();
+<a href=#426 id=426 data-nosnippet>426</a>        <span class="kw">let </span>destination_clone = destination.clone();
+<a href=#427 id=427 data-nosnippet>427</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service_clone = consent_service.clone();
+<a href=#428 id=428 data-nosnippet>428</a>        tokio::task::spawn(<span class="kw">async move </span>{
+<a href=#429 id=429 data-nosnippet>429</a>            <span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#430 id=430 data-nosnippet>430</a>                consent_service_clone
+<a href=#431 id=431 data-nosnippet>431</a>                    .call(ConsentRequest::RequestConsent {
+<a href=#432 id=432 data-nosnippet>432</a>                        source: resource_clone,
+<a href=#433 id=433 data-nosnippet>433</a>                        destination: destination_clone,
+<a href=#434 id=434 data-nosnippet>434</a>                    })
+<a href=#435 id=435 data-nosnippet>435</a>                    .<span class="kw">await
+<a href=#436 id=436 data-nosnippet>436</a>                    </span>.unwrap_err(),
+<a href=#437 id=437 data-nosnippet>437</a>                TraceabilityError::ConsentRequestTimeout
+<a href=#438 id=438 data-nosnippet>438</a>            ));
+<a href=#439 id=439 data-nosnippet>439</a>        });
+<a href=#440 id=440 data-nosnippet>440</a>
+<a href=#441 id=441 data-nosnippet>441</a>        tokio::time::sleep(Duration::from_millis(<span class="number">2</span>)).<span class="kw">await</span>;
+<a href=#442 id=442 data-nosnippet>442</a>        <span class="macro">assert_eq!</span>(notifications_feed.recv().<span class="kw">await</span>.unwrap(), destination.clone());
+<a href=#443 id=443 data-nosnippet>443</a>        consent_service
+<a href=#444 id=444 data-nosnippet>444</a>            .call(ConsentRequest::SetConsent {
+<a href=#445 id=445 data-nosnippet>445</a>                source: resource.clone(),
+<a href=#446 id=446 data-nosnippet>446</a>                destination: destination.clone(),
+<a href=#447 id=447 data-nosnippet>447</a>                consent: <span class="bool-val">true</span>,
+<a href=#448 id=448 data-nosnippet>448</a>            })
+<a href=#449 id=449 data-nosnippet>449</a>            .<span class="kw">await
+<a href=#450 id=450 data-nosnippet>450</a>            </span>.unwrap();
+<a href=#451 id=451 data-nosnippet>451</a>
+<a href=#452 id=452 data-nosnippet>452</a>        <span class="comment">// Check the consent request timeout after the decision is sent
+<a href=#453 id=453 data-nosnippet>453</a>        </span><span class="macro">assert!</span>(<span class="macro">matches!</span>(
+<a href=#454 id=454 data-nosnippet>454</a>            consent_service
+<a href=#455 id=455 data-nosnippet>455</a>                .call(ConsentRequest::RequestConsent { source: resource, destination })
+<a href=#456 id=456 data-nosnippet>456</a>                .<span class="kw">await
+<a href=#457 id=457 data-nosnippet>457</a>                </span>.unwrap(),
+<a href=#458 id=458 data-nosnippet>458</a>            ConsentResponse::Consent(<span class="bool-val">true</span>)
+<a href=#459 id=459 data-nosnippet>459</a>        ));
+<a href=#460 id=460 data-nosnippet>460</a>    }
+<a href=#461 id=461 data-nosnippet>461</a>
+<a href=#462 id=462 data-nosnippet>462</a>    <span class="attr">#[tokio::test]
+<a href=#463 id=463 data-nosnippet>463</a>    </span><span class="kw">async fn </span>test_hierarchical_consent_resource_overrides_node() {
+<a href=#464 id=464 data-nosnippet>464</a>        <span class="kw">crate</span>::trace2e_tracing::init();
+<a href=#465 id=465 data-nosnippet>465</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">0</span>);
+<a href=#466 id=466 data-nosnippet>466</a>        <span class="kw">let </span>source = Resource::new_process_mock(<span class="number">0</span>);
+<a href=#467 id=467 data-nosnippet>467</a>        <span class="kw">let </span>node_id = <span class="string">"node1"</span>.to_string();
+<a href=#468 id=468 data-nosnippet>468</a>        <span class="kw">let </span>resource = Resource::new_file(<span class="string">"/tmp/test.txt"</span>.to_string());
+<a href=#469 id=469 data-nosnippet>469</a>
+<a href=#470 id=470 data-nosnippet>470</a>        <span class="comment">// Set node-level consent to false
+<a href=#471 id=471 data-nosnippet>471</a>        </span>consent_service
+<a href=#472 id=472 data-nosnippet>472</a>            .call(ConsentRequest::SetConsent {
+<a href=#473 id=473 data-nosnippet>473</a>                source: source.clone(),
+<a href=#474 id=474 data-nosnippet>474</a>                destination: Destination::Node(node_id.clone()),
+<a href=#475 id=475 data-nosnippet>475</a>                consent: <span class="bool-val">false</span>,
+<a href=#476 id=476 data-nosnippet>476</a>            })
+<a href=#477 id=477 data-nosnippet>477</a>            .<span class="kw">await
+<a href=#478 id=478 data-nosnippet>478</a>            </span>.unwrap();
+<a href=#479 id=479 data-nosnippet>479</a>
+<a href=#480 id=480 data-nosnippet>480</a>        <span class="comment">// Set resource-level consent to true (should override node-level)
+<a href=#481 id=481 data-nosnippet>481</a>        </span>consent_service
+<a href=#482 id=482 data-nosnippet>482</a>            .call(ConsentRequest::SetConsent {
+<a href=#483 id=483 data-nosnippet>483</a>                source: source.clone(),
+<a href=#484 id=484 data-nosnippet>484</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id.clone()), <span class="prelude-val">Some</span>(resource.clone())),
+<a href=#485 id=485 data-nosnippet>485</a>                consent: <span class="bool-val">true</span>,
+<a href=#486 id=486 data-nosnippet>486</a>            })
+<a href=#487 id=487 data-nosnippet>487</a>            .<span class="kw">await
+<a href=#488 id=488 data-nosnippet>488</a>            </span>.unwrap();
+<a href=#489 id=489 data-nosnippet>489</a>
+<a href=#490 id=490 data-nosnippet>490</a>        <span class="comment">// Request consent for the resource - should get true (resource-level overrides node-level)
+<a href=#491 id=491 data-nosnippet>491</a>        </span><span class="kw">let </span>response = consent_service
+<a href=#492 id=492 data-nosnippet>492</a>            .call(ConsentRequest::RequestConsent {
+<a href=#493 id=493 data-nosnippet>493</a>                source: source.clone(),
+<a href=#494 id=494 data-nosnippet>494</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id), <span class="prelude-val">Some</span>(resource)),
+<a href=#495 id=495 data-nosnippet>495</a>            })
+<a href=#496 id=496 data-nosnippet>496</a>            .<span class="kw">await
+<a href=#497 id=497 data-nosnippet>497</a>            </span>.unwrap();
 <a href=#498 id=498 data-nosnippet>498</a>
-<a href=#499 id=499 data-nosnippet>499</a>    <span class="attr">#[tokio::test]
-<a href=#500 id=500 data-nosnippet>500</a>    </span><span class="kw">async fn </span>test_hierarchical_consent_node_level_fallback() {
-<a href=#501 id=501 data-nosnippet>501</a>        <span class="kw">crate</span>::trace2e_tracing::init();
-<a href=#502 id=502 data-nosnippet>502</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">0</span>);
-<a href=#503 id=503 data-nosnippet>503</a>        <span class="kw">let </span>source = Resource::new_process_mock(<span class="number">0</span>);
-<a href=#504 id=504 data-nosnippet>504</a>        <span class="kw">let </span>node_id = <span class="string">"node1"</span>.to_string();
-<a href=#505 id=505 data-nosnippet>505</a>        <span class="kw">let </span>resource = Resource::new_file(<span class="string">"/tmp/test.txt"</span>.to_string());
-<a href=#506 id=506 data-nosnippet>506</a>
-<a href=#507 id=507 data-nosnippet>507</a>        <span class="comment">// Set only node-level consent to true
-<a href=#508 id=508 data-nosnippet>508</a>        </span>consent_service
-<a href=#509 id=509 data-nosnippet>509</a>            .call(ConsentRequest::SetConsent {
-<a href=#510 id=510 data-nosnippet>510</a>                source: source.clone(),
-<a href=#511 id=511 data-nosnippet>511</a>                destination: Destination::Node(node_id.clone()),
-<a href=#512 id=512 data-nosnippet>512</a>                consent: <span class="bool-val">true</span>,
-<a href=#513 id=513 data-nosnippet>513</a>            })
-<a href=#514 id=514 data-nosnippet>514</a>            .<span class="kw">await
-<a href=#515 id=515 data-nosnippet>515</a>            </span>.unwrap();
-<a href=#516 id=516 data-nosnippet>516</a>
-<a href=#517 id=517 data-nosnippet>517</a>        <span class="comment">// Request consent for a resource on that node - should fall back to node-level
-<a href=#518 id=518 data-nosnippet>518</a>        </span><span class="kw">let </span>response = consent_service
-<a href=#519 id=519 data-nosnippet>519</a>            .call(ConsentRequest::RequestConsent {
-<a href=#520 id=520 data-nosnippet>520</a>                source: source.clone(),
-<a href=#521 id=521 data-nosnippet>521</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id), <span class="prelude-val">Some</span>(resource)),
-<a href=#522 id=522 data-nosnippet>522</a>            })
-<a href=#523 id=523 data-nosnippet>523</a>            .<span class="kw">await
-<a href=#524 id=524 data-nosnippet>524</a>            </span>.unwrap();
-<a href=#525 id=525 data-nosnippet>525</a>
-<a href=#526 id=526 data-nosnippet>526</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response, ConsentResponse::Consent(<span class="bool-val">true</span>)));
-<a href=#527 id=527 data-nosnippet>527</a>    }
+<a href=#499 id=499 data-nosnippet>499</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response, ConsentResponse::Consent(<span class="bool-val">true</span>)));
+<a href=#500 id=500 data-nosnippet>500</a>    }
+<a href=#501 id=501 data-nosnippet>501</a>
+<a href=#502 id=502 data-nosnippet>502</a>    <span class="attr">#[tokio::test]
+<a href=#503 id=503 data-nosnippet>503</a>    </span><span class="kw">async fn </span>test_hierarchical_consent_node_level_fallback() {
+<a href=#504 id=504 data-nosnippet>504</a>        <span class="kw">crate</span>::trace2e_tracing::init();
+<a href=#505 id=505 data-nosnippet>505</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">0</span>);
+<a href=#506 id=506 data-nosnippet>506</a>        <span class="kw">let </span>source = Resource::new_process_mock(<span class="number">0</span>);
+<a href=#507 id=507 data-nosnippet>507</a>        <span class="kw">let </span>node_id = <span class="string">"node1"</span>.to_string();
+<a href=#508 id=508 data-nosnippet>508</a>        <span class="kw">let </span>resource = Resource::new_file(<span class="string">"/tmp/test.txt"</span>.to_string());
+<a href=#509 id=509 data-nosnippet>509</a>
+<a href=#510 id=510 data-nosnippet>510</a>        <span class="comment">// Set only node-level consent to true
+<a href=#511 id=511 data-nosnippet>511</a>        </span>consent_service
+<a href=#512 id=512 data-nosnippet>512</a>            .call(ConsentRequest::SetConsent {
+<a href=#513 id=513 data-nosnippet>513</a>                source: source.clone(),
+<a href=#514 id=514 data-nosnippet>514</a>                destination: Destination::Node(node_id.clone()),
+<a href=#515 id=515 data-nosnippet>515</a>                consent: <span class="bool-val">true</span>,
+<a href=#516 id=516 data-nosnippet>516</a>            })
+<a href=#517 id=517 data-nosnippet>517</a>            .<span class="kw">await
+<a href=#518 id=518 data-nosnippet>518</a>            </span>.unwrap();
+<a href=#519 id=519 data-nosnippet>519</a>
+<a href=#520 id=520 data-nosnippet>520</a>        <span class="comment">// Request consent for a resource on that node - should fall back to node-level
+<a href=#521 id=521 data-nosnippet>521</a>        </span><span class="kw">let </span>response = consent_service
+<a href=#522 id=522 data-nosnippet>522</a>            .call(ConsentRequest::RequestConsent {
+<a href=#523 id=523 data-nosnippet>523</a>                source: source.clone(),
+<a href=#524 id=524 data-nosnippet>524</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id), <span class="prelude-val">Some</span>(resource)),
+<a href=#525 id=525 data-nosnippet>525</a>            })
+<a href=#526 id=526 data-nosnippet>526</a>            .<span class="kw">await
+<a href=#527 id=527 data-nosnippet>527</a>            </span>.unwrap();
 <a href=#528 id=528 data-nosnippet>528</a>
-<a href=#529 id=529 data-nosnippet>529</a>    <span class="attr">#[tokio::test]
-<a href=#530 id=530 data-nosnippet>530</a>    </span><span class="kw">async fn </span>test_hierarchical_consent_most_specific_wins() {
-<a href=#531 id=531 data-nosnippet>531</a>        <span class="kw">crate</span>::trace2e_tracing::init();
-<a href=#532 id=532 data-nosnippet>532</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">0</span>);
-<a href=#533 id=533 data-nosnippet>533</a>        <span class="kw">let </span>source = Resource::new_process_mock(<span class="number">0</span>);
-<a href=#534 id=534 data-nosnippet>534</a>        <span class="kw">let </span>node_id = <span class="string">"node1"</span>.to_string();
-<a href=#535 id=535 data-nosnippet>535</a>        <span class="kw">let </span>resource1 = Resource::new_file(<span class="string">"/tmp/allowed.txt"</span>.to_string());
-<a href=#536 id=536 data-nosnippet>536</a>        <span class="kw">let </span>resource2 = Resource::new_file(<span class="string">"/tmp/denied.txt"</span>.to_string());
-<a href=#537 id=537 data-nosnippet>537</a>
-<a href=#538 id=538 data-nosnippet>538</a>        <span class="comment">// Set node-level consent to true (permissive default)
-<a href=#539 id=539 data-nosnippet>539</a>        </span>consent_service
-<a href=#540 id=540 data-nosnippet>540</a>            .call(ConsentRequest::SetConsent {
-<a href=#541 id=541 data-nosnippet>541</a>                source: source.clone(),
-<a href=#542 id=542 data-nosnippet>542</a>                destination: Destination::Node(node_id.clone()),
-<a href=#543 id=543 data-nosnippet>543</a>                consent: <span class="bool-val">true</span>,
-<a href=#544 id=544 data-nosnippet>544</a>            })
-<a href=#545 id=545 data-nosnippet>545</a>            .<span class="kw">await
-<a href=#546 id=546 data-nosnippet>546</a>            </span>.unwrap();
-<a href=#547 id=547 data-nosnippet>547</a>
-<a href=#548 id=548 data-nosnippet>548</a>        <span class="comment">// Set resource-level consent to false for specific resource (more specific, should win)
-<a href=#549 id=549 data-nosnippet>549</a>        </span>consent_service
-<a href=#550 id=550 data-nosnippet>550</a>            .call(ConsentRequest::SetConsent {
-<a href=#551 id=551 data-nosnippet>551</a>                source: source.clone(),
-<a href=#552 id=552 data-nosnippet>552</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id.clone()), <span class="prelude-val">Some</span>(resource2.clone())),
-<a href=#553 id=553 data-nosnippet>553</a>                consent: <span class="bool-val">false</span>,
-<a href=#554 id=554 data-nosnippet>554</a>            })
-<a href=#555 id=555 data-nosnippet>555</a>            .<span class="kw">await
-<a href=#556 id=556 data-nosnippet>556</a>            </span>.unwrap();
-<a href=#557 id=557 data-nosnippet>557</a>
-<a href=#558 id=558 data-nosnippet>558</a>        <span class="comment">// Resource1 should inherit node-level consent (true)
-<a href=#559 id=559 data-nosnippet>559</a>        </span><span class="kw">let </span>response1 = consent_service
-<a href=#560 id=560 data-nosnippet>560</a>            .call(ConsentRequest::RequestConsent {
-<a href=#561 id=561 data-nosnippet>561</a>                source: source.clone(),
-<a href=#562 id=562 data-nosnippet>562</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id.clone()), <span class="prelude-val">Some</span>(resource1)),
-<a href=#563 id=563 data-nosnippet>563</a>            })
-<a href=#564 id=564 data-nosnippet>564</a>            .<span class="kw">await
-<a href=#565 id=565 data-nosnippet>565</a>            </span>.unwrap();
-<a href=#566 id=566 data-nosnippet>566</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response1, ConsentResponse::Consent(<span class="bool-val">true</span>)));
-<a href=#567 id=567 data-nosnippet>567</a>
-<a href=#568 id=568 data-nosnippet>568</a>        <span class="comment">// Resource2 should use its specific consent (false), overriding node-level
-<a href=#569 id=569 data-nosnippet>569</a>        </span><span class="kw">let </span>response2 = consent_service
-<a href=#570 id=570 data-nosnippet>570</a>            .call(ConsentRequest::RequestConsent {
-<a href=#571 id=571 data-nosnippet>571</a>                source,
-<a href=#572 id=572 data-nosnippet>572</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id), <span class="prelude-val">Some</span>(resource2)),
-<a href=#573 id=573 data-nosnippet>573</a>            })
-<a href=#574 id=574 data-nosnippet>574</a>            .<span class="kw">await
-<a href=#575 id=575 data-nosnippet>575</a>            </span>.unwrap();
-<a href=#576 id=576 data-nosnippet>576</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response2, ConsentResponse::Consent(<span class="bool-val">false</span>)));
-<a href=#577 id=577 data-nosnippet>577</a>    }
-<a href=#578 id=578 data-nosnippet>578</a>}</code></pre></div></section></main></body></html>
+<a href=#529 id=529 data-nosnippet>529</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response, ConsentResponse::Consent(<span class="bool-val">true</span>)));
+<a href=#530 id=530 data-nosnippet>530</a>    }
+<a href=#531 id=531 data-nosnippet>531</a>
+<a href=#532 id=532 data-nosnippet>532</a>    <span class="attr">#[tokio::test]
+<a href=#533 id=533 data-nosnippet>533</a>    </span><span class="kw">async fn </span>test_hierarchical_consent_most_specific_wins() {
+<a href=#534 id=534 data-nosnippet>534</a>        <span class="kw">crate</span>::trace2e_tracing::init();
+<a href=#535 id=535 data-nosnippet>535</a>        <span class="kw">let </span><span class="kw-2">mut </span>consent_service = ConsentService::new(<span class="number">0</span>);
+<a href=#536 id=536 data-nosnippet>536</a>        <span class="kw">let </span>source = Resource::new_process_mock(<span class="number">0</span>);
+<a href=#537 id=537 data-nosnippet>537</a>        <span class="kw">let </span>node_id = <span class="string">"node1"</span>.to_string();
+<a href=#538 id=538 data-nosnippet>538</a>        <span class="kw">let </span>resource1 = Resource::new_file(<span class="string">"/tmp/allowed.txt"</span>.to_string());
+<a href=#539 id=539 data-nosnippet>539</a>        <span class="kw">let </span>resource2 = Resource::new_file(<span class="string">"/tmp/denied.txt"</span>.to_string());
+<a href=#540 id=540 data-nosnippet>540</a>
+<a href=#541 id=541 data-nosnippet>541</a>        <span class="comment">// Set node-level consent to true (permissive default)
+<a href=#542 id=542 data-nosnippet>542</a>        </span>consent_service
+<a href=#543 id=543 data-nosnippet>543</a>            .call(ConsentRequest::SetConsent {
+<a href=#544 id=544 data-nosnippet>544</a>                source: source.clone(),
+<a href=#545 id=545 data-nosnippet>545</a>                destination: Destination::Node(node_id.clone()),
+<a href=#546 id=546 data-nosnippet>546</a>                consent: <span class="bool-val">true</span>,
+<a href=#547 id=547 data-nosnippet>547</a>            })
+<a href=#548 id=548 data-nosnippet>548</a>            .<span class="kw">await
+<a href=#549 id=549 data-nosnippet>549</a>            </span>.unwrap();
+<a href=#550 id=550 data-nosnippet>550</a>
+<a href=#551 id=551 data-nosnippet>551</a>        <span class="comment">// Set resource-level consent to false for specific resource (more specific, should win)
+<a href=#552 id=552 data-nosnippet>552</a>        </span>consent_service
+<a href=#553 id=553 data-nosnippet>553</a>            .call(ConsentRequest::SetConsent {
+<a href=#554 id=554 data-nosnippet>554</a>                source: source.clone(),
+<a href=#555 id=555 data-nosnippet>555</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id.clone()), <span class="prelude-val">Some</span>(resource2.clone())),
+<a href=#556 id=556 data-nosnippet>556</a>                consent: <span class="bool-val">false</span>,
+<a href=#557 id=557 data-nosnippet>557</a>            })
+<a href=#558 id=558 data-nosnippet>558</a>            .<span class="kw">await
+<a href=#559 id=559 data-nosnippet>559</a>            </span>.unwrap();
+<a href=#560 id=560 data-nosnippet>560</a>
+<a href=#561 id=561 data-nosnippet>561</a>        <span class="comment">// Resource1 should inherit node-level consent (true)
+<a href=#562 id=562 data-nosnippet>562</a>        </span><span class="kw">let </span>response1 = consent_service
+<a href=#563 id=563 data-nosnippet>563</a>            .call(ConsentRequest::RequestConsent {
+<a href=#564 id=564 data-nosnippet>564</a>                source: source.clone(),
+<a href=#565 id=565 data-nosnippet>565</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id.clone()), <span class="prelude-val">Some</span>(resource1)),
+<a href=#566 id=566 data-nosnippet>566</a>            })
+<a href=#567 id=567 data-nosnippet>567</a>            .<span class="kw">await
+<a href=#568 id=568 data-nosnippet>568</a>            </span>.unwrap();
+<a href=#569 id=569 data-nosnippet>569</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response1, ConsentResponse::Consent(<span class="bool-val">true</span>)));
+<a href=#570 id=570 data-nosnippet>570</a>
+<a href=#571 id=571 data-nosnippet>571</a>        <span class="comment">// Resource2 should use its specific consent (false), overriding node-level
+<a href=#572 id=572 data-nosnippet>572</a>        </span><span class="kw">let </span>response2 = consent_service
+<a href=#573 id=573 data-nosnippet>573</a>            .call(ConsentRequest::RequestConsent {
+<a href=#574 id=574 data-nosnippet>574</a>                source,
+<a href=#575 id=575 data-nosnippet>575</a>                destination: Destination::new(<span class="prelude-val">Some</span>(node_id), <span class="prelude-val">Some</span>(resource2)),
+<a href=#576 id=576 data-nosnippet>576</a>            })
+<a href=#577 id=577 data-nosnippet>577</a>            .<span class="kw">await
+<a href=#578 id=578 data-nosnippet>578</a>            </span>.unwrap();
+<a href=#579 id=579 data-nosnippet>579</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response2, ConsentResponse::Consent(<span class="bool-val">false</span>)));
+<a href=#580 id=580 data-nosnippet>580</a>    }
+<a href=#581 id=581 data-nosnippet>581</a>}</code></pre></div></section></main></body></html>
