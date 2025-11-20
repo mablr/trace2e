@@ -10,12 +10,14 @@ use trace2e_core::transport::grpc::proto;
 static TOKIO_RUNTIME: Lazy<tokio::runtime::Runtime> =
     Lazy::new(|| tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap());
 
-// The URL for the gRPC service
-const GRPC_URL: &str = "http://[::1]:50051";
+// Get the gRPC URL from environment variable or use default
+fn get_grpc_url() -> String {
+    std::env::var("TRACE2E_MIDDLEWARE_URL").unwrap_or_else(|_| "http://[::1]:50051".to_string())
+}
 
 static O2M_CLIENT: Lazy<proto::o2m_client::O2mClient<Channel>> = Lazy::new(|| {
     let rt = &*TOKIO_RUNTIME;
-    rt.block_on(proto::o2m_client::O2mClient::connect(GRPC_URL)).unwrap()
+    rt.block_on(proto::o2m_client::O2mClient::connect(get_grpc_url())).unwrap()
 });
 
 fn get_o2m_client() -> proto::o2m_client::O2mClient<Channel> {
@@ -30,7 +32,7 @@ fn get_o2m_client() -> proto::o2m_client::O2mClient<Channel> {
             cell.get_or_init(|| {
                 block_in_place(|| {
                     Handle::current()
-                        .block_on(proto::o2m_client::O2mClient::connect(GRPC_URL))
+                        .block_on(proto::o2m_client::O2mClient::connect(get_grpc_url()))
                         .unwrap()
                 })
             })
