@@ -9,14 +9,14 @@
 //! Interactive mode:
 //! ```bash
 //! trace2e-runner
-//! > OPEN file:///tmp/test.txt
+//! > OPEN /tmp/test.txt
 //! > READ file:///tmp/test.txt
 //! > ^D
 //! ```
 //!
 //! Batch mode:
 //! ```bash
-//! ./trace2e-runner --file scenario.txt
+//! ./trace2e-runner --playbook scenario.txt
 //! ```
 
 use clap::Parser;
