@@ -178,8 +178,8 @@ impl TryFrom<String> for Instruction {
 /// Tracks opened file handles and network streams
 #[derive(Debug, Default)]
 pub struct Resources {
-    files: HashMap<(Resource, bool, bool, bool), std::fs::File>,
-    streams: HashMap<(Resource, bool, bool, bool), std::net::TcpStream>,
+    files: HashMap<Resource, std::fs::File>,
+    streams: HashMap<Resource, std::net::TcpStream>,
 }
 
 /// Combines resource management with shared I/O buffer handling
@@ -233,12 +233,17 @@ fn print_help() {
 }
 
 impl Resources {
-    /// Open an existing file for reading
+    /// Open an existing file for reading and writing
     fn open(&mut self, arg: &str) -> anyhow::Result<()> {
         let resource = Resource::try_from(arg)?;
-        let path = resource.path().unwrap(); // return an error instead
-        if let Entry::Vacant(e) = self.files.entry((resource.to_owned(), true, false, false)) {
-            let f = stde2e::fs::File::open(path)
+        let path =
+            resource.path().ok_or_else(|| anyhow::anyhow!("OPEN requires a file resource"))?;
+
+        if let Entry::Vacant(e) = self.files.entry(resource.to_owned()) {
+            let f = stde2e::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(path)
                 .map_err(|e| anyhow::anyhow!("Failed to open file '{}': {}", path, e))?;
             println!("✓ Opened file: {}", path);
             e.insert(f);
@@ -248,12 +253,19 @@ impl Resources {
         Ok(())
     }
 
-    /// Create a new file
+    /// Create a new file for reading and writing, the file is truncated if it already exists.
     fn create(&mut self, arg: &str) -> anyhow::Result<()> {
         let resource = Resource::try_from(arg)?;
-        let path = resource.path().unwrap(); // return an error instead
-        if let Entry::Vacant(e) = self.files.entry((resource.to_owned(), false, true, false)) {
-            let f = stde2e::fs::File::create(path)
+        let path =
+            resource.path().ok_or_else(|| anyhow::anyhow!("CREATE requires a file resource"))?;
+
+        if let Entry::Vacant(e) = self.files.entry(resource.to_owned()) {
+            let f = stde2e::fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .open(path)
                 .map_err(|e| anyhow::anyhow!("Failed to create file '{}': {}", path, e))?;
             println!("✓ Created file: {}", path);
             e.insert(f);
@@ -280,7 +292,7 @@ impl Resources {
         // Store stream with inferred resource
         let resource =
             Resource::try_from(format!("stream://{}::{}", socket_addr, peer_socket).as_str())?;
-        self.streams.insert((resource.to_owned(), true, true, false), stream);
+        self.streams.insert(resource.to_owned(), stream);
 
         Ok(())
     }
@@ -299,66 +311,9 @@ impl Resources {
         // Store stream with inferred resource
         let resource =
             Resource::try_from(format!("stream://{}::{}", local_socket, peer_socket).as_str())?;
-        self.streams.insert((resource.to_owned(), true, true, false), stream);
+        self.streams.insert(resource.to_owned(), stream);
 
         Ok(())
-    }
-
-    /// Get or open a file handle, creating it if necessary
-    fn get_or_open_file(
-        &mut self,
-        resource: &Resource,
-        path: &str,
-        read: bool,
-        write: bool,
-        append: bool,
-    ) -> anyhow::Result<&mut std::fs::File> {
-        if let Entry::Vacant(e) = self.files.entry((resource.to_owned(), read, write, append)) {
-            let f = stde2e::fs::OpenOptions::new()
-                .read(read)
-                .write(write)
-                .append(append)
-                .open(path)
-                .map_err(|e| anyhow::anyhow!("Failed to open file '{}': {}", path, e))?;
-            println!("✓ Opened file: {}", path);
-            e.insert(f);
-        }
-        self.files
-            .get_mut(&(resource.to_owned(), read, write, append))
-            .ok_or(anyhow::anyhow!("Failed to handle file descriptor."))
-    }
-
-    /// Get or open a stream handle, creating it if necessary
-    fn get_or_open_stream(
-        &mut self,
-        resource: &Resource,
-        local_socket: &str,
-        peer_socket: &str,
-        read: bool,
-        write: bool,
-        append: bool,
-    ) -> anyhow::Result<&mut std::net::TcpStream> {
-        if let Entry::Vacant(e) = self.streams.entry((resource.to_owned(), read, write, append)) {
-            match stde2e::net::TcpStream::connect(peer_socket) {
-                Ok(s) => {
-                    println!("✓ Connected to stream: {}", peer_socket);
-                    e.insert(s);
-                }
-                Err(e) => {
-                    if e.kind() != std::io::ErrorKind::ConnectionRefused {
-                        return Err(anyhow::anyhow!(
-                            "Failed to establish stream '{}::{}': {}",
-                            local_socket,
-                            peer_socket,
-                            e
-                        ));
-                    }
-                }
-            }
-        }
-        self.streams
-            .get_mut(&(resource.to_owned(), read, write, append))
-            .ok_or(anyhow::anyhow!("Failed to handle stream descriptor."))
     }
 
     /// Execute a READ command, appending data to the shared buffer
@@ -367,7 +322,10 @@ impl Resources {
 
         match resource {
             Resource::Fd(Fd::File(file)) => {
-                let f = self.get_or_open_file(resource, &file.path, true, false, false)?;
+                let f = self
+                    .files
+                    .get_mut(resource)
+                    .ok_or_else(|| anyhow::anyhow!("File not opened: {}", file.path))?;
                 let n = f.read(&mut temp_buf).map_err(|e| {
                     anyhow::anyhow!("Failed to read from file '{}': {}", file.path, e)
                 })?;
@@ -376,14 +334,9 @@ impl Resources {
                 Ok(())
             }
             Resource::Fd(Fd::Stream(stream)) => {
-                let s = self.get_or_open_stream(
-                    resource,
-                    &stream.local_socket,
-                    &stream.peer_socket,
-                    true,
-                    false,
-                    false,
-                )?;
+                let s = self.streams.get_mut(resource).ok_or_else(|| {
+                    anyhow::anyhow!("Stream not connected: {}", stream.peer_socket)
+                })?;
                 let n = s.read(&mut temp_buf).map_err(|e| {
                     anyhow::anyhow!("Failed to read from stream '{}': {}", stream.peer_socket, e)
                 })?;
@@ -399,7 +352,10 @@ impl Resources {
     pub fn write(&mut self, resource: &Resource, buffer: &[u8]) -> anyhow::Result<()> {
         match resource {
             Resource::Fd(Fd::File(file)) => {
-                let f = self.get_or_open_file(resource, &file.path, false, true, true)?;
+                let f = self
+                    .files
+                    .get_mut(resource)
+                    .ok_or_else(|| anyhow::anyhow!("File not opened: {}", file.path))?;
                 let n = f.write(buffer).map_err(|e| {
                     anyhow::anyhow!("Failed to write to file '{}': {}", file.path, e)
                 })?;
@@ -407,14 +363,9 @@ impl Resources {
                 Ok(())
             }
             Resource::Fd(Fd::Stream(stream)) => {
-                let s = self.get_or_open_stream(
-                    resource,
-                    &stream.local_socket,
-                    &stream.peer_socket,
-                    false,
-                    true,
-                    true,
-                )?;
+                let s = self.streams.get_mut(resource).ok_or_else(|| {
+                    anyhow::anyhow!("Stream not connected: {}", stream.peer_socket)
+                })?;
                 let n = s.write(buffer).map_err(|e| {
                     anyhow::anyhow!("Failed to write to stream '{}': {}", stream.peer_socket, e)
                 })?;
