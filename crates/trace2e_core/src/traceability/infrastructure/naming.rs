@@ -157,12 +157,27 @@ impl Resource {
         matches!(self, Resource::Fd(Fd::File(_)))
     }
 
+    /// Returns the path for File variant, or None otherwise
+    pub fn path(&self) -> Option<&str> {
+        if let Resource::Fd(Fd::File(f)) = self { Some(&f.path) } else { None }
+    }
+
     /// Checks if this resource represents a network stream.
     ///
     /// Returns true if the resource is a file descriptor pointing to a stream,
     /// false for files, processes, or null resources.
     pub fn is_stream(&self) -> bool {
         matches!(self, Resource::Fd(Fd::Stream(_)))
+    }
+
+    /// Returns the local socket for Stream variant, or None otherwise
+    pub fn local_socket(&self) -> Option<&str> {
+        if let Resource::Fd(Fd::Stream(s)) = self { Some(&s.local_socket) } else { None }
+    }
+
+    /// Returns the local socket for Stream variant, or None otherwise
+    pub fn peer_socket(&self) -> Option<&str> {
+        if let Resource::Fd(Fd::Stream(s)) = self { Some(&s.peer_socket) } else { None }
     }
 
     /// Converts this resource into a localized resource given the specified localization.
