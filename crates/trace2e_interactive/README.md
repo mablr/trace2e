@@ -1,31 +1,31 @@
-# trace2e_runner
+# trace2e_interactive
 
 Simple DSL for executing traced I/O operations. Supports interactive and batch (playbook) modes.
 
 ## Build
 
 ```bash
-cargo build -p trace2e_runner --release
+cargo build -p trace2e_interactive --release
 ```
 
-Output: `target/release/trace2e-runner`
+Output: `target/release/e2e-proc` and `target/release/e2e-op`
 
 ## Usage
 
 ### Interactive
 
 ```bash
-cargo run -p trace2e_runner
+cargo run -p trace2e_interactive --bin e2e-proc
 # or
-./target/release/trace2e-runner
+./target/release/e2e-proc
 ```
 
-### Batch (Playbook)
+### Operator
 
 ```bash
-cargo run -p trace2e_runner -- --playbook scenario.txt
+cargo run -p trace2e_interactive --bin e2e-op
 # or
-./target/release/trace2e-runner --playbook scenario.txt
+./target/release/e2e-op
 ```
 
 ## Instruction Syntax
@@ -55,13 +55,16 @@ One instruction per line. Supports comments (`#`) and empty lines.
 
 Example (`scenario.txt`):
 ```
+# Open file
+OPEN file:///tmp/input.txt
+
 # Read input file
 READ file:///tmp/input.txt
 
 # Write output
 WRITE file:///tmp/output.txt
 
-# Stream operations (requires server)
+# Stream operations (requires at least two nodes)
 # READ stream://192.168.1.1:8080::192.168.1.2:9000
 # WRITE stream://192.168.1.1:8080::192.168.1.2:9000
 ```
@@ -75,5 +78,5 @@ See the main README for setup details about `trace2e_middleware`.
 ## Tests
 
 ```bash
-cargo test -p trace2e_runner
+cargo test -p trace2e_interactive
 ```
