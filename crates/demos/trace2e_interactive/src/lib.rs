@@ -17,9 +17,9 @@
 //! - `READ file:///tmp/input.txt`
 //! - `WRITE stream://127.0.0.1:12345::192.168.1.100:9000`
 
-use std::collections::HashMap;
 use std::collections::hash_map::Entry;
 use std::convert::TryFrom;
+use std::{collections::HashMap, net::SocketAddr};
 use stde2e::io::{Read, Write};
 use trace2e_core::traceability::infrastructure::naming::{Fd, Resource};
 
@@ -93,9 +93,37 @@ impl Command {
 #[derive(Debug, Clone)]
 pub struct Instruction {
     pub command: Command,
-    pub resource: Option<Resource>,
-    /// For OPEN/CREATE: file path; for BIND/CONNECT: socket address
-    pub socket_or_path: Option<String>,
+    pub target: Target,
+}
+
+#[derive(Debug, Clone, Default)]
+pub enum Target {
+    File(String),
+    Stream(String, String),
+    Socket(SocketAddr),
+    #[default]
+    None,
+}
+
+fn socket_target(s: &str) -> Result<Target, anyhow::Error> {
+    if let Some(target) = s.strip_prefix("socket://") {
+        Ok(target.parse::<SocketAddr>().map(Target::Socket)?)
+    } else {
+        Err(anyhow::anyhow!("Invalid socket: {s}"))
+    }
+}
+
+impl TryFrom<Resource> for Target {
+    type Error = anyhow::Error;
+    fn try_from(value: Resource) -> Result<Self, Self::Error> {
+        if let Some(path) = value.path() {
+            Ok(Self::File(path.to_string()))
+        } else if let (Some(local), Some(peer)) = (value.local_socket(), value.peer_socket()) {
+            Ok(Self::Stream(local.to_string(), peer.to_string()))
+        } else {
+            Err(anyhow::anyhow!("The provided Resource is not a valid target."))
+        }
+    }
 }
 
 impl TryFrom<&str> for Instruction {
@@ -106,16 +134,12 @@ impl TryFrom<&str> for Instruction {
     /// # Examples
     /// - `READ -- stream://127.0.0.1:8080::192.168.1.1:9000`
     /// - `WRITE -- file:///tmp/output.txt`
-    fn try_from(s: &str) -> Result<Instruction, Self::Error> {
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
         let s = s.trim();
 
         // Skip empty lines and comments
         if s.is_empty() || s.starts_with('#') {
-            return Ok(Instruction {
-                command: Command::Nil,
-                resource: Some(Resource::default()),
-                socket_or_path: None,
-            });
+            return Ok(Instruction { command: Command::Nil, target: Default::default() });
         }
 
         // Split into action and resource
@@ -126,11 +150,7 @@ impl TryFrom<&str> for Instruction {
 
         // Parse command
         let command = Command::parse(parts[0])?;
-        let mut resource: Option<Resource> = None;
-        let mut socket_or_path: Option<String> = None;
-
-        // Validate arity
-        if command.arity() != parts.len() {
+        let target = if command.arity() != parts.len() {
             return Err(anyhow::anyhow!(
                 "Invalid number of arguments for command: {}, expected {}, got {}",
                 parts[0],
@@ -139,31 +159,17 @@ impl TryFrom<&str> for Instruction {
             ));
         } else if command.arity() == 2 {
             let arg = parts[1].trim();
-            // For OPEN/CREATE, parse as file path; for BIND/CONNECT, parse as socket
-            match command {
-                Command::Open | Command::Create => {
-                    socket_or_path = Some(arg.to_string());
-                }
-                Command::Bind | Command::Connect => {
-                    socket_or_path = Some(arg.to_string());
-                }
-                Command::Read | Command::Write => {
-                    // Parse resource
-                    resource = Resource::try_from(arg)
-                        .map_err(|e| {
-                            anyhow::anyhow!(
-                                "Failed to parse resource for command {}: {}",
-                                parts[0],
-                                e
-                            )
-                        })
-                        .ok();
-                }
-                _ => {}
+            // Parse resource, or socket
+            match Resource::try_from(arg) {
+                Ok(r) => r.try_into()?,
+                Err(_) => socket_target(arg)
+                    .map_err(|_| anyhow::anyhow!("Invalid target for READ/WRITE."))?,
             }
-        }
+        } else {
+            unreachable!()
+        };
 
-        Ok(Instruction { command, resource, socket_or_path })
+        Ok(Instruction { command, target })
     }
 }
 
@@ -382,51 +388,37 @@ impl Resources {
         instruction: &Instruction,
         buffer: &mut Vec<u8>,
     ) -> anyhow::Result<()> {
-        match instruction.command {
-            Command::Nil => Ok(()),
-            Command::Open => {
-                if let Some(path) = &instruction.socket_or_path {
-                    self.open(path)
-                } else {
-                    Err(anyhow::anyhow!("OPEN command requires a file path"))
-                }
+        match (&instruction.command, &instruction.target) {
+            (Command::Nil, _) => Ok(()),
+            (Command::Open, Target::File(path)) => self.open(path),
+            (Command::Open, _) => Err(anyhow::anyhow!("OPEN command requires a file path")),
+            (Command::Create, Target::File(path)) => self.create(path),
+            (Command::Create, _) => Err(anyhow::anyhow!("CREATE command requires a file path")),
+            (Command::Bind, Target::Socket(addr)) => self.bind(&addr.to_string()),
+            (Command::Bind, _) => Err(anyhow::anyhow!("BIND command requires a socket address")),
+            (Command::Connect, Target::Socket(addr)) => self.connect(&addr.to_string()),
+            (Command::Connect, _) => {
+                Err(anyhow::anyhow!("CONNECT command requires a socket address"))
             }
-            Command::Create => {
-                if let Some(path) = &instruction.socket_or_path {
-                    self.create(path)
-                } else {
-                    Err(anyhow::anyhow!("CREATE command requires a file path"))
-                }
+            (Command::Read, Target::File(path)) => {
+                let resource = Resource::try_from(format!("file://{path}").as_str())?;
+                self.read(&resource, buffer)
             }
-            Command::Bind => {
-                if let Some(socket) = &instruction.socket_or_path {
-                    self.bind(socket)
-                } else {
-                    Err(anyhow::anyhow!("BIND command requires a socket address"))
-                }
+            (Command::Read, Target::Stream(local, peer)) => {
+                let resource = Resource::try_from(format!("stream://{local}::{peer}").as_str())?;
+                self.read(&resource, buffer)
             }
-            Command::Connect => {
-                if let Some(socket) = &instruction.socket_or_path {
-                    self.connect(socket)
-                } else {
-                    Err(anyhow::anyhow!("CONNECT command requires a socket address"))
-                }
+            (Command::Read, _) => Err(anyhow::anyhow!("READ command requires a valid resource")),
+            (Command::Write, Target::File(path)) => {
+                let resource = Resource::try_from(format!("file://{path}").as_str())?;
+                self.write(&resource, buffer)
             }
-            Command::Read => {
-                if let Some(resource) = &instruction.resource {
-                    self.read(resource, buffer)
-                } else {
-                    Err(anyhow::anyhow!("READ command requires a valid resource"))
-                }
+            (Command::Write, Target::Stream(local, peer)) => {
+                let resource = Resource::try_from(format!("stream://{local}::{peer}").as_str())?;
+                self.write(&resource, buffer)
             }
-            Command::Write => {
-                if let Some(resource) = &instruction.resource {
-                    self.write(resource, buffer)
-                } else {
-                    Err(anyhow::anyhow!("WRITE command requires a valid resource"))
-                }
-            }
-            Command::Help => {
+            (Command::Write, _) => Err(anyhow::anyhow!("WRITE command requires a valid resource")),
+            (Command::Help, _) => {
                 print_help();
                 Ok(())
             }
@@ -444,42 +436,42 @@ mod tests {
             Instruction::try_from("READ stream://127.0.0.1:8080::192.168.1.1:9000@10.0.0.1")
                 .unwrap();
         assert_eq!(instr.command, Command::Read);
-        assert!(instr.resource.is_some_and(|r| r.is_stream()));
+        assert!(matches!(instr.target, Target::Stream(_, _)));
     }
 
     #[test]
     fn test_parse_instruction_write_file() {
         let instr = Instruction::try_from("WRITE file:///tmp/output.txt@localhost").unwrap();
         assert_eq!(instr.command, Command::Write);
-        assert!(instr.resource.is_some_and(|r| r.is_file()));
+        assert!(matches!(instr.target, Target::File(_)));
     }
 
     #[test]
     fn test_parse_instruction_open_file() {
         let instr = Instruction::try_from("OPEN /tmp/test.txt").unwrap();
         assert_eq!(instr.command, Command::Open);
-        assert_eq!(instr.socket_or_path, Some("/tmp/test.txt".to_string()));
+        assert!(matches!(instr.target, Target::File(ref p) if p == "/tmp/test.txt"));
     }
 
     #[test]
     fn test_parse_instruction_create_file() {
         let instr = Instruction::try_from("CREATE /tmp/output.txt").unwrap();
         assert_eq!(instr.command, Command::Create);
-        assert_eq!(instr.socket_or_path, Some("/tmp/output.txt".to_string()));
+        assert!(matches!(instr.target, Target::File(ref p) if p == "/tmp/output.txt"));
     }
 
     #[test]
     fn test_parse_instruction_bind_socket() {
         let instr = Instruction::try_from("BIND 127.0.0.1:8080").unwrap();
         assert_eq!(instr.command, Command::Bind);
-        assert_eq!(instr.socket_or_path, Some("127.0.0.1:8080".to_string()));
+        assert!(matches!(instr.target, Target::Socket(_)));
     }
 
     #[test]
     fn test_parse_instruction_connect_socket() {
         let instr = Instruction::try_from("CONNECT 192.168.1.100:9000").unwrap();
         assert_eq!(instr.command, Command::Connect);
-        assert_eq!(instr.socket_or_path, Some("192.168.1.100:9000".to_string()));
+        assert!(matches!(instr.target, Target::Socket(_)));
     }
 
     #[test]
