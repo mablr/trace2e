@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # User Node - Creates and sends CV
   user-node:
