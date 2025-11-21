@@ -11,7 +11,7 @@ members = [
     "crates/trace2e_core",
     "crates/trace2e_middleware",
     "crates/stde2e",
-    "crates/demos/trace2e_interactive"
+    "crates/trace2e_interactive"
 ]
 
 [workspace.dependencies]
