@@ -1561,20 +1561,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
-name = "unattended_deletion_consent"
-version = "0.0.3"
-dependencies = [
- "clap",
- "dashmap",
- "futures",
- "tokio",
- "tower",
- "trace2e_core",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "unicode-ident"
 version = "1.0.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
