@@ -296,8 +296,7 @@ impl Resources {
         })?;
 
         // Store stream with inferred resource
-        let resource =
-            Resource::try_from(format!("stream://{}::{}", local_socket, peer_socket).as_str())?;
+        let resource = Resource::new_stream(local_socket.to_string(), peer_socket.to_string());
         self.streams.insert(resource.to_owned(), stream);
         self.local_peers.insert(local_socket.to_string(), resource.clone());
         self.remote_peers.insert(peer_socket.to_string(), resource.clone());
@@ -316,8 +315,7 @@ impl Resources {
             .to_string();
 
         // Store stream with inferred resource
-        let resource =
-            Resource::try_from(format!("stream://{}::{}", local_socket, peer_socket).as_str())?;
+        let resource = Resource::new_stream(local_socket.to_string(), peer_socket.to_string());
         self.streams.insert(resource.to_owned(), stream);
         self.local_peers.insert(local_socket.to_string(), resource.clone());
         self.remote_peers.insert(peer_socket.to_string(), resource.clone());
