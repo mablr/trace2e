@@ -223,12 +223,12 @@
 <a href=#223 id=223 data-nosnippet>223</a><span class="kw">impl </span>Display <span class="kw">for </span>Resource {
 <a href=#224 id=224 data-nosnippet>224</a>    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
 <a href=#225 id=225 data-nosnippet>225</a>        <span class="kw">match </span><span class="self">self </span>{
-<a href=#226 id=226 data-nosnippet>226</a>            Resource::Fd(Fd::File(file)) =&gt; <span class="macro">write!</span>(f, <span class="string">"file:://{}"</span>, file.path),
+<a href=#226 id=226 data-nosnippet>226</a>            Resource::Fd(Fd::File(file)) =&gt; <span class="macro">write!</span>(f, <span class="string">"file://{}"</span>, file.path),
 <a href=#227 id=227 data-nosnippet>227</a>            Resource::Fd(Fd::Stream(stream)) =&gt; {
-<a href=#228 id=228 data-nosnippet>228</a>                <span class="macro">write!</span>(f, <span class="string">"stream:://{}::{}"</span>, stream.local_socket, stream.peer_socket)
+<a href=#228 id=228 data-nosnippet>228</a>                <span class="macro">write!</span>(f, <span class="string">"stream://{}::{}"</span>, stream.local_socket, stream.peer_socket)
 <a href=#229 id=229 data-nosnippet>229</a>            }
 <a href=#230 id=230 data-nosnippet>230</a>            Resource::Process(process) =&gt; {
-<a href=#231 id=231 data-nosnippet>231</a>                <span class="macro">write!</span>(f, <span class="string">"process:://{}::{}::{}"</span>, process.pid, process.starttime, process.exe_path)
+<a href=#231 id=231 data-nosnippet>231</a>                <span class="macro">write!</span>(f, <span class="string">"process://{}::{}::{}"</span>, process.pid, process.starttime, process.exe_path)
 <a href=#232 id=232 data-nosnippet>232</a>            }
 <a href=#233 id=233 data-nosnippet>233</a>            Resource::None =&gt; <span class="macro">write!</span>(f, <span class="string">"None"</span>),
 <a href=#234 id=234 data-nosnippet>234</a>        }
