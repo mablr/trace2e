@@ -223,12 +223,12 @@ impl Resource {
 impl Display for Resource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Resource::Fd(Fd::File(file)) => write!(f, "file:://{}", file.path),
+            Resource::Fd(Fd::File(file)) => write!(f, "file://{}", file.path),
             Resource::Fd(Fd::Stream(stream)) => {
-                write!(f, "stream:://{}::{}", stream.local_socket, stream.peer_socket)
+                write!(f, "stream://{}::{}", stream.local_socket, stream.peer_socket)
             }
             Resource::Process(process) => {
-                write!(f, "process:://{}::{}::{}", process.pid, process.starttime, process.exe_path)
+                write!(f, "process://{}::{}::{}", process.pid, process.starttime, process.exe_path)
             }
             Resource::None => write!(f, "None"),
         }
