@@ -141,8 +141,10 @@ impl M2mGrpc {
         &self,
         remote_ip: String,
     ) -> Result<proto::m2m_client::M2mClient<Channel>, TraceabilityError> {
-        match proto::m2m_client::M2mClient::connect(format!("{remote_ip}:{DEFAULT_GRPC_PORT}"))
-            .await
+        match proto::m2m_client::M2mClient::connect(format!(
+            "http://{remote_ip}:{DEFAULT_GRPC_PORT}"
+        ))
+        .await
         {
             Ok(client) => {
                 self.connected_remotes.insert(remote_ip, client.clone());
