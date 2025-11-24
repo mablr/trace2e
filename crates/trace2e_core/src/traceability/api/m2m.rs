@@ -42,7 +42,7 @@ use crate::traceability::{
         ProvenanceResponse, SequencerRequest, SequencerResponse,
     },
     error::TraceabilityError,
-    infrastructure::naming::{NodeId, Resource},
+    infrastructure::naming::NodeId,
 };
 
 /// M2M (Middleware-to-Middleware) API Service
@@ -113,21 +113,9 @@ where
                     } else {
                         return Err(TraceabilityError::NotLocalResource);
                     };
-                    match sequencer
-                        .call(SequencerRequest::ReserveFlow {
-                            source: Resource::None, // placeholder for remote source resource
-                            destination: destination.clone(),
-                        })
-                        .await?
-                    {
-                        SequencerResponse::FlowReserved => {
-                            match compliance.call(ComplianceRequest::GetPolicy(destination)).await?
-                            {
-                                ComplianceResponse::Policy(policy) => {
-                                    Ok(M2mResponse::DestinationPolicy(policy))
-                                }
-                                _ => Err(TraceabilityError::InternalTrace2eError),
-                            }
+                    match compliance.call(ComplianceRequest::GetPolicy(destination)).await? {
+                        ComplianceResponse::Policy(policy) => {
+                            Ok(M2mResponse::DestinationPolicy(policy))
                         }
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
