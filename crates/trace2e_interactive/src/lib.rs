@@ -242,11 +242,7 @@ fn print_help() {
 
 impl Resources {
     /// Open an existing file for reading and writing
-    fn open(&mut self, arg: &str) -> anyhow::Result<()> {
-        let resource = Resource::try_from(arg)?;
-        let path =
-            resource.path().ok_or_else(|| anyhow::anyhow!("OPEN requires a file resource"))?;
-
+    fn open(&mut self, path: &str) -> anyhow::Result<()> {
         if let Entry::Vacant(e) = self.files.entry(path.to_owned()) {
             let f = stde2e::fs::OpenOptions::new()
                 .read(true)
@@ -262,11 +258,7 @@ impl Resources {
     }
 
     /// Create a new file for reading and writing, the file is truncated if it already exists.
-    fn create(&mut self, arg: &str) -> anyhow::Result<()> {
-        let resource = Resource::try_from(arg)?;
-        let path =
-            resource.path().ok_or_else(|| anyhow::anyhow!("CREATE requires a file resource"))?;
-
+    fn create(&mut self, path: &str) -> anyhow::Result<()> {
         if let Entry::Vacant(e) = self.files.entry(path.to_owned()) {
             let f = stde2e::fs::OpenOptions::new()
                 .read(true)
