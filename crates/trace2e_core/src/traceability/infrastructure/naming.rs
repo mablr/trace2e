@@ -225,7 +225,7 @@ impl Display for Resource {
         match self {
             Resource::Fd(Fd::File(file)) => write!(f, "file://{}", file.path),
             Resource::Fd(Fd::Stream(stream)) => {
-                write!(f, "stream://{}::{}", stream.local_socket, stream.peer_socket)
+                write!(f, "stream://{}::::{}", stream.local_socket, stream.peer_socket)
             }
             Resource::Process(process) => {
                 write!(f, "process://{}::{}::{}", process.pid, process.starttime, process.exe_path)
@@ -272,15 +272,15 @@ impl TryFrom<&str> for Resource {
     ///
     /// Supports the following formats:
     /// - `file:///path` - File resource
-    /// - `stream://local::peer` - Stream resource
+    /// - `stream://local::::peer` - Stream resource
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         if let Some(path) = s.strip_prefix("file://") {
             Ok(Resource::new_file(path.to_string()))
         } else if let Some(stream_part) = s.strip_prefix("stream://") {
-            let sockets: Vec<&str> = stream_part.split("::").collect();
+            let sockets: Vec<&str> = stream_part.split("::::").collect();
             if sockets.len() != 2 {
                 return Err(TraceabilityError::InvalidResourceFormat(
-                    "Invalid stream format: expected 'stream://local::peer'".to_string(),
+                    "Invalid stream format: expected 'stream://local::::peer'".to_string(),
                 ));
             }
             Ok(Resource::new_stream(sockets[0].to_string(), sockets[1].to_string()))
@@ -308,7 +308,7 @@ impl TryFrom<&str> for LocalizedResource {
     /// Supports the format: `resource@node_id`
     /// where resource is either:
     /// - `file:///path` - File resource
-    /// - `stream://local::peer` - Stream resource
+    /// - `stream://local::::peer` - Stream resource
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         // Split by '@' to separate resource and node_id
         let parts: Vec<&str> = s.rsplitn(2, '@').collect();
