@@ -293,13 +293,13 @@ impl Resources {
             anyhow::anyhow!("Failed to accept connection on '{}': {}", socket_addr, e)
         })?;
         let peer_socket = peer_addr.to_string();
-        println!("✓ Accepted connection from: {}", peer_socket);
 
         // Store stream with inferred resource
         let resource =
             Resource::try_from(format!("stream://{}::{}", socket_addr, peer_socket).as_str())?;
         self.streams.insert(resource.to_owned(), stream);
 
+        println!("✓ Stream established: {}", resource);
         Ok(())
     }
 
@@ -311,14 +311,13 @@ impl Resources {
             .local_addr()
             .map_err(|e| anyhow::anyhow!("Failed to get local socket address: {}", e))?
             .to_string();
-        println!("✓ Connected to: {}", peer_socket);
-        println!("  Local socket: {}", local_socket);
 
         // Store stream with inferred resource
         let resource =
             Resource::try_from(format!("stream://{}::{}", local_socket, peer_socket).as_str())?;
         self.streams.insert(resource.to_owned(), stream);
 
+        println!("✓ Stream established: {}", resource);
         Ok(())
     }
 
