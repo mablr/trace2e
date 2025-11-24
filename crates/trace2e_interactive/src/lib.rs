@@ -32,7 +32,9 @@ pub struct BufferHandler {
 impl BufferHandler {
     /// Create a new buffer handler with 4KB capacity
     pub fn new() -> Self {
-        Self { buffer: Vec::with_capacity(4096) }
+        let mut buffer = Vec::with_capacity(4096);
+        buffer.extend("abc".as_bytes()); // Pre-fill with some dummy data
+        Self { buffer }
     }
 
     /// Get mutable reference to buffer
