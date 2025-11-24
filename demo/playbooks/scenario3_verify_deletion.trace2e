@@ -1,0 +1,9 @@
+# Scenario 3: Verify deletion cascade
+# Run on each node to verify operations blocked after deletion
+
+# Try to read from CV file (should fail)
+OPEN /tmp/received_cv.txt
+READ file:///tmp/received_cv.txt
+
+# Try to forward (should fail)
+WRITE stream://company-node:9000::recruiter-node:9000

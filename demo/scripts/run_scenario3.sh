@@ -19,13 +19,13 @@ echo ""
 
 echo "  Testing company-node..."
 docker-compose -f docker-compose.yml exec -T company-node \
-  /app/e2e-proc --playbook /app/playbooks/scenario3_verify_deletion.txt 2>&1 | \
+  /app/e2e-proc --playbook /app/playbooks/scenario3_verify_deletion.trace2e 2>&1 | \
   grep -i "denied\|blocked\|error" || echo "  ✓ Operations correctly blocked"
 
 echo ""
 echo "  Testing recruiter-node..."
 docker-compose -f docker-compose.yml exec -T recruiter-node \
-  /app/e2e-proc --playbook /app/playbooks/scenario3_verify_deletion.txt 2>&1 | \
+  /app/e2e-proc --playbook /app/playbooks/scenario3_verify_deletion.trace2e 2>&1 | \
   grep -i "denied\|blocked\|error" || echo "  ✓ Operations correctly blocked"
 
 echo ""

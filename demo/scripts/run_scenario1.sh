@@ -12,12 +12,12 @@ sleep 2
 
 echo "Step 1: User creates CV..."
 docker-compose -f docker-compose.yml exec -T user-node \
-  /app/e2e-proc --playbook /app/playbooks/scenario1_user_sends_cv.txt &
+  /app/e2e-proc --playbook /app/playbooks/scenario1_user_sends_cv.trace2e &
 USER_PID=$!
 
 echo "Step 2: Company waits to receive CV..."
 docker-compose -f docker-compose.yml exec -T company-node \
-  /app/e2e-proc --playbook /app/playbooks/scenario1_company_receive.txt &
+  /app/e2e-proc --playbook /app/playbooks/scenario1_company_receive.trace2e &
 COMPANY_PID=$!
 
 # Wait for both to complete

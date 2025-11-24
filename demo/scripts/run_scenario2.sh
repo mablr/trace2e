@@ -15,13 +15,13 @@ docker-compose -f docker-compose.yml exec -T user-node \
 echo ""
 echo "Step 2: Company attempts to forward CV..."
 docker-compose -f docker-compose.yml exec -T company-node \
-  /app/e2e-proc --playbook /app/playbooks/scenario2_company_forward.txt &
+  /app/e2e-proc --playbook /app/playbooks/scenario2_company_forward.trace2e &
 COMPANY_PID=$!
 
 echo ""
 echo "Step 3: Recruiter waits to receive..."
 docker-compose -f docker-compose.yml exec -T recruiter-node \
-  /app/e2e-proc --playbook /app/playbooks/scenario2_recruiter_receive.txt &
+  /app/e2e-proc --playbook /app/playbooks/scenario2_recruiter_receive.trace2e &
 RECRUITER_PID=$!
 
 sleep 2
