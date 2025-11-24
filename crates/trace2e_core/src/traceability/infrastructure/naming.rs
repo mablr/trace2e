@@ -199,16 +199,18 @@ impl Resource {
     /// socket addresses swapped. This is useful for tracking bidirectional
     /// flows. Returns None for non-stream resources.
     pub fn try_into_localized_peer_stream(&self) -> Option<LocalizedResource> {
-        if let Resource::Fd(Fd::Stream(stream)) = self
-            && let Ok(peer_socket) = stream.peer_socket.parse::<SocketAddr>()
-        {
-            Some(LocalizedResource::new(
-                peer_socket.ip().to_string(),
-                Resource::new_stream(stream.peer_socket.to_owned(), stream.local_socket.to_owned()),
-            ))
-        } else {
-            None
-        }
+        let Resource::Fd(Fd::Stream(stream)) = self else {
+            return None;
+        };
+
+        let peer_socket = stream.peer_socket.parse::<SocketAddr>().ok()?;
+        let ip = peer_socket.ip();
+        let node_id = if ip.is_ipv6() { format!("[{}]", ip) } else { ip.to_string() };
+
+        Some(LocalizedResource::new(
+            node_id,
+            Resource::new_stream(stream.peer_socket.clone(), stream.local_socket.clone()),
+        ))
     }
 
     /// Checks if this resource represents a system process.
