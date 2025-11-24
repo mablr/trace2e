@@ -21,7 +21,7 @@ use std::collections::hash_map::Entry;
 use std::convert::TryFrom;
 use std::{collections::HashMap, net::SocketAddr};
 use stde2e::io::{Read, Write};
-use trace2e_core::traceability::infrastructure::naming::{Fd, Resource};
+use trace2e_core::traceability::infrastructure::naming::Resource;
 
 /// Handles shared I/O buffer for read/write operations across resources
 #[derive(Debug)]
@@ -100,14 +100,14 @@ pub struct Instruction {
 pub enum Target {
     File(String),
     Stream(String, String),
-    Socket(SocketAddr),
+    Socket(String),
     #[default]
     None,
 }
 
 fn socket_target(s: &str) -> Result<Target, anyhow::Error> {
     if let Some(target) = s.strip_prefix("socket://") {
-        Ok(target.parse::<SocketAddr>().map(Target::Socket)?)
+        Ok(target.parse::<SocketAddr>().map(|s| Target::Socket(s.to_string()))?)
     } else {
         Err(anyhow::anyhow!("Invalid socket: {s}"))
     }
@@ -184,8 +184,10 @@ impl TryFrom<String> for Instruction {
 /// Tracks opened file handles and network streams
 #[derive(Debug, Default)]
 pub struct Resources {
-    files: HashMap<Resource, std::fs::File>,
+    files: HashMap<String, std::fs::File>,
     streams: HashMap<Resource, std::net::TcpStream>,
+    local_peers: HashMap<String, Resource>,
+    remote_peers: HashMap<String, Resource>,
 }
 
 /// Combines resource management with shared I/O buffer handling
@@ -245,7 +247,7 @@ impl Resources {
         let path =
             resource.path().ok_or_else(|| anyhow::anyhow!("OPEN requires a file resource"))?;
 
-        if let Entry::Vacant(e) = self.files.entry(resource.to_owned()) {
+        if let Entry::Vacant(e) = self.files.entry(path.to_owned()) {
             let f = stde2e::fs::OpenOptions::new()
                 .read(true)
                 .write(true)
@@ -265,7 +267,7 @@ impl Resources {
         let path =
             resource.path().ok_or_else(|| anyhow::anyhow!("CREATE requires a file resource"))?;
 
-        if let Entry::Vacant(e) = self.files.entry(resource.to_owned()) {
+        if let Entry::Vacant(e) = self.files.entry(path.to_owned()) {
             let f = stde2e::fs::OpenOptions::new()
                 .read(true)
                 .write(true)
@@ -282,22 +284,23 @@ impl Resources {
     }
 
     /// Bind to a socket and wait for incoming connection
-    fn bind(&mut self, local_addr: &str) -> anyhow::Result<()> {
-        let listener = stde2e::net::TcpListener::bind(local_addr)
-            .map_err(|e| anyhow::anyhow!("Failed to bind to '{}': {}", local_addr, e))?;
-        println!("✓ Bound to socket: {}", local_addr);
+    fn bind(&mut self, local_socket: &str) -> anyhow::Result<()> {
+        let listener = stde2e::net::TcpListener::bind(local_socket)
+            .map_err(|e| anyhow::anyhow!("Failed to bind to '{}': {}", local_socket, e))?;
+        println!("✓ Bound to socket: {}", local_socket);
         println!("  Waiting for incoming connection...");
 
         // Accept connection (blocking)
-        let (stream, peer_addr) = listener.accept().map_err(|e| {
-            anyhow::anyhow!("Failed to accept connection on '{}': {}", local_addr, e)
+        let (stream, peer_socket) = listener.accept().map_err(|e| {
+            anyhow::anyhow!("Failed to accept connection on '{}': {}", local_socket, e)
         })?;
-        let peer_socket = peer_addr.to_string();
 
         // Store stream with inferred resource
         let resource =
-            Resource::try_from(format!("stream://{}::{}", local_addr, peer_socket).as_str())?;
+            Resource::try_from(format!("stream://{}::{}", local_socket, peer_socket).as_str())?;
         self.streams.insert(resource.to_owned(), stream);
+        self.local_peers.insert(local_socket.to_string(), resource.clone());
+        self.remote_peers.insert(peer_socket.to_string(), resource.clone());
 
         println!("✓ Stream established: {}", resource);
         Ok(())
@@ -316,37 +319,43 @@ impl Resources {
         let resource =
             Resource::try_from(format!("stream://{}::{}", local_socket, peer_socket).as_str())?;
         self.streams.insert(resource.to_owned(), stream);
+        self.local_peers.insert(local_socket.to_string(), resource.clone());
+        self.remote_peers.insert(peer_socket.to_string(), resource.clone());
 
         println!("✓ Stream established: {}", resource);
         Ok(())
     }
 
     /// Execute a READ command, appending data to the shared buffer
-    pub fn read(&mut self, resource: &Resource, buffer: &mut Vec<u8>) -> anyhow::Result<()> {
+    pub fn read(&mut self, target: &Target, buffer: &mut Vec<u8>) -> anyhow::Result<()> {
         let mut temp_buf = [0u8; 4096];
 
-        match resource {
-            Resource::Fd(Fd::File(file)) => {
-                let f = self
+        match target {
+            Target::File(file_path) => {
+                let file = self
                     .files
-                    .get_mut(resource)
-                    .ok_or_else(|| anyhow::anyhow!("File not opened: {}", file.path))?;
-                let n = f.read(&mut temp_buf).map_err(|e| {
-                    anyhow::anyhow!("Failed to read from file '{}': {}", file.path, e)
+                    .get_mut(file_path)
+                    .ok_or_else(|| anyhow::anyhow!("File not opened: {}", file_path))?;
+                let n = file.read(&mut temp_buf).map_err(|e| {
+                    anyhow::anyhow!("Failed to read from file '{}': {}", file_path, e)
                 })?;
                 buffer.extend_from_slice(&temp_buf[..n]);
-                println!("✓ Read {} bytes from file: {}", n, file.path);
+                println!("✓ Read {} bytes from file: {}", n, file_path);
                 Ok(())
             }
-            Resource::Fd(Fd::Stream(stream)) => {
-                let s = self.streams.get_mut(resource).ok_or_else(|| {
-                    anyhow::anyhow!("Stream not connected: {}", stream.peer_socket)
+            Target::Socket(local_peer) | Target::Stream(local_peer, _) => {
+                let resource = self.local_peers.get_mut(local_peer).ok_or_else(|| {
+                    anyhow::anyhow!("No stream established for socket: {}", local_peer)
                 })?;
-                let n = s.read(&mut temp_buf).map_err(|e| {
-                    anyhow::anyhow!("Failed to read from stream '{}': {}", stream.peer_socket, e)
+                let stream = self
+                    .streams
+                    .get_mut(resource)
+                    .ok_or_else(|| anyhow::anyhow!("Stream doesn't exist: {}", resource))?;
+                let n = stream.read(&mut temp_buf).map_err(|e| {
+                    anyhow::anyhow!("Failed to read from socket '{}': {}", local_peer, e)
                 })?;
                 buffer.extend_from_slice(&temp_buf[..n]);
-                println!("✓ Read {} bytes from stream: {}", n, stream.peer_socket);
+                println!("✓ Read {} bytes from socket: {}", n, local_peer);
                 Ok(())
             }
             _ => Err(anyhow::anyhow!("Unsupported resource type for READ operation")),
@@ -354,27 +363,31 @@ impl Resources {
     }
 
     /// Execute a WRITE command using the shared buffer
-    pub fn write(&mut self, resource: &Resource, buffer: &[u8]) -> anyhow::Result<()> {
-        match resource {
-            Resource::Fd(Fd::File(file)) => {
-                let f = self
+    pub fn write(&mut self, target: &Target, buffer: &[u8]) -> anyhow::Result<()> {
+        match target {
+            Target::File(file_path) => {
+                let file = self
                     .files
-                    .get_mut(resource)
-                    .ok_or_else(|| anyhow::anyhow!("File not opened: {}", file.path))?;
-                let n = f.write(buffer).map_err(|e| {
-                    anyhow::anyhow!("Failed to write to file '{}': {}", file.path, e)
+                    .get_mut(file_path)
+                    .ok_or_else(|| anyhow::anyhow!("File not opened: {}", file_path))?;
+                let n = file.write(buffer).map_err(|e| {
+                    anyhow::anyhow!("Failed to write to file '{}': {}", file_path, e)
                 })?;
-                println!("✓ Wrote {} bytes to file: {}", n, file.path);
+                println!("✓ Wrote {} bytes to file: {}", n, file_path);
                 Ok(())
             }
-            Resource::Fd(Fd::Stream(stream)) => {
-                let s = self.streams.get_mut(resource).ok_or_else(|| {
-                    anyhow::anyhow!("Stream not connected: {}", stream.peer_socket)
+            Target::Socket(remote_peer) | Target::Stream(_, remote_peer) => {
+                let resource = self.remote_peers.get_mut(remote_peer).ok_or_else(|| {
+                    anyhow::anyhow!("No stream established for socket: {}", remote_peer)
                 })?;
-                let n = s.write(buffer).map_err(|e| {
-                    anyhow::anyhow!("Failed to write to stream '{}': {}", stream.peer_socket, e)
+                let stream = self
+                    .streams
+                    .get_mut(resource)
+                    .ok_or_else(|| anyhow::anyhow!("Stream not connected: {}", resource))?;
+                let n = stream.write(buffer).map_err(|e| {
+                    anyhow::anyhow!("Failed to write to stream '{}': {}", resource, e)
                 })?;
-                println!("✓ Wrote {} bytes to stream: {}", n, stream.peer_socket);
+                println!("✓ Wrote {} bytes to stream: {}", n, resource);
                 Ok(())
             }
             _ => Err(anyhow::anyhow!("Unsupported resource type for WRITE operation")),
@@ -399,24 +412,8 @@ impl Resources {
             (Command::Connect, _) => {
                 Err(anyhow::anyhow!("CONNECT command requires a socket address"))
             }
-            (Command::Read, Target::File(path)) => {
-                let resource = Resource::try_from(format!("file://{path}").as_str())?;
-                self.read(&resource, buffer)
-            }
-            (Command::Read, Target::Stream(local, peer)) => {
-                let resource = Resource::try_from(format!("stream://{local}::{peer}").as_str())?;
-                self.read(&resource, buffer)
-            }
-            (Command::Read, _) => Err(anyhow::anyhow!("READ command requires a valid resource")),
-            (Command::Write, Target::File(path)) => {
-                let resource = Resource::try_from(format!("file://{path}").as_str())?;
-                self.write(&resource, buffer)
-            }
-            (Command::Write, Target::Stream(local, peer)) => {
-                let resource = Resource::try_from(format!("stream://{local}::{peer}").as_str())?;
-                self.write(&resource, buffer)
-            }
-            (Command::Write, _) => Err(anyhow::anyhow!("WRITE command requires a valid resource")),
+            (Command::Read, t) => self.read(t, buffer),
+            (Command::Write, t) => self.write(t, buffer),
             (Command::Help, _) => {
                 print_help();
                 Ok(())
