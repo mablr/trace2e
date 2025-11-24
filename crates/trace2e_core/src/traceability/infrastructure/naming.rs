@@ -457,9 +457,9 @@ mod tests {
             LocalizedResource::new("127.0.0.1".to_string(), Resource::new_process_mock(1234));
         let none = LocalizedResource::new(Default::default(), Resource::None);
 
-        assert_eq!(file.to_string(), "file::///tmp/test.txt@127.0.0.1");
-        assert_eq!(stream.to_string(), "stream:://127.0.0.1:8080::127.0.0.1:8081@127.0.0.1");
-        assert_eq!(process_mock.to_string(), "process:://1234::0::@127.0.0.1");
+        assert_eq!(file.to_string(), "file:///tmp/test.txt@127.0.0.1");
+        assert_eq!(stream.to_string(), "stream://127.0.0.1:8080::::127.0.0.1:8081@127.0.0.1");
+        assert_eq!(process_mock.to_string(), "process://1234::0::@127.0.0.1");
         assert_eq!(none.to_string(), "None@");
     }
 
@@ -478,9 +478,9 @@ mod tests {
         let none = LocalizedResource::new(Default::default(), Resource::None);
 
         // localized resources - test direct resource display
-        assert_eq!(file.to_string(), "file::///tmp/test.txt@127.0.0.1");
-        assert_eq!(process_mock.to_string(), "process:://1234::0::@127.0.0.1");
-        assert_eq!(stream.to_string(), "stream:://127.0.0.1:8080::127.0.0.1:8081@127.0.0.1");
+        assert_eq!(file.to_string(), "file:///tmp/test.txt@127.0.0.1");
+        assert_eq!(process_mock.to_string(), "process://1234::0::@127.0.0.1");
+        assert_eq!(stream.to_string(), "stream://127.0.0.1:8080::::127.0.0.1:8081@127.0.0.1");
         assert_eq!(none.to_string(), "None@");
 
         // test DisplayableResource with vector of cloned resources for display
@@ -488,7 +488,7 @@ mod tests {
         assert_eq!(
             DisplayableResource::from(vec![file, process_mock, stream, none].as_slice())
                 .to_string(),
-            "[file::///tmp/test.txt@127.0.0.1, process:://1234::0::@127.0.0.1, stream:://127.0.0.1:8080::127.0.0.1:8081@127.0.0.1, None@]"
+            "[file:///tmp/test.txt@127.0.0.1, process://1234::0::@127.0.0.1, stream://127.0.0.1:8080::::127.0.0.1:8081@127.0.0.1, None@]"
         );
     }
 
@@ -500,7 +500,7 @@ mod tests {
 
     #[test]
     fn test_resource_try_from_stream() {
-        let resource = Resource::try_from("stream://127.0.0.1:8080::192.168.1.1:9000").unwrap();
+        let resource = Resource::try_from("stream://127.0.0.1:8080::::192.168.1.1:9000").unwrap();
         assert!(resource.is_stream());
     }
 
@@ -520,7 +520,7 @@ mod tests {
     #[test]
     fn test_localized_resource_try_from_stream() {
         let localized =
-            LocalizedResource::try_from("stream://127.0.0.1:8080::192.168.1.1:9000@10.0.0.1")
+            LocalizedResource::try_from("stream://127.0.0.1:8080::::192.168.1.1:9000@10.0.0.1")
                 .unwrap();
         assert_eq!(localized.node_id(), "10.0.0.1");
         assert!(localized.resource().is_stream());
@@ -551,7 +551,7 @@ mod tests {
         assert!(result.is_err());
         assert!(matches!(result, Err(TraceabilityError::InvalidResourceFormat(_))));
 
-        let result = LocalizedResource::try_from("stream://127.0.0.1:8080::192.168.1.1:9000");
+        let result = LocalizedResource::try_from("stream://127.0.0.1:8080::::192.168.1.1:9000");
         assert!(result.is_err());
         assert!(matches!(result, Err(TraceabilityError::InvalidResourceFormat(_))));
     }
