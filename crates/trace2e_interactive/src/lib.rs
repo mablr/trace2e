@@ -341,11 +341,18 @@ impl Resources {
                     .streams
                     .get_mut(resource)
                     .ok_or_else(|| anyhow::anyhow!("Stream doesn't exist: {}", resource))?;
-                let n = stream.read(&mut temp_buf).map_err(|e| {
-                    anyhow::anyhow!("Failed to read from socket '{}': {}", local_peer, e)
-                })?;
-                buffer.extend_from_slice(&temp_buf[..n]);
-                println!("✓ Read {} bytes from socket: {}", n, local_peer);
+                match stream.read(&mut temp_buf) {
+                    Ok(n) => {
+                        buffer.extend_from_slice(&temp_buf[..n]);
+                        println!("✓ Read {} bytes from socket: {}", n, local_peer);
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                        return Err(anyhow::anyhow!("Read refused on: {}", resource));
+                    }
+                    Err(_) => {
+                        // Silently ignore other read errors
+                    }
+                }
                 Ok(())
             }
             _ => Err(anyhow::anyhow!("Unsupported resource type for READ operation")),
@@ -374,10 +381,17 @@ impl Resources {
                     .streams
                     .get_mut(resource)
                     .ok_or_else(|| anyhow::anyhow!("Stream not connected: {}", resource))?;
-                let n = stream.write(buffer).map_err(|e| {
-                    anyhow::anyhow!("Failed to write to stream '{}': {}", resource, e)
-                })?;
-                println!("✓ Wrote {} bytes to stream: {}", n, resource);
+                match stream.write(buffer) {
+                    Ok(n) => {
+                        println!("✓ Wrote {} bytes to stream: {}", n, resource);
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                        return Err(anyhow::anyhow!("Write refused on: {}", resource));
+                    }
+                    Err(_) => {
+                        // Silently ignore other write errors
+                    }
+                }
                 Ok(())
             }
             _ => Err(anyhow::anyhow!("Unsupported resource type for WRITE operation")),
