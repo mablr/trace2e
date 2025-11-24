@@ -282,21 +282,21 @@ impl Resources {
     }
 
     /// Bind to a socket and wait for incoming connection
-    fn bind(&mut self, socket_addr: &str) -> anyhow::Result<()> {
-        let listener = stde2e::net::TcpListener::bind(socket_addr)
-            .map_err(|e| anyhow::anyhow!("Failed to bind to '{}': {}", socket_addr, e))?;
-        println!("✓ Bound to socket: {}", socket_addr);
+    fn bind(&mut self, local_addr: &str) -> anyhow::Result<()> {
+        let listener = stde2e::net::TcpListener::bind(local_addr)
+            .map_err(|e| anyhow::anyhow!("Failed to bind to '{}': {}", local_addr, e))?;
+        println!("✓ Bound to socket: {}", local_addr);
         println!("  Waiting for incoming connection...");
 
         // Accept connection (blocking)
         let (stream, peer_addr) = listener.accept().map_err(|e| {
-            anyhow::anyhow!("Failed to accept connection on '{}': {}", socket_addr, e)
+            anyhow::anyhow!("Failed to accept connection on '{}': {}", local_addr, e)
         })?;
         let peer_socket = peer_addr.to_string();
 
         // Store stream with inferred resource
         let resource =
-            Resource::try_from(format!("stream://{}::{}", socket_addr, peer_socket).as_str())?;
+            Resource::try_from(format!("stream://{}::{}", local_addr, peer_socket).as_str())?;
         self.streams.insert(resource.to_owned(), stream);
 
         println!("✓ Stream established: {}", resource);
