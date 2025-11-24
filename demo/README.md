@@ -161,11 +161,11 @@ docker-compose exec user-node ss -tlnp | grep 50051
 ```
 demo/
 ├── playbooks/
-│   ├── scenario1_user_sends_cv.txt
-│   ├── scenario1_company_receive.txt
-│   ├── scenario2_company_forward.txt
-│   ├── scenario2_recruiter_receive.txt
-│   └── scenario3_verify_deletion.txt
+│   ├── scenario1_user_sends_cv.trace2e
+│   ├── scenario1_company_receive.trace2e
+│   ├── scenario2_company_forward.trace2e
+│   ├── scenario2_recruiter_receive.trace2e
+│   └── scenario3_verify_deletion.trace2e
 ├── scripts/
 │   ├── run_scenario1.sh
 │   ├── run_scenario2.sh
