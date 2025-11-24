@@ -510,6 +510,10 @@ where
                                 .await?
                             {
                                 ProvenanceResponse::Provenance(references) => {
+                                    debug!(
+                                        remote_node_id = remote_stream.node_id(),
+                                        "[p2m] Updating remote provenance"
+                                    );
                                     m2m.ready()
                                         .await?
                                         .call(M2mRequest::UpdateProvenance {
@@ -520,14 +524,18 @@ where
                                 }
                                 _ => return Err(TraceabilityError::InternalTrace2eError),
                             };
+                        } else {
+                            info!(
+                                node_id = %provenance.node_id(),
+                                "[p2m] Updating local provenance"
+                            );
+                            provenance
+                                .call(ProvenanceRequest::UpdateProvenance {
+                                    source,
+                                    destination: destination.clone(),
+                                })
+                                .await?;
                         }
-
-                        provenance
-                            .call(ProvenanceRequest::UpdateProvenance {
-                                source,
-                                destination: destination.clone(),
-                            })
-                            .await?;
 
                         sequencer.call(SequencerRequest::ReleaseFlow { destination }).await?;
                         Ok(P2mResponse::Ack)

@@ -59,6 +59,7 @@ use futures::future::try_join_all;
 use tokio_stream::{StreamExt, wrappers::BroadcastStream};
 use tonic::{Request, Response, Status, transport::Channel};
 use tower::Service;
+use tracing::info;
 
 /// Default port for gRPC communication between trace2e middleware instances.
 pub const DEFAULT_GRPC_PORT: u16 = 50051;
@@ -81,7 +82,9 @@ use crate::{
     traceability::{
         api::types::{M2mRequest, M2mResponse, O2mRequest, O2mResponse, P2mRequest, P2mResponse},
         error::TraceabilityError,
-        infrastructure::naming::{Fd, File, LocalizedResource, Process, Resource, Stream},
+        infrastructure::naming::{
+            DisplayableResource, Fd, File, LocalizedResource, Process, Resource, Stream,
+        },
         services::{
             compliance::{ConfidentialityPolicy, Policy},
             consent::Destination,
@@ -209,6 +212,11 @@ impl Service<M2mRequest> for M2mGrpc {
         Box::pin(async move {
             match request.clone() {
                 M2mRequest::GetDestinationPolicy(destination) => {
+                    info!(
+                        node_id = %destination.node_id(),
+                        destination = %destination,
+                        "[gRPC-client] GetDestinationPolicy"
+                    );
                     let remote_ip = eval_remote_ip(request)?;
                     let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
 
@@ -228,6 +236,13 @@ impl Service<M2mRequest> for M2mGrpc {
                     ))
                 }
                 M2mRequest::CheckSourceCompliance { sources, destination } => {
+                    info!(
+                        node_id = %destination.0.node_id(),
+                        sources = %DisplayableResource::from(&sources),
+                        destination = %destination.0,
+                        destination_policy = ?destination.1,
+                        "[gRPC-client] CheckSourceCompliance"
+                    );
                     // Create sources partition by node_id
                     let sources_partition = sources.iter().fold(
                         HashMap::new(),
@@ -272,7 +287,14 @@ impl Service<M2mRequest> for M2mGrpc {
                     Ok(M2mResponse::Ack)
                 }
                 M2mRequest::UpdateProvenance { source_prov, destination } => {
+                    info!(
+                        node_id = %destination.node_id(),
+                        source_prov = %DisplayableResource::from(&source_prov),
+                        destination = %destination,
+                        "[gRPC-client] UpdateProvenance"
+                    );
                     let remote_ip = eval_remote_ip(request)?;
+                    println!("remote_ip: {}", remote_ip);
                     let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
 
                     // Group LocalizedResources by node_id
@@ -296,6 +318,7 @@ impl Service<M2mRequest> for M2mGrpc {
                         source_prov: source_prov_proto,
                         destination: Some(destination.into()),
                     };
+                    println!("proto_req: {:?}", proto_req);
 
                     // Make the gRPC call
                     client.m2m_update_provenance(Request::new(proto_req)).await.map_err(|_| {
@@ -305,6 +328,10 @@ impl Service<M2mRequest> for M2mGrpc {
                     Ok(M2mResponse::Ack)
                 }
                 M2mRequest::BroadcastDeletion(resource) => {
+                    info!(
+                        resource = %resource,
+                        "[gRPC-client] BroadcastDeletion"
+                    );
                     let remote_ip = eval_remote_ip(request)?;
                     let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
 
@@ -503,6 +530,7 @@ where
         &self,
         request: Request<proto::messages::GetDestinationPolicy>,
     ) -> Result<Response<proto::messages::DestinationPolicy>, Status> {
+        info!("[gRPC-server] m2m_destination_policy");
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
         match m2m.call(req.into()).await? {
@@ -519,6 +547,7 @@ where
         &self,
         request: Request<proto::messages::CheckSourceCompliance>,
     ) -> Result<Response<proto::messages::Ack>, Status> {
+        info!("[gRPC-server] m2m_check_source_compliance");
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
         m2m.call(req.into()).await?;
@@ -534,6 +563,7 @@ where
         &self,
         request: Request<proto::messages::UpdateProvenance>,
     ) -> Result<Response<proto::messages::Ack>, Status> {
+        info!("[gRPC-server] m2m_update_provenance");
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
         match m2m.call(req.into()).await? {
@@ -549,6 +579,7 @@ where
         &self,
         request: Request<proto::messages::BroadcastDeletionRequest>,
     ) -> Result<Response<proto::messages::Ack>, Status> {
+        info!("[gRPC-server] m2m_broadcast_deletion");
         let req = request.into_inner();
         let mut m2m = self.m2m.clone();
         match m2m.call(req.into()).await? {
