@@ -3,13 +3,13 @@
 # Description: Bind socket and receive CV
 
 # Step 1: Bind to receive connection
-BIND company-node:8080
+BIND socket://172.20.0.20:8080
 
 # Step 2: Read incoming CV data
-READ stream://company-node:8080::user-node:8080
+READ socket://172.20.0.20:8080
 
-# Step 3: Store received CV
-CREATE /tmp/received_cv.txt
+# Step 3: Create file to store received CV
+CREATE file:///tmp/received_cv.txt
 
 # Step 4: Save CV to file
 WRITE file:///tmp/received_cv.txt

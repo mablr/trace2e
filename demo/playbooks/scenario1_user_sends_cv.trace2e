@@ -8,8 +8,11 @@ CREATE file:///tmp/my_cv.txt
 # Step 2: Write CV content to buffer
 WRITE file:///tmp/my_cv.txt
 
-# Step 3: Connect to company node
-CONNECT company-node:8080
+# Step 3: Wait until the company is ready
+SLEEP 1000
 
-# Step 4: Send CV data to company
-WRITE stream://user-node:8080::company-node:8080
+# Step 4: Connect to company node
+CONNECT socket://172.20.0.20:8080
+
+# Step 5: Send CV data to company
+WRITE socket://172.20.0.20:8080
