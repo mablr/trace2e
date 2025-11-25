@@ -23,6 +23,8 @@ use std::{collections::HashMap, net::SocketAddr};
 use stde2e::io::{Read, Write};
 use trace2e_core::traceability::infrastructure::naming::Resource;
 
+const DEFAULT_SLEEP_TIME: u64 = 1000; // Default sleep time in milliseconds
+
 /// Handles shared I/O buffer for read/write operations across resources
 #[derive(Debug)]
 pub struct BufferHandler {
@@ -59,6 +61,7 @@ pub enum Command {
     Connect,
     Read,
     Write,
+    Sleep,
     Help,
 }
 
@@ -72,6 +75,7 @@ impl Command {
             "CONNECT" | "CN" => Ok(Command::Connect),
             "READ" | "R" => Ok(Command::Read),
             "WRITE" | "W" => Ok(Command::Write),
+            "SLEEP" | "S" => Ok(Command::Sleep),
             "HELP" | "H" | "?" => Ok(Command::Help),
             _ => Err(anyhow::anyhow!("Unknown command: {}", s)),
         }
@@ -86,6 +90,7 @@ impl Command {
             Command::Bind => 2,
             Command::Connect => 2,
             Command::Read => 2,
+            Command::Sleep => 2,
             Command::Write => 2,
         }
     }
@@ -103,6 +108,7 @@ pub enum Target {
     File(String),
     Stream(String, String),
     Socket(String),
+    Time(u64),
     #[default]
     None,
 }
@@ -161,11 +167,17 @@ impl TryFrom<&str> for Instruction {
             ));
         } else if command.arity() == 2 {
             let arg = parts[1].trim();
-            // Parse resource, or socket
-            match Resource::try_from(arg) {
-                Ok(r) => r.try_into()?,
-                Err(_) => socket_target(arg)
-                    .map_err(|_| anyhow::anyhow!("Invalid target for READ/WRITE."))?,
+            if command == Command::Sleep {
+                // Sleep command does not require a target
+                let duration = arg.parse::<u64>().unwrap_or(DEFAULT_SLEEP_TIME);
+                return Ok(Instruction { command, target: Target::Time(duration) });
+            } else {
+                // Parse resource, or socket
+                match Resource::try_from(arg) {
+                    Ok(r) => r.try_into()?,
+                    Err(_) => socket_target(arg)
+                        .map_err(|_| anyhow::anyhow!("Invalid target for READ/WRITE."))?,
+                }
             }
         } else {
             unreachable!()
@@ -420,6 +432,14 @@ impl Resources {
             }
             (Command::Read, t) => self.read(t, buffer),
             (Command::Write, t) => self.write(t, buffer),
+            (Command::Sleep, Target::Time(duration)) => {
+                std::thread::sleep(std::time::Duration::from_millis(*duration));
+                println!("✓ Slept for {} milliseconds", duration);
+                Ok(())
+            }
+            (Command::Sleep, _) => {
+                Err(anyhow::anyhow!("SLEEP command requires a time duration in milliseconds"))
+            }
             (Command::Help, _) => {
                 print_help();
                 Ok(())
