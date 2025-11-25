@@ -19,14 +19,14 @@ if [ "$DECISION" = "grant" ]; then
       set-consent-decision \
         --source "$SOURCE" \
         --destination "$DESTINATION" \
-        --grant || echo "Consent decision recorded"
+        --grant
 else
   docker-compose -f docker-compose.yml exec -T user-node \
     /app/e2e-op \
       set-consent-decision \
         --source "$SOURCE" \
         --destination "$DESTINATION" \
-        --deny || echo "Consent decision recorded"
+        --deny
 fi
 
 echo ""
