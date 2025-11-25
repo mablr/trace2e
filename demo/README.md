@@ -153,8 +153,7 @@ docker compose exec user-node ss -tlnp | grep 50051
 
 ### Reset everything:
 ```bash
-./demo/run_demo.sh clean
-./demo/run_demo.sh start
+./demo/run_demo.sh restart
 ```
 
 ## Directory Structure
@@ -171,11 +170,10 @@ demo/
 │   ├── run_scenario1.sh
 │   ├── run_scenario2.sh
 │   ├── run_scenario3.sh
-│   ├── monitor_consent.sh
-│   ├── grant_consent.sh
-│   └── run_demo.sh
+│   └── monitor_consent.sh
 ├── data/
 │   └── (holds demo data files)
+├── run_demo.sh
 └── README.md
 ```
 

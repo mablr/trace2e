@@ -84,12 +84,6 @@ case "${1:-help}" in
     docker compose -f docker-compose.yml exec user-node /bin/bash
     ;;
 
-  clean)
-    echo "Cleaning up demo environment..."
-    docker compose -f docker-compose.yml down -v
-    echo "✓ Cleanup complete"
-    ;;
-
   help|*)
     usage
     ;;
