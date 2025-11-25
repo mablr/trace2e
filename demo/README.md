@@ -65,12 +65,12 @@ Demonstrates basic cross-node data flow with provenance tracking.
 Demonstrates consent enforcement for third-party data sharing.
 
 ```bash
+./demo/run_demo.sh scenario1
 ./demo/run_demo.sh scenario2
 ```
 
 **What happens:**
-- Company reads stored CV
-- Company attempts to forward to recruiter-node
+- Recuiter attempts to download the CV
 - System detects third-party sharing
 - Consent request sent to user-node
 - **User prompted to GRANT or DENY**
@@ -82,6 +82,7 @@ Demonstrates consent enforcement for third-party data sharing.
 Demonstrates deletion broadcast and enforcement across all nodes.
 
 ```bash
+./demo/run_demo.sh scenario1
 ./demo/run_demo.sh scenario3
 ```
 
