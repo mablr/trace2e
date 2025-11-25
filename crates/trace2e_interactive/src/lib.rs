@@ -7,7 +7,7 @@
 //!
 //! where:
 //! - ACTION := "OPEN" | "CREATE" | "BIND" | "CONNECT" | "READ" | "WRITE" | "HELP"
-//! - argument := file path (for OPEN/CREATE) | socket address (for BIND/CONNECT) | resource (for READ/WRITE)
+//! - argument := file resource (for OPEN/CREATE) | socket address (for BIND/CONNECT/READ/WRITE) | any resource (for READ/WRITE)
 //!
 //! Examples:
 //! - `OPEN /tmp/input.txt`
@@ -96,7 +96,7 @@ impl Command {
     }
 }
 
-/// Represents a complete instruction: ACTION RESOURCE
+/// Represents a complete instruction: CMD TARGET
 #[derive(Debug, Clone)]
 pub struct Instruction {
     pub command: Command,
@@ -137,11 +137,11 @@ impl TryFrom<Resource> for Target {
 impl TryFrom<&str> for Instruction {
     type Error = anyhow::Error;
 
-    /// Parse an instruction string in the format "ACTION resource"
+    /// Parse an instruction string in the format "CMD TARGET"
     ///
     /// # Examples
-    /// - `READ -- stream://127.0.0.1:8080::192.168.1.1:9000`
-    /// - `WRITE -- file:///tmp/output.txt`
+    /// - `READ stream://127.0.0.1:8080::192.168.1.1:9000`
+    /// - `WRITE file:///tmp/output.txt`
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         let s = s.trim();
 
@@ -150,7 +150,7 @@ impl TryFrom<&str> for Instruction {
             return Ok(Instruction { command: Command::Nil, target: Default::default() });
         }
 
-        // Split into action and resource
+        // Split into command and target
         let parts: Vec<&str> = s.splitn(2, char::is_whitespace).collect();
         if parts.is_empty() {
             return Err(anyhow::anyhow!("Invalid instruction format"));

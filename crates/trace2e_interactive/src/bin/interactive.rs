@@ -8,15 +8,15 @@
 //!
 //! Interactive mode:
 //! ```bash
-//! trace2e-runner
-//! > OPEN /tmp/test.txt
+//! ./e2e-proc
+//! > OPEN file:///tmp/test.txt
 //! > READ file:///tmp/test.txt
 //! > ^D
 //! ```
 //!
 //! Batch mode:
 //! ```bash
-//! ./trace2e-runner --playbook scenario.txt
+//! ./e2e-proc --playbook scenario.trace2e
 //! ```
 
 use clap::Parser;
