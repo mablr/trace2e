@@ -5,8 +5,8 @@
 # Step 1: Create CV file
 CREATE file:///tmp/my_cv.txt
 
-# Step 2: Write CV content to buffer
-WRITE file:///tmp/my_cv.txt
+# Step 2: READ the CV, to the process
+READ file:///tmp/my_cv.txt
 
 # Step 3: Wait until the company is ready
 SLEEP 1000
