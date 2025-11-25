@@ -24,28 +24,15 @@ echo "  - User created CV: /tmp/my_cv.txt"
 echo "  - Company received CV: /tmp/received_cv.txt"
 echo ""
 
-# Create a named pipe for consent notification signaling
-CONSENT_NOTIFY_PIPE="/tmp/consent_notify_$$"
-mkfifo "$CONSENT_NOTIFY_PIPE" 2>/dev/null || true
-
 # Step 1: Start consent enforcement on user-node (background process)
 # This sets the consent policy flag AND creates the notification channel
 # Output is piped to allow us to detect when notifications arrive
 echo "Step 1: Setting up consent enforcement on CV file..."
 docker compose -f docker-compose.yml exec -T user-node \
   /app/e2e-op \
-    enforce-consent "file:///tmp/my_cv.txt" > "$CONSENT_NOTIFY_PIPE" 2>&1 &
+    enforce-consent "file:///tmp/my_cv.txt" 2>&1 &
 CONSENT_MONITOR_PID=$!
 
-# Monitor the pipe in background - when output arrives, notification was received
-(
-  timeout 15 cat "$CONSENT_NOTIFY_PIPE" > /tmp/consent_output_$$ 2>&1 || true
-  # Write marker when first output is received
-  if [ -s "/tmp/consent_output_$$" ]; then
-    touch "/tmp/consent_received_$$"
-  fi
-) &
-PIPE_MONITOR_PID=$!
 
 # Give consent enforcement a moment to set up
 sleep 1
@@ -77,7 +64,7 @@ docker compose -f docker-compose.yml exec -T recruiter-node \
   /app/e2e-proc --playbook /app/playbooks/scenario2_recruiter_receive.trace2e &
 RECRUITER_PID=$!
 
-sleep 2
+sleep 1
 echo ""
 echo "=========================================="
 echo "CONSENT REQUEST RECEIVED!"
@@ -109,8 +96,6 @@ fi
 
 # Clean up processes and temporary files
 kill $CONSENT_MONITOR_PID 2>/dev/null || true
-kill $PIPE_MONITOR_PID 2>/dev/null || true
-rm -f "$CONSENT_NOTIFY_PIPE" "/tmp/consent_output_$$" "/tmp/consent_received_$$"
 
 # Wait for completion
 wait $COMPANY_PID $RECRUITER_PID 2>/dev/null || true

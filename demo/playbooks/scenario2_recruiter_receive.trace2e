@@ -4,7 +4,7 @@
 
 # Step 1: Bind to receive connection
 BIND socket://172.20.0.30:9000
-
+SLEEP 5000
 # Step 2: Read CV data (blocks until consent granted)
 READ socket://172.20.0.30:9000
 
