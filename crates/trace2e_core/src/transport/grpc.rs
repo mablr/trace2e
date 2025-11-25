@@ -294,7 +294,6 @@ impl Service<M2mRequest> for M2mGrpc {
                         "[gRPC-client] UpdateProvenance"
                     );
                     let remote_ip = eval_remote_ip(request)?;
-                    println!("remote_ip: {}", remote_ip);
                     let mut client = this.get_client_or_connect(remote_ip.clone()).await?;
 
                     // Group LocalizedResources by node_id
@@ -318,7 +317,6 @@ impl Service<M2mRequest> for M2mGrpc {
                         source_prov: source_prov_proto,
                         destination: Some(destination.into()),
                     };
-                    println!("proto_req: {:?}", proto_req);
 
                     // Make the gRPC call
                     client.m2m_update_provenance(Request::new(proto_req)).await.map_err(|_| {
