@@ -7,7 +7,7 @@ OPEN file:///tmp/received_cv.txt
 READ file:///tmp/received_cv.txt
 
 # Step 3: Connect to recruiter
-SLEEP 1000
+SLEEP 100
 CONNECT socket://172.20.0.30:9000
 
 # Step 4: Forward CV (will trigger consent request)
