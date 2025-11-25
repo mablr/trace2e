@@ -12,14 +12,13 @@ services:
     ports:
       - "50051:50051"  # P2M/O2M access from host
     environment:
-      - TRACE2E_MIDDLEWARE_URL=http://user-node:50051
-      - NODE_NAME=user-node
-      - NODE_IP=172.20.0.10
+      - TRACE2E_MIDDLEWARE_URL=http://172.20.0.10:50051
+      - RUST_LOG=trace2e_core=debug
     volumes:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
       - user-data:/tmp
-    command: /app/trace2e_middleware --address 0.0.0.0 --port 50051 --consent-timeout 30
+    command: /app/trace2e_middleware --address 172.20.0.10 --port 50051 --consent-timeout 30
     healthcheck:
       test: ["CMD", "sh", "-c", "ss -tlnp | grep 50051"]
       interval: 5s
@@ -39,14 +38,13 @@ services:
     ports:
       - "50052:50051"  # Different host port for access
     environment:
-      - TRACE2E_MIDDLEWARE_URL=http://company-node:50051
-      - NODE_NAME=company-node
-      - NODE_IP=172.20.0.20
+      - TRACE2E_MIDDLEWARE_URL=http://172.20.0.20:50051
+      - RUST_LOG=trace2e_core=debug
     volumes:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
       - company-data:/tmp
-    command: /app/trace2e_middleware --address 0.0.0.0 --port 50051 --consent-timeout 30
+    command: /app/trace2e_middleware --address 172.20.0.20 --port 50051 --consent-timeout 30
     healthcheck:
       test: ["CMD", "sh", "-c", "ss -tlnp | grep 50051"]
       interval: 5s
@@ -69,14 +67,13 @@ services:
     ports:
       - "50053:50051"
     environment:
-      - TRACE2E_MIDDLEWARE_URL=http://recruiter-node:50051
-      - NODE_NAME=recruiter-node
-      - NODE_IP=172.20.0.30
+      - TRACE2E_MIDDLEWARE_URL=http://172.20.0.30:50051
+      - RUST_LOG=trace2e_core=debug
     volumes:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
       - recruiter-data:/tmp
-    command: /app/trace2e_middleware --address 0.0.0.0 --port 50051 --consent-timeout 30
+    command: /app/trace2e_middleware --address 172.20.0.30 --port 50051 --consent-timeout 30
     healthcheck:
       test: ["CMD", "sh", "-c", "ss -tlnp | grep 50051"]
       interval: 5s
