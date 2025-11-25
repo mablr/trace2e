@@ -1,81 +1,106 @@
 # trace2e_interactive
 
-Simple DSL for executing traced I/O operations. Supports interactive and batch (playbook) modes.
+Simple DSL for executing traced I/O operations in interactive and batch modes.
 
-## Build
+## Quick Start
 
-```bash
-cargo build -p trace2e_interactive --release
-```
-
-Output: `target/release/e2e-proc` and `target/release/e2e-op`
-
-## Usage
-
-### Interactive
-
+### Interactive Mode
 ```bash
 cargo run -p trace2e_interactive --bin e2e-proc
-# or
-./target/release/e2e-proc
 ```
 
-### Operator
-
+### Batch Mode (Playbooks)
 ```bash
 cargo run -p trace2e_interactive --bin e2e-op
-# or
-./target/release/e2e-op
 ```
 
-## Instruction Syntax
+## Language Specification
 
-Format: `COMMAND resource`
+### ABNF Grammar
 
-**Commands:**
-- `READ` / `R` - Read from resource
-- `WRITE` / `W` - Write to resource
-- `HELP` / `H` / `?` - Show help
+```abnf
+instruction    = command [ WSP argument ] CRLF
+command        = open-cmd / create-cmd / bind-cmd / connect-cmd /
+                 read-cmd / write-cmd / sleep-cmd / help-cmd / empty
+open-cmd       = ("OPEN" / "O") WSP file-target
+create-cmd     = ("CREATE" / "C") WSP file-target
+bind-cmd       = ("BIND" / "B") WSP socket-addr
+connect-cmd    = ("CONNECT" / "CN") WSP socket-addr
+read-cmd       = ("READ" / "R") WSP io-target
+write-cmd      = ("WRITE" / "W") WSP io-target
+sleep-cmd      = ("SLEEP" / "S") WSP duration
+help-cmd       = "HELP" / "H" / "?"
+empty          = [ "#" comment ]
 
-**Resources:**
-- Files: `file:///path` (e.g., `file:///tmp/test.txt`)
-- Streams: `stream://local::peer` (e.g., `stream://127.0.0.1:8080::192.168.1.1:9000`)
+io-target      = file-target / stream-target / socket-target
+file-target    = "file://" file-path
+socket-target  = "socket://" socket-addr
+stream-target  = "stream://" socket-addr "::::" socket-addr
+socket-addr    = host ":" port
+duration       = DIGIT?
 
-**Examples:**
+comment        = *VCHAR
+file-path      = VCHAR *( VCHAR / WSP )
+host           = IPv4address / IPv6address
+port           = 1*5DIGIT
 ```
-READ file:///tmp/data.txt
-WRITE stream://127.0.0.1:8080::192.168.1.1:9000
-R file:///tmp/test.txt
-W stream://127.0.0.1:8080::192.168.1.1:9000
+
+### Commands
+
+| Command | Aliases | Argument | Description |
+|---------|---------|----------|-------------|
+| OPEN | O | file-path | Open file for reading/writing |
+| CREATE | C | file-path | Create file (truncate if exists) |
+| BIND | B | socket-addr | Listen for incoming connection |
+| CONNECT | CN | socket-addr | Connect to remote socket |
+| READ | R | io-target | Read from file or stream |
+| WRITE | W | io-target | Write to file or stream |
+| SLEEP | S | milliseconds | Sleep for duration |
+| HELP | H, ? | — | Show help message |
+
+### Examples
+
 ```
-
-## Playbook Format
-
-One instruction per line. Supports comments (`#`) and empty lines.
-
-Example (`scenario.txt`):
-```
-# Open file
+# File operations
 OPEN file:///tmp/input.txt
-
-# Read input file
+CREATE file:///tmp/output.txt
 READ file:///tmp/input.txt
-
-# Write output
 WRITE file:///tmp/output.txt
 
-# Stream operations (requires at least two nodes)
-# READ stream://192.168.1.1:8080::192.168.1.2:9000
-# WRITE stream://192.168.1.1:8080::192.168.1.2:9000
+# Socket operations
+BIND 127.0.0.1:8080
+CONNECT 192.168.1.100:9000
+
+# Stream I/O
+READ stream://127.0.0.1:8080::::192.168.1.1:9000
+WRITE stream://127.0.0.1:8080::::192.168.1.1:9000
+
+# Utilities
+SLEEP 1000
+HELP
+```
+
+## Playbooks
+
+Batch mode files contain one instruction per line. Comments (lines starting with `#`) and blank lines are ignored.
+
+Example `scenario.trace2e`:
+```
+# Setup
+OPEN file:///tmp/input.txt
+CREATE file:///tmp/output.txt
+
+# IOs
+READ file:///tmp/input.txt
+SLEEP 500
+WRITE file:///tmp/output.txt
 ```
 
 ## Requirements
 
-**Important**: The `stde2e` library requires a local instance of trace2e middleware running at `[::1]:50051`.
+The `stde2e` library requires a local trace2e middleware instance running at `[::1]:50051`.
 
-See the main README for setup details about `trace2e_middleware`.
-
-## Tests
+## Testing
 
 ```bash
 cargo test -p trace2e_interactive
