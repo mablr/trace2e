@@ -14,6 +14,7 @@ Commands:
   restart     - Restart all containers
   logs        - Show logs from all containers
   scenario1   - Run Scenario 1 (User sends CV)
+  scenario2   - Run Scenario 2 (User consents to CV forwarding)
   scenario3   - Run Scenario 3 (User deletes CV, cascade)
   all         - Run all scenarios in sequence
   interactive - Start interactive shell on user-node
@@ -57,6 +58,10 @@ case "${1:-help}" in
 
   scenario1)
     ./demo/scripts/run_scenario1.sh
+    ;;
+
+  scenario2)
+    ./demo/scripts/run_scenario2.sh
     ;;
 
   scenario3)
