@@ -3,11 +3,12 @@
 # Description: Forward CV to third party (requires user consent)
 
 # Step 1: Read CV file
-OPEN /tmp/received_cv.txt
+OPEN file:///tmp/received_cv.txt
 READ file:///tmp/received_cv.txt
 
-# Step 2: Connect to recruiter
-CONNECT recruiter-node:9000
+# Step 3: Connect to recruiter
+SLEEP 1000
+CONNECT socket://172.20.0.30:9000
 
-# Step 3: Forward CV (will trigger consent request)
-WRITE stream://company-node:9000::recruiter-node:9000
+# Step 4: Forward CV (will trigger consent request)
+WRITE socket://172.20.0.30:9000

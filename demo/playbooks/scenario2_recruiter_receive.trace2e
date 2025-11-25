@@ -3,11 +3,11 @@
 # Description: Receive CV if consent granted
 
 # Step 1: Bind to receive connection
-BIND 0.0.0.0:9000
+BIND socket://172.20.0.30:9000
 
 # Step 2: Read CV data (blocks until consent granted)
-READ stream://recruiter-node:9000::company-node:9000
+READ socket://172.20.0.30:9000
 
 # Step 3: Store if received
-CREATE /tmp/forwarded_cv.txt
+CREATE file:///tmp/forwarded_cv.txt
 WRITE file:///tmp/forwarded_cv.txt
