@@ -30,7 +30,7 @@ EOF
 case "${1:-help}" in
   start)
     echo "Starting trace2e demo infrastructure..."
-    docker-compose -f docker-compose.yml up -d
+    docker compose -f docker-compose.yml up -d
     echo "Waiting for services to be healthy..."
     sleep 1
     echo "✓ All services ready"
@@ -38,22 +38,22 @@ case "${1:-help}" in
 
   stop)
     echo "Stopping trace2e demo..."
-    docker-compose -f docker-compose.yml stop -t0
-    docker-compose -f docker-compose.yml rm -f
+    docker compose -f docker-compose.yml stop -t0
+    docker compose -f docker-compose.yml rm -f
     ;;
 
   restart)
     echo "Restarting trace2e demo..."
-    docker-compose -f docker-compose.yml stop -t0
-    docker-compose -f docker-compose.yml rm -f
+    docker compose -f docker-compose.yml stop -t0
+    docker compose -f docker-compose.yml rm -f
     echo "Waiting for services to be healthy..."
-    docker-compose -f docker-compose.yml up -d
+    docker compose -f docker-compose.yml up -d
     sleep 1
     echo "✓ All services ready"
     ;;
 
   logs)
-    docker-compose -f docker-compose.yml logs -f
+    docker compose -f docker-compose.yml logs -f
     ;;
 
   scenario1)
@@ -81,12 +81,12 @@ case "${1:-help}" in
 
   interactive)
     echo "Starting interactive shell on user-node..."
-    docker-compose -f docker-compose.yml exec user-node /bin/bash
+    docker compose -f docker-compose.yml exec user-node /bin/bash
     ;;
 
   clean)
     echo "Cleaning up demo environment..."
-    docker-compose -f docker-compose.yml down -v
+    docker compose -f docker-compose.yml down -v
     echo "✓ Cleanup complete"
     ;;
 

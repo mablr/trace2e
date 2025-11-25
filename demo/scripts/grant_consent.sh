@@ -14,14 +14,14 @@ echo "Decision: $DECISION"
 echo ""
 
 if [ "$DECISION" = "grant" ]; then
-  docker-compose -f docker-compose.yml exec -T user-node \
+  docker compose -f docker-compose.yml exec -T user-node \
     /app/e2e-op \
       set-consent-decision \
         --source "$SOURCE" \
         --destination "$DESTINATION" \
         --grant
 else
-  docker-compose -f docker-compose.yml exec -T user-node \
+  docker compose -f docker-compose.yml exec -T user-node \
     /app/e2e-op \
       set-consent-decision \
         --source "$SOURCE" \

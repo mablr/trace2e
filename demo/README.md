@@ -99,21 +99,21 @@ Access any node for manual testing:
 
 ```bash
 # User node
-docker-compose exec user-node /bin/bash
+docker compose exec user-node /bin/bash
 /app/e2e-proc  # Start interactive mode
 
 # Company node
-docker-compose exec company-node /bin/bash
+docker compose exec company-node /bin/bash
 
 # Recruiter node
-docker-compose exec recruiter-node /bin/bash
+docker compose exec recruiter-node /bin/bash
 ```
 
 ## Manual Operations
 
 ### Create and send CV manually:
 ```bash
-docker-compose exec user-node /app/e2e-proc
+docker compose exec user-node /app/e2e-proc
 > CREATE /tmp/my_cv.txt
 > WRITE file:///tmp/my_cv.txt
 > CONNECT company-node:8080
@@ -133,22 +133,22 @@ docker-compose exec user-node /app/e2e-proc
 
 ### Check provenance:
 ```bash
-docker-compose exec user-node /app/e2e-op get-references file:///tmp/my_cv.txt
+docker compose exec user-node /app/e2e-op get-references file:///tmp/my_cv.txt
 ```
 
 ## Troubleshooting
 
 ### View logs:
 ```bash
-docker-compose logs -f
-docker-compose logs user-node
-docker-compose logs company-node
+docker compose logs -f
+docker compose logs user-node
+docker compose logs company-node
 ```
 
 ### Check middleware status:
 ```bash
-docker-compose ps
-docker-compose exec user-node ss -tlnp | grep 50051
+docker compose ps
+docker compose exec user-node ss -tlnp | grep 50051
 ```
 
 ### Reset everything:
