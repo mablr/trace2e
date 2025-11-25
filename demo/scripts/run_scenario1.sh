@@ -6,10 +6,6 @@ echo "Scenario 1: User Sends CV to Company"
 echo "=========================================="
 echo ""
 
-# Wait for all nodes to be healthy
-echo "Waiting for nodes to be ready..."
-sleep 2
-
 echo "Step 1: User creates CV..."
 docker-compose -f docker-compose.yml exec -T user-node \
   /app/e2e-proc --playbook /app/playbooks/scenario1_user_sends_cv.trace2e &
