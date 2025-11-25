@@ -47,14 +47,6 @@ fn parse_resource(s: &str) -> Result<naming::Resource> {
 #[command(about = "Operator tool for trace2e middleware compliance and provenance management")]
 #[command(version)]
 struct Cli {
-    /// Middleware host address
-    #[arg(long, global = true, env = "TRACE2E_HOST", default_value = "127.0.0.1")]
-    host: String,
-
-    /// Middleware port
-    #[arg(long, global = true, env = "TRACE2E_PORT", default_value = "50051")]
-    port: u16,
-
     #[command(subcommand)]
     command: Commands,
 }
@@ -149,12 +141,6 @@ enum Commands {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-
-    // Note: host and port are currently not being used since trace2e_client
-    // has hardcoded GRPC_URL. In production, you'd need to modify trace2e_client
-    // to accept dynamic host/port configuration.
-    let _host = &cli.host;
-    let _port = cli.port;
 
     match cli.command {
         Commands::GetPolicies { resources } => {

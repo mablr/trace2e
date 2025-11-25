@@ -16,7 +16,7 @@ use trace2e_core::{
 #[command(name = "trace2e_middleware")]
 #[command(about = "Trace2e middleware server")]
 struct Trace2eMiddlewareArgs {
-    /// Server address to bind to
+    /// Server public address (used as node ID)
     #[arg(short, long, default_value = "[::1]")]
     address: String,
 
@@ -43,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let args = Trace2eMiddlewareArgs::parse();
 
-    let address = format!("{}:{}", args.address, args.port).parse().unwrap();
+    let address = format!("[::]:{}", args.port).parse().unwrap();
 
     let (m2m_service, p2m_service, o2m_service) = init_middleware(
         args.address.clone(),
