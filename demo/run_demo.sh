@@ -44,8 +44,17 @@ case "${1:-help}" in
 
   restart)
     echo "Restarting trace2e demo..."
-    docker compose -f docker-compose.yml stop -t0
-    docker compose -f docker-compose.yml rm -f
+    docker compose -f docker-compose.yml down -t0
+    echo "Waiting for services to be healthy..."
+    docker compose -f docker-compose.yml up -d
+    sleep 1
+    echo "✓ All services ready"
+    ;;
+
+  rebuild)
+    echo "Rebuilding trace2e demo containers..."
+    docker compose -f docker-compose.yml down -t0
+    docker compose -f docker-compose.yml build --no-cache
     echo "Waiting for services to be healthy..."
     docker compose -f docker-compose.yml up -d
     sleep 1
