@@ -18,7 +18,7 @@ services:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
       - user-data:/tmp
-    command: /app/trace2e_middleware --address 172.20.0.10 --port 50051 --consent-timeout 30
+    command: /app/trace2e_middleware --address 172.20.0.10 --port 50051 --consent-timeout 30000
     healthcheck:
       test: ["CMD", "sh", "-c", "ss -tlnp | grep 50051"]
       interval: 5s
@@ -44,7 +44,7 @@ services:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
       - company-data:/tmp
-    command: /app/trace2e_middleware --address 172.20.0.20 --port 50051 --consent-timeout 30
+    command: /app/trace2e_middleware --address 172.20.0.20 --port 50051 --consent-timeout 30000
     healthcheck:
       test: ["CMD", "sh", "-c", "ss -tlnp | grep 50051"]
       interval: 5s
@@ -73,7 +73,7 @@ services:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
       - recruiter-data:/tmp
-    command: /app/trace2e_middleware --address 172.20.0.30 --port 50051 --consent-timeout 30
+    command: /app/trace2e_middleware --address 172.20.0.30 --port 50051 --consent-timeout 30000
     healthcheck:
       test: ["CMD", "sh", "-c", "ss -tlnp | grep 50051"]
       interval: 5s
