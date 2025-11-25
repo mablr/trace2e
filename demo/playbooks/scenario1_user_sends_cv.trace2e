@@ -9,7 +9,7 @@ CREATE file:///tmp/my_cv.txt
 READ file:///tmp/my_cv.txt
 
 # Step 3: Wait until the company is ready
-SLEEP 1000
+SLEEP 100
 
 # Step 4: Connect to company node
 CONNECT socket://172.20.0.20:8080
