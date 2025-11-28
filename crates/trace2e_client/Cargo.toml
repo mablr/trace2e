@@ -19,7 +19,3 @@ criterion.workspace = true
 
 [features]
 o2m = []
-
-[[bench]]
-name = "p2m"
-harness = false

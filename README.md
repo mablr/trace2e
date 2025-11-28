@@ -83,21 +83,6 @@ This will build the documentation and automatically open it in your default web 
 make docs
 ```
 
-
-### Benchmarking
-
-To benchmark the middleware internal traceability server, run:
-```bash
-make bench
-```
-
-To benchmark the `trace2e_client` and the `stde2e` wrapper, run the following commands:
-```bash
-make release
-./target/release/trace2e_middleware &
-cargo bench -p trace2e_client
-cargo bench -p stde2e
-```
 ## Project Structure
 
 - **/proto**: Protocol buffer definitions for communication between components

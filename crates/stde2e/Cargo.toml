@@ -17,7 +17,3 @@ tonic-build = { workspace = true }
 [dev-dependencies]
 clap = { workspace = true, features = ["derive"] }
 criterion.workspace = true
-
-[[bench]]
-name = "io_benchmarks"
-harness = false

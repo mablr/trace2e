@@ -1,4 +1,4 @@
-.PHONY: fmt clippy test pre-commit clean release bench docs help test-middleware test-lib pr
+.PHONY: fmt clippy test pre-commit clean release docs help test-middleware test-lib pr
 
 # Format code
 fmt:
@@ -19,10 +19,6 @@ test-lib:
 # Build release binary for trace2e middleware
 release:
 	cargo build -r -p trace2e_middleware
-
-# Run middleware benchmarks (core traceability server)
-bench:
-	cargo bench -p trace2e_core
 
 # Generate documentation for trace2e_core
 docs:
@@ -45,7 +41,6 @@ help:
 	@echo "  test-middleware - Run middleware (trace2e_core) tests"
 	@echo "  test-lib        - Run custom lib tests (./test-lib.sh)"
 	@echo "  release         - Build trace2e_middleware in release mode"
-	@echo "  bench           - Run middleware benchmarks (trace2e_core)"
 	@echo "  docs            - Generate and open documentation for trace2e_core"
 	@echo "  pr              - Run all pre-commit checks (fmt + clippy + test)"
 	@echo "  clean           - Clean build artifacts"
