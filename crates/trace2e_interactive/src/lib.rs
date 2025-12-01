@@ -19,6 +19,7 @@
 
 use std::collections::hash_map::Entry;
 use std::convert::TryFrom;
+use std::io::{Seek, SeekFrom};
 use std::{collections::HashMap, net::SocketAddr};
 #[cfg(not(feature = "trace2e"))]
 use std::{
@@ -348,6 +349,7 @@ impl Resources {
                     .files
                     .get_mut(file_path)
                     .ok_or_else(|| anyhow::anyhow!("File not opened: {}", file_path))?;
+                file.seek(SeekFrom::Start(0))?;
                 let n = file.read(&mut temp_buf).map_err(|e| {
                     anyhow::anyhow!("Failed to read from file '{}': {}", file_path, e)
                 })?;
