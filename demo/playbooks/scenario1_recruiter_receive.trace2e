@@ -3,6 +3,9 @@
 # Step 1: Connect to socket
 CONNECT socket://172.20.0.20:8081
 
+# Let company write something
+SLEEP 20
+
 # Step 2: Read incoming CV data
 READ socket://172.20.0.20:8081
 

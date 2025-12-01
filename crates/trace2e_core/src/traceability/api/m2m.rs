@@ -33,7 +33,7 @@ use std::{collections::HashSet, future::Future, pin::Pin, task::Poll};
 
 use tower::Service;
 
-use crate::traceability::infrastructure::naming::DisplayableResource;
+use crate::traceability::infrastructure::naming::{DisplayableResource, Resource};
 use tracing::info;
 
 use crate::traceability::{
@@ -113,9 +113,21 @@ where
                     } else {
                         return Err(TraceabilityError::NotLocalResource);
                     };
-                    match compliance.call(ComplianceRequest::GetPolicy(destination)).await? {
-                        ComplianceResponse::Policy(policy) => {
-                            Ok(M2mResponse::DestinationPolicy(policy))
+                    match sequencer
+                        .call(SequencerRequest::ReserveFlow {
+                            source: Resource::None, // placeholder for remote source resource
+                            destination: destination.clone(),
+                        })
+                        .await?
+                    {
+                        SequencerResponse::FlowReserved => {
+                            match compliance.call(ComplianceRequest::GetPolicy(destination)).await?
+                            {
+                                ComplianceResponse::Policy(policy) => {
+                                    Ok(M2mResponse::DestinationPolicy(policy))
+                                }
+                                _ => Err(TraceabilityError::InternalTrace2eError),
+                            }
                         }
                         _ => Err(TraceabilityError::InternalTrace2eError),
                     }
