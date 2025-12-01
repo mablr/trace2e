@@ -211,8 +211,7 @@ impl TryFrom<String> for Instruction {
 pub struct Resources {
     files: HashMap<String, std::fs::File>,
     streams: HashMap<Resource, std::net::TcpStream>,
-    local_peers: HashMap<String, Resource>,
-    remote_peers: HashMap<String, Resource>,
+    socket_cheats: HashMap<String, Resource>,
 }
 
 /// Combines resource management with shared I/O buffer handling
@@ -315,8 +314,7 @@ impl Resources {
         // Store stream with inferred resource
         let resource = Resource::new_stream(local_socket.to_string(), peer_socket.to_string());
         self.streams.insert(resource.to_owned(), stream);
-        self.local_peers.insert(local_socket.to_string(), resource.clone());
-        self.remote_peers.insert(peer_socket.to_string(), resource.clone());
+        self.socket_cheats.insert(local_socket.to_string(), resource.clone());
 
         println!("✓ Stream established: {}", resource);
         Ok(())
@@ -334,8 +332,7 @@ impl Resources {
         // Store stream with inferred resource
         let resource = Resource::new_stream(local_socket.to_string(), peer_socket.to_string());
         self.streams.insert(resource.to_owned(), stream);
-        self.local_peers.insert(local_socket.to_string(), resource.clone());
-        self.remote_peers.insert(peer_socket.to_string(), resource.clone());
+        self.socket_cheats.insert(peer_socket.to_string(), resource.clone());
 
         println!("✓ Stream established: {}", resource);
         Ok(())
@@ -359,7 +356,7 @@ impl Resources {
                 Ok(())
             }
             Target::Socket(local_peer) | Target::Stream(local_peer, _) => {
-                let resource = self.local_peers.get_mut(local_peer).ok_or_else(|| {
+                let resource = self.socket_cheats.get_mut(local_peer).ok_or_else(|| {
                     anyhow::anyhow!("No stream established for socket: {}", local_peer)
                 })?;
                 let stream = self
@@ -399,7 +396,7 @@ impl Resources {
                 Ok(())
             }
             Target::Socket(remote_peer) | Target::Stream(_, remote_peer) => {
-                let resource = self.remote_peers.get_mut(remote_peer).ok_or_else(|| {
+                let resource = self.socket_cheats.get_mut(remote_peer).ok_or_else(|| {
                     anyhow::anyhow!("No stream established for socket: {}", remote_peer)
                 })?;
                 let stream = self
