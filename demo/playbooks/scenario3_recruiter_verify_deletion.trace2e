@@ -1,0 +1,8 @@
+# Scenario 3: Verify deletion cascade
+# Run on each node to verify operations blocked after deletion
+
+# Try to read from CV file
+OPEN file:///tmp/forwarded_cv.txt
+
+# Try to read (should fail)
+READ file:///tmp/forwarded_cv.txt

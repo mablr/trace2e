@@ -1,0 +1,5 @@
+# Try to read from CV file (should fail)
+OPEN file:///tmp/my_cv.txt
+
+# Try to read (should fail)
+READ file:///tmp/my_cv.txt
