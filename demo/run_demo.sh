@@ -12,6 +12,7 @@ Commands:
   start       - Start all containers
   stop        - Stop all containers
   restart     - Restart all containers
+  rebuild     - Rebuild all containers
   logs        - Show logs from all containers
   scenario1   - Run Scenario 1 (User sends CV)
   scenario2   - Run Scenario 2 (User consents to CV forwarding)
