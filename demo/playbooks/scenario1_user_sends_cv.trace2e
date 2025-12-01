@@ -1,18 +1,14 @@
-# Scenario 1: User creates CV and sends to Company
 # Node: user-node
-# Description: Create CV file and transmit to company-node
 
 # Step 1: Create CV file
 CREATE file:///tmp/my_cv.txt
+WRITE file:///tmp/my_cv.txt
 
 # Step 2: READ the CV, to the process
 READ file:///tmp/my_cv.txt
 
-# Step 3: Wait until the company is ready
-SLEEP 100
-
-# Step 4: Connect to company node
+# Step 3: Connect to company node
 CONNECT socket://172.20.0.20:8080
 
-# Step 5: Send CV data to company
+# Step 4: Send CV data to company
 WRITE socket://172.20.0.20:8080

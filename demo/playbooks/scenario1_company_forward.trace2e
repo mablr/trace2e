@@ -1,9 +1,8 @@
-# Scenario 1: Company receives CV from user
 # Node: company-node
-# Description: Bind socket and receive CV
 
 # Step 1: Bind to receive connection
 BIND socket://172.20.0.20:8080
+BIND socket://172.20.0.20:8081
 
 # Step 2: Read incoming CV data
 READ socket://172.20.0.20:8080
@@ -13,3 +12,9 @@ CREATE file:///tmp/received_cv.txt
 
 # Step 4: Save CV to file
 WRITE file:///tmp/received_cv.txt
+
+# Step 5: Read received CV
+READ file:///tmp/received_cv.txt
+
+# Step 6: Send CV data to recruiter
+WRITE socket://172.20.0.20:8081

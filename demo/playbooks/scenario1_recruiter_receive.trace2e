@@ -1,0 +1,13 @@
+# Node: recuiter-node
+
+# Step 1: Connect to socket
+CONNECT socket://172.20.0.20:8081
+
+# Step 2: Read incoming CV data
+READ socket://172.20.0.20:8081
+
+# Step 3: Create file to store received CV
+CREATE file:///tmp/forwarded_cv.txt
+
+# Step 4: Save CV to file
+WRITE file:///tmp/forwarded_cv.txt
