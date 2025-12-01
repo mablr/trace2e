@@ -9,8 +9,6 @@ services:
     networks:
       trace2e-net:
         ipv4_address: 172.20.0.10
-    ports:
-      - "50051:50051"  # P2M/O2M access from host
     environment:
       - TRACE2E_MIDDLEWARE_URL=http://172.20.0.10:50051
       - RUST_LOG=trace2e_core=debug
@@ -35,8 +33,6 @@ services:
     networks:
       trace2e-net:
         ipv4_address: 172.20.0.20
-    ports:
-      - "50052:50051"  # Different host port for access
     environment:
       - TRACE2E_MIDDLEWARE_URL=http://172.20.0.20:50051
       - RUST_LOG=trace2e_core=debug
@@ -64,8 +60,6 @@ services:
     networks:
       trace2e-net:
         ipv4_address: 172.20.0.30
-    ports:
-      - "50053:50051"
     environment:
       - TRACE2E_MIDDLEWARE_URL=http://172.20.0.30:50051
       - RUST_LOG=trace2e_core=debug
