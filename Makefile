@@ -6,7 +6,7 @@ fmt:
 
 # Run clippy
 clippy:
-	cargo clippy --all-targets --all-features -- -D warnings
+	cargo clippy --all-targets --all-features -- -D warnings && cargo clippy --all-targets --no-default-features -- -D warnings
 
 # Run all tests
 test: test-middleware test-lib
