@@ -1,0 +1,14 @@
+# Node: company-node
+
+# Step 1: Bind to receive connection
+BIND socket://172.20.0.20:8080
+SLEEP 20
+
+# Step 2: Read incoming CV data
+READ socket://172.20.0.20:8080
+
+# Step 3: Create file to store received CV
+CREATE file:///tmp/received_cv.txt
+
+# Step 4: Save CV to file
+WRITE file:///tmp/received_cv.txt

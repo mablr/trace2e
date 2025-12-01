@@ -14,7 +14,7 @@ USER_PID=$!
 
 echo "Step 0.2: Company waits to receive CV..."
 docker compose -f docker-compose.yml exec -T company-node \
-  /app/e2e-proc --playbook /app/playbooks/scenario1_company_receive.trace2e &
+  /app/e2e-proc --playbook /app/playbooks/scenario2_company_receive.trace2e &
 COMPANY_PID=$!
 
 # Wait for both to complete
@@ -34,9 +34,6 @@ docker compose -f docker-compose.yml exec -T user-node \
 CONSENT_MONITOR_PID=$!
 
 
-# Give consent enforcement a moment to set up
-sleep 1
-
 # Pre-emptively set consent decisions for known destinations
 # (In a real scenario, these would be requested dynamically via notifications)
 docker compose -f docker-compose.yml exec -T user-node \
@@ -55,7 +52,7 @@ docker compose -f docker-compose.yml exec -T user-node \
 echo ""
 echo "Step 2: Company attempts to forward CV..."
 docker compose -f docker-compose.yml exec -T company-node \
-  /app/e2e-proc --playbook /app/playbooks/scenario2_company_forward.trace2e &
+  /app/e2e-proc --playbook /app/playbooks/scenario2_company_send.trace2e &
 COMPANY_PID=$!
 
 echo ""

@@ -1,0 +1,11 @@
+# Node: company-node
+
+# Step 1: Bind to receive connection
+BIND socket://172.20.0.20:8081
+
+# Step 2: Read CV file
+OPEN file:///tmp/received_cv.txt
+READ file:///tmp/received_cv.txt
+
+# Step 4: Forward CV (will trigger consent request)
+WRITE socket://172.20.0.20:8081

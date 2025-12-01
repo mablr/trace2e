@@ -1,12 +1,11 @@
-# Scenario 2: Recruiter receives forwarded CV
 # Node: recruiter-node
-# Description: Receive CV if consent granted
 
 # Step 1: Bind to receive connection
-BIND socket://172.20.0.30:9000
+CONNECT socket://172.20.0.20:8081
 SLEEP 5000
+
 # Step 2: Read CV data (blocks until consent granted)
-READ socket://172.20.0.30:9000
+READ socket://172.20.0.20:8081
 
 # Step 3: Store if received
 CREATE file:///tmp/forwarded_cv.txt
