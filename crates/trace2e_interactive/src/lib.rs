@@ -20,7 +20,11 @@
 use std::collections::hash_map::Entry;
 use std::convert::TryFrom;
 use std::{collections::HashMap, net::SocketAddr};
-use stde2e::io::{Read, Write};
+use stde2e::{
+    fs::OpenOptions,
+    io::{Read, Write},
+    net::{TcpListener, TcpStream},
+};
 use trace2e_core::traceability::infrastructure::naming::Resource;
 
 const DEFAULT_SLEEP_TIME: u64 = 1000; // Default sleep time in milliseconds
@@ -258,7 +262,7 @@ impl Resources {
     /// Open an existing file for reading and writing
     fn open(&mut self, path: &str) -> anyhow::Result<()> {
         if let Entry::Vacant(e) = self.files.entry(path.to_owned()) {
-            let f = stde2e::fs::OpenOptions::new()
+            let f = OpenOptions::new()
                 .read(true)
                 .write(true)
                 .open(path)
@@ -274,7 +278,7 @@ impl Resources {
     /// Create a new file for reading and writing, the file is truncated if it already exists.
     fn create(&mut self, path: &str) -> anyhow::Result<()> {
         if let Entry::Vacant(e) = self.files.entry(path.to_owned()) {
-            let f = stde2e::fs::OpenOptions::new()
+            let f = OpenOptions::new()
                 .read(true)
                 .write(true)
                 .create(true)
@@ -291,7 +295,7 @@ impl Resources {
 
     /// Bind to a socket and wait for incoming connection
     fn bind(&mut self, local_socket: &str) -> anyhow::Result<()> {
-        let listener = stde2e::net::TcpListener::bind(local_socket)
+        let listener = TcpListener::bind(local_socket)
             .map_err(|e| anyhow::anyhow!("Failed to bind to '{}': {}", local_socket, e))?;
         println!("✓ Bound to socket: {}", local_socket);
         println!("  Waiting for incoming connection...");
@@ -313,7 +317,7 @@ impl Resources {
 
     /// Connect to a remote socket
     fn connect(&mut self, peer_socket: &str) -> anyhow::Result<()> {
-        let stream = stde2e::net::TcpStream::connect(peer_socket)
+        let stream = TcpStream::connect(peer_socket)
             .map_err(|e| anyhow::anyhow!("Failed to connect to '{}': {}", peer_socket, e))?;
         let local_socket = stream
             .local_addr()
