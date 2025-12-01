@@ -34,6 +34,7 @@ use stde2e::{
     net::{TcpListener, TcpStream},
 };
 use trace2e_core::traceability::infrastructure::naming::Resource;
+use tracing::debug;
 
 const DEFAULT_SLEEP_TIME: u64 = 1000; // Default sleep time in milliseconds
 
@@ -274,10 +275,10 @@ impl Resources {
                 .write(true)
                 .open(path)
                 .map_err(|e| anyhow::anyhow!("Failed to open file '{}': {}", path, e))?;
-            println!("✓ Opened file: {}", path);
+            debug!("✓ Opened file: {}", path);
             e.insert(f);
         } else {
-            println!("⚠ File already open: {}", path);
+            debug!("⚠ File already open: {}", path);
         }
         Ok(())
     }
@@ -292,10 +293,10 @@ impl Resources {
                 .truncate(true)
                 .open(path)
                 .map_err(|e| anyhow::anyhow!("Failed to create file '{}': {}", path, e))?;
-            println!("✓ Created file: {}", path);
+            debug!("✓ Created file: {}", path);
             e.insert(f);
         } else {
-            println!("⚠ File already open: {}", path);
+            debug!("⚠ File already open: {}", path);
         }
         Ok(())
     }
@@ -304,8 +305,8 @@ impl Resources {
     fn bind(&mut self, local_socket: &str) -> anyhow::Result<()> {
         let listener = TcpListener::bind(local_socket)
             .map_err(|e| anyhow::anyhow!("Failed to bind to '{}': {}", local_socket, e))?;
-        println!("✓ Bound to socket: {}", local_socket);
-        println!("  Waiting for incoming connection...");
+        debug!("✓ Bound to socket: {}", local_socket);
+        debug!("Waiting for incoming connection...");
 
         // Accept connection (blocking)
         let (stream, peer_socket) = listener.accept().map_err(|e| {
@@ -317,7 +318,7 @@ impl Resources {
         self.streams.insert(resource.to_owned(), stream);
         self.socket_cheats.insert(local_socket.to_string(), resource.clone());
 
-        println!("✓ Stream established: {}", resource);
+        debug!("✓ Stream established: {}", resource);
         Ok(())
     }
 
@@ -335,7 +336,7 @@ impl Resources {
         self.streams.insert(resource.to_owned(), stream);
         self.socket_cheats.insert(peer_socket.to_string(), resource.clone());
 
-        println!("✓ Stream established: {}", resource);
+        debug!("✓ Stream established: {}", resource);
         Ok(())
     }
 
@@ -354,7 +355,7 @@ impl Resources {
                     anyhow::anyhow!("Failed to read from file '{}': {}", file_path, e)
                 })?;
                 buffer.extend_from_slice(&temp_buf[..n]);
-                println!("✓ Read {} bytes from file: {}", n, file_path);
+                debug!("✓ Read {} bytes from file: {}", n, file_path);
                 Ok(())
             }
             Target::Socket(local_peer) | Target::Stream(local_peer, _) => {
@@ -368,7 +369,7 @@ impl Resources {
                 match stream.read(&mut temp_buf) {
                     Ok(n) => {
                         buffer.extend_from_slice(&temp_buf[..n]);
-                        println!("✓ Read {} bytes from socket: {}", n, local_peer);
+                        debug!("✓ Read {} bytes from socket: {}", n, local_peer);
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
                         return Err(anyhow::anyhow!("Read refused on: {}", resource));
@@ -394,7 +395,7 @@ impl Resources {
                 let n = file.write(buffer).map_err(|e| {
                     anyhow::anyhow!("Failed to write to file '{}': {}", file_path, e)
                 })?;
-                println!("✓ Wrote {} bytes to file: {}", n, file_path);
+                debug!("✓ Wrote {} bytes to file: {}", n, file_path);
                 Ok(())
             }
             Target::Socket(remote_peer) | Target::Stream(_, remote_peer) => {
@@ -407,7 +408,7 @@ impl Resources {
                     .ok_or_else(|| anyhow::anyhow!("Stream not connected: {}", resource))?;
                 match stream.write(buffer) {
                     Ok(n) => {
-                        println!("✓ Wrote {} bytes to stream: {}", n, resource);
+                        debug!("✓ Wrote {} bytes to stream: {}", n, resource);
                     }
                     Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
                         return Err(anyhow::anyhow!("Write refused on: {}", resource));
@@ -444,7 +445,7 @@ impl Resources {
             (Command::Write, t) => self.write(t, buffer),
             (Command::Sleep, Target::Time(duration)) => {
                 std::thread::sleep(std::time::Duration::from_millis(*duration));
-                println!("✓ Slept for {} milliseconds", duration);
+                debug!("✓ Slept for {} milliseconds", duration);
                 Ok(())
             }
             (Command::Sleep, _) => {

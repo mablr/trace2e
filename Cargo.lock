@@ -1479,6 +1479,8 @@ dependencies = [
  "tokio-stream",
  "trace2e_client",
  "trace2e_core",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

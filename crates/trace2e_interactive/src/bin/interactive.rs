@@ -23,6 +23,8 @@ use clap::Parser;
 use std::convert::TryFrom;
 use std::io::{self, BufRead, Write};
 use trace2e_interactive::{Instruction, IoHandler};
+use tracing::{debug, info};
+use tracing_subscriber::{EnvFilter, fmt};
 
 #[derive(Parser, Debug)]
 #[command(name = "trace2e-proc")]
@@ -34,6 +36,9 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
+    let filter = EnvFilter::try_from_default_env().or_else(|_| EnvFilter::try_new("info")).unwrap();
+    fmt().with_writer(std::io::stdout).with_target(false).with_env_filter(filter).init();
+
     let args = Args::parse();
 
     let mut handler = IoHandler::default();
@@ -51,12 +56,12 @@ fn main() -> anyhow::Result<()> {
 
 /// Run in batch mode, reading instructions from a file
 fn run_batch_mode(handler: &mut IoHandler, file_path: &str) -> anyhow::Result<()> {
-    println!("Running batch mode from file: {}", file_path);
-    println!();
+    info!("Running batch mode from file: {}", file_path);
 
     let file = std::fs::File::open(file_path)?;
     let reader = io::BufReader::new(file);
 
+    let start_time = std::time::Instant::now();
     for (line_num, line) in reader.lines().enumerate() {
         let line = line?;
         let line = line.trim();
@@ -66,25 +71,24 @@ fn run_batch_mode(handler: &mut IoHandler, file_path: &str) -> anyhow::Result<()
             continue;
         }
 
-        print!("[{}] {} ... ", line_num + 1, line);
+        debug!("[{}] {} ... ", line_num + 1, line);
         io::stdout().flush()?;
 
         match Instruction::try_from(line) {
             Ok(instruction) => {
                 if let Err(e) = handler.execute(&instruction) {
-                    println!("✗ Error: {}", e);
+                    info!("✗ Error: {}", e);
                     return Err(e);
                 }
             }
             Err(e) => {
-                println!("✗ Parse error: {}", e);
+                info!("✗ Parse error: {}", e);
                 return Err(anyhow::anyhow!("{}", e));
             }
         }
     }
 
-    println!();
-    println!("Batch execution completed successfully.");
+    info!(execution_time = ?start_time.elapsed(), "Batch execution completed successfully.");
     Ok(())
 }
 
