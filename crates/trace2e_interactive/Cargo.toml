@@ -14,10 +14,14 @@ name = "e2e-op"
 path = "src/bin/operator.rs"
 
 [dependencies]
-stde2e = { path = "../stde2e" }
+stde2e = { path = "../stde2e", optional = true }
 trace2e_core = { path = "../trace2e_core" }
 trace2e_client = { path = "../trace2e_client", features = ["o2m"] }
 clap = { workspace = true, features = ["derive", "env"] }
 anyhow.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-stream.workspace = true
+
+[features]
+default = ["trace2e"]
+trace2e = ["dep:stde2e"]

@@ -20,6 +20,13 @@
 use std::collections::hash_map::Entry;
 use std::convert::TryFrom;
 use std::{collections::HashMap, net::SocketAddr};
+#[cfg(not(feature = "trace2e"))]
+use std::{
+    fs::OpenOptions,
+    io::{Read, Write},
+    net::{TcpListener, TcpStream},
+};
+#[cfg(feature = "trace2e")]
 use stde2e::{
     fs::OpenOptions,
     io::{Read, Write},
