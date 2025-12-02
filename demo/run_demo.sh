@@ -18,10 +18,6 @@ Commands:
   scenario2   - Run Scenario 2 (User consents to CV forwarding)
   scenario3   - Run Scenario 3 (User deletes CV, cascade)
   clean       - Stop and remove all containers and volumes
-
-Examples:
-  ./demo/run_demo.sh start
-  ./demo/run_demo.sh scenario1
 EOF
 }
 
