@@ -17,7 +17,6 @@ Commands:
   scenario1   - Run Scenario 1 (User sends CV)
   scenario2   - Run Scenario 2 (User consents to CV forwarding)
   scenario3   - Run Scenario 3 (User deletes CV, cascade)
-  interactive - Start interactive shell on user-node
   clean       - Stop and remove all containers and volumes
 
 Examples:
@@ -74,11 +73,6 @@ case "${1:-help}" in
 
   scenario3)
     ./demo/scripts/run_scenario3.sh
-    ;;
-
-  interactive)
-    echo "Starting interactive shell on user-node..."
-    docker compose -f docker-compose.yml exec user-node /bin/bash
     ;;
 
   help|*)
