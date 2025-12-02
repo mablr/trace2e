@@ -17,14 +17,12 @@ Commands:
   scenario1   - Run Scenario 1 (User sends CV)
   scenario2   - Run Scenario 2 (User consents to CV forwarding)
   scenario3   - Run Scenario 3 (User deletes CV, cascade)
-  all         - Run all scenarios in sequence
   interactive - Start interactive shell on user-node
   clean       - Stop and remove all containers and volumes
 
 Examples:
   ./demo/run_demo.sh start
   ./demo/run_demo.sh scenario1
-  ./demo/run_demo.sh all
 EOF
 }
 
@@ -76,17 +74,6 @@ case "${1:-help}" in
 
   scenario3)
     ./demo/scripts/run_scenario3.sh
-    ;;
-
-  all)
-    echo "Running all scenarios..."
-    echo ""
-    ./demo/scripts/run_scenario1.sh
-    ./demo/scripts/run_scenario3.sh
-    echo ""
-    echo "=========================================="
-    echo "All scenarios complete!"
-    echo "=========================================="
     ;;
 
   interactive)
