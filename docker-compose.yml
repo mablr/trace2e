@@ -11,7 +11,7 @@ services:
         ipv4_address: 172.20.0.10
     environment:
       - TRACE2E_MIDDLEWARE_URL=http://172.20.0.10:50051
-      - RUST_LOG=trace2e_core=debug
+      - RUST_LOG=info,trace2e_core=debug
     volumes:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
@@ -35,7 +35,7 @@ services:
         ipv4_address: 172.20.0.20
     environment:
       - TRACE2E_MIDDLEWARE_URL=http://172.20.0.20:50051
-      - RUST_LOG=trace2e_core=debug
+      - RUST_LOG=info,trace2e_core=debug
     volumes:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
@@ -62,7 +62,7 @@ services:
         ipv4_address: 172.20.0.30
     environment:
       - TRACE2E_MIDDLEWARE_URL=http://172.20.0.30:50051
-      - RUST_LOG=trace2e_core=debug
+      - RUST_LOG=info,trace2e_core=debug
     volumes:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
