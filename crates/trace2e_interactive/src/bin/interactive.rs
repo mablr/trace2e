@@ -56,8 +56,6 @@ fn main() -> anyhow::Result<()> {
 
 /// Run in batch mode, reading instructions from a file
 fn run_batch_mode(handler: &mut IoHandler, file_path: &str) -> anyhow::Result<()> {
-    info!("Running batch mode from file: {}", file_path);
-
     let file = std::fs::File::open(file_path)?;
     let reader = io::BufReader::new(file);
 
@@ -88,7 +86,7 @@ fn run_batch_mode(handler: &mut IoHandler, file_path: &str) -> anyhow::Result<()
         }
     }
 
-    info!(execution_time = ?start_time.elapsed(), "Batch execution completed successfully.");
+    info!(playbook = file_path, execution_time = ?start_time.elapsed(), "Batch execution completed successfully.");
     Ok(())
 }
 
