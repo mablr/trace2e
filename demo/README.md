@@ -93,6 +93,28 @@ Demonstrates deletion broadcast and enforcement across all nodes.
 - All subsequent I/O operations blocked on all nodes
 - Verification: Read/write attempts fail with permission denied
 
+### Benchmark 0: Round Trip Time (RTT)
+
+Measures middleware overhead by comparing performance with and without trace2e enabled.
+
+```bash
+./demo/run_demo.sh benchmark0
+```
+
+**What happens:**
+- Server binds to socket on company-node, waits for connection
+- Client connects from user-node, performs write/read exchange
+- Runs twice: with trace2e instrumentation (e2e-proc) and without (std-proc)
+- Reports execution time for both cases to quantify the overhead of the middleware
+
+**Example output: from client side**
+```bash
+Benchmark 0: RTT (Round Trip Time) with Trace2e
+  execution_time=16.124125ms
+Benchmark 0: RTT (Round Trip Time) without Trace2e (std library)
+  execution_time=6.182958ms
+```
+
 ## Interactive Mode
 
 Access any node for manual testing:
@@ -165,13 +187,17 @@ demo/
 │   ├── scenario1_company_receive.trace2e
 │   ├── scenario2_company_forward.trace2e
 │   ├── scenario2_recruiter_receive.trace2e
-│   └── scenario3_verify_deletion.trace2e
+│   ├── scenario3_verify_deletion.trace2e
+│   ├── benchmark0_rtt_server.trace2e
+│   └── benchmark0_rtt_client.trace2e
 ├── scripts/
 │   ├── run_scenario1.sh
 │   ├── run_scenario2.sh
 │   ├── run_scenario3.sh
+│   ├── run_benchmark0.sh
 │   └── monitor_consent.sh
 ├── data/
+│   ├── benchmark0.out
 │   └── (holds demo data files)
 ├── run_demo.sh
 └── README.md
