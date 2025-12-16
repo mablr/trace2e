@@ -16,6 +16,8 @@ COPY rustfmt.toml ./
 # Build release binaries
 RUN cargo build --release -p trace2e_middleware
 RUN cargo build --release -p trace2e_interactive
+RUN cargo build --release -p trace2e_interactive --bin std-proc --no-default-features
+RUN cargo build --release -p trace2e_interactive --bin std-op --no-default-features
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -32,6 +34,8 @@ WORKDIR /app
 COPY --from=builder /build/target/release/trace2e_middleware /app/
 COPY --from=builder /build/target/release/e2e-proc /app/
 COPY --from=builder /build/target/release/e2e-op /app/
+COPY --from=builder /build/target/release/std-proc /app/
+COPY --from=builder /build/target/release/std-op /app/
 
 # Create directory for playbooks and data
 RUN mkdir -p /app/playbooks /app/data

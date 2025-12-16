@@ -13,6 +13,14 @@ path = "src/bin/interactive.rs"
 name = "e2e-op"
 path = "src/bin/operator.rs"
 
+[[bin]]
+name = "std-proc"
+path = "src/bin/interactive.rs"
+
+[[bin]]
+name = "std-op"
+path = "src/bin/operator.rs"
+
 [dependencies]
 stde2e = { path = "../stde2e", optional = true }
 trace2e_core = { path = "../trace2e_core" }
