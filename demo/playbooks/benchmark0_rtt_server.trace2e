@@ -1,0 +1,4 @@
+BIND socket://172.20.0.20:8080
+SLEEP 10
+READ socket://172.20.0.20:8080
+WRITE socket://172.20.0.20:8080
