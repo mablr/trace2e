@@ -1,0 +1,16 @@
+==========================================
+Benchmark 0: RTT (Round Trip Time) with Trace2e
+==========================================
+
+Step 1: Starting RTT server on company-node...
+Step 2: Running RTT client from user-node...
+2025-12-16T14:17:23.521356Z  INFO Batch execution completed successfully. playbook="/app/playbooks/benchmark0_rtt_server.trace2e" execution_time=14.436833ms
+2025-12-16T14:17:23.522865Z  INFO Batch execution completed successfully. playbook="/app/playbooks/benchmark0_rtt_client.trace2e" execution_time=16.124125ms
+==========================================
+Benchmark 0: RTT (Round Trip Time) standard
+==========================================
+
+Step 1: Starting RTT server on company-node...
+Step 2: Running RTT client from user-node...
+2025-12-16T14:17:23.662472Z  INFO Batch execution completed successfully. playbook="/app/playbooks/benchmark0_rtt_server.trace2e" execution_time=5.3355ms
+2025-12-16T14:17:23.662622Z  INFO Batch execution completed successfully. playbook="/app/playbooks/benchmark0_rtt_client.trace2e" execution_time=6.182958ms
