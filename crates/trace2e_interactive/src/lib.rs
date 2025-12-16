@@ -324,6 +324,7 @@ impl Resources {
 
     /// Connect to a remote socket
     fn connect(&mut self, peer_socket: &str) -> anyhow::Result<()> {
+        std::thread::sleep(std::time::Duration::from_millis(1));
         let stream = TcpStream::connect(peer_socket)
             .map_err(|e| anyhow::anyhow!("Failed to connect to '{}': {}", peer_socket, e))?;
         let local_socket = stream
@@ -366,6 +367,7 @@ impl Resources {
                     .streams
                     .get_mut(resource)
                     .ok_or_else(|| anyhow::anyhow!("Stream doesn't exist: {}", resource))?;
+                std::thread::sleep(std::time::Duration::from_millis(1));
                 match stream.read(&mut temp_buf) {
                     Ok(n) => {
                         buffer.extend_from_slice(&temp_buf[..n]);
@@ -417,6 +419,7 @@ impl Resources {
                         // Silently ignore other write errors
                     }
                 }
+                std::thread::sleep(std::time::Duration::from_millis(1));
                 Ok(())
             }
             _ => Err(anyhow::anyhow!("Unsupported resource type for WRITE operation")),
