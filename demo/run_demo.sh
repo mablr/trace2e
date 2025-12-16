@@ -17,6 +17,7 @@ Commands:
   scenario1   - Run Scenario 1 (User sends CV)
   scenario2   - Run Scenario 2 (User consents to CV forwarding)
   scenario3   - Run Scenario 3 (User deletes CV, cascade)
+  benchmark0  - Run Benchmark 0 (RTT test)
   clean       - Stop and remove all containers and volumes
 EOF
 }
@@ -69,6 +70,10 @@ case "${1:-help}" in
 
   scenario3)
     ./demo/scripts/run_scenario3.sh
+    ;;
+
+  benchmark0)
+    ./demo/scripts/run_benchmark0.sh
     ;;
 
   help|*)
