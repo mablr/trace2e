@@ -213,7 +213,6 @@ impl Service<M2mRequest> for M2mGrpc {
             match request.clone() {
                 M2mRequest::GetDestinationPolicy(destination) => {
                     info!(
-                        node_id = %destination.node_id(),
                         destination = %destination,
                         "[gRPC-client] GetDestinationPolicy"
                     );
@@ -237,7 +236,6 @@ impl Service<M2mRequest> for M2mGrpc {
                 }
                 M2mRequest::CheckSourceCompliance { sources, destination } => {
                     info!(
-                        node_id = %destination.0.node_id(),
                         sources = %DisplayableResource::from(&sources),
                         destination = %destination.0,
                         destination_policy = ?destination.1,
@@ -288,7 +286,6 @@ impl Service<M2mRequest> for M2mGrpc {
                 }
                 M2mRequest::UpdateProvenance { source_prov, destination } => {
                     info!(
-                        node_id = %destination.node_id(),
                         source_prov = %DisplayableResource::from(&source_prov),
                         destination = %destination,
                         "[gRPC-client] UpdateProvenance"
