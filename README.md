@@ -1,4 +1,3 @@
-
 # TracE2E - Distributed Traceability Middleware
 
 A distributed traceability framework that provides provenance recording and compliance enforcement for processes' I/O operations in distributed systems.
@@ -93,7 +92,7 @@ make docs
 - **/crates/trace2e_client**: Middleware client communication library implementation
 - **/crates/stde2e**: Standard library wrapper providing TracE2E integration using `trace2e_client`
 - **/crates/trace2e_interactive**: Interactive tools for testing and managing TracE2E:
-  - **Interactive Process** (`e2e-proc`/`std-proc`): CLI for executing traced I/O operations via commands or playbook files
+  - **Interactive Process** (`e2e-proc`/`std-proc`): CLI for executing I/O operations via commands or playbook files
   - **Operator** (`e2e-op`/`std-op`): CLI for managing compliance policies, consent, and provenance queries through the Operator-to-Middleware (O2M) API
 - **/patches**: TracE2E integration patches for various frameworks
 
