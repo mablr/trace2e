@@ -96,6 +96,16 @@ make docs
   - **Operator** (`e2e-op`/`std-op`): CLI for managing compliance policies, consent, and provenance queries through the Operator-to-Middleware (O2M) API
 - **/patches**: TracE2E integration patches for various frameworks
 
+## Tokio Patch - Proof of Concept
+
+The `tokioe2e.patch` demonstrates how to integrate TracE2E into an async I/O library. It shows the minimal modifications required to support provenance tracking and compliance enforcement:
+
+- **File Operations**: Enroll file descriptors on open/create and request authorization for read/write operations
+- **Network Operations**: Enroll TCP streams on connect/accept and request authorization for data transfer
+- **Authorization Flow**: Each I/O operation requests a grant from the middleware before proceeding and reports the result afterward
+- **Permission Enforcement**: Operations are rejected with `PermissionDenied` errors if the middleware denies authorization
+
+This patch serves as a reference implementation for adapting other I/O libraries and frameworks to support TracE2E integration.
 
 ## License
 
