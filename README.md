@@ -84,6 +84,10 @@ This will build the documentation and automatically open it in your default web 
 make docs
 ```
 
+### Demo and Examples
+
+A comprehensive demo showcasing distributed data flow tracking, consent management, and deletion cascade is available in the `demo/` directory. See [`demo/README.md`](demo/README.md) for complete documentation.
+
 ## Project Structure
 
 - **/proto**: Protocol buffer definitions for communication between components
