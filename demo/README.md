@@ -194,8 +194,7 @@ demo/
 │   ├── run_scenario1.sh
 │   ├── run_scenario2.sh
 │   ├── run_scenario3.sh
-│   ├── run_benchmark0.sh
-│   └── monitor_consent.sh
+│   └── run_benchmark0.sh
 ├── data/
 │   ├── benchmark0.out
 │   └── (holds demo data files)
