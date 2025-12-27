@@ -142,11 +142,6 @@ docker compose exec user-node /app/e2e-proc
 > WRITE stream://user-node:8080::company-node:8080
 ```
 
-### Monitor consent requests:
-```bash
-./demo/scripts/monitor_consent.sh
-```
-
 ### Grant/deny consent:
 ```bash
 ./demo/scripts/grant_consent.sh file:///tmp/my_cv.txt recruiter-node grant
