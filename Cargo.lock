@@ -1189,7 +1189,7 @@ dependencies = [
 
 [[package]]
 name = "stde2e"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "clap",
  "criterion",
@@ -1432,7 +1432,7 @@ checksum = "8df9b6e13f2d32c91b9bd719c00d1958837bc7dec474d94952798cc8e69eeec3"
 
 [[package]]
 name = "trace2e_client"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "criterion",
  "once_cell",
@@ -1444,7 +1444,7 @@ dependencies = [
 
 [[package]]
 name = "trace2e_core"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "clap",
  "criterion",
@@ -1464,7 +1464,7 @@ dependencies = [
 
 [[package]]
 name = "trace2e_interactive"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "clap",
@@ -1479,7 +1479,7 @@ dependencies = [
 
 [[package]]
 name = "trace2e_middleware"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "clap",
  "tokio",
