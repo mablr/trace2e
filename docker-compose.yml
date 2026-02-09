@@ -1,4 +1,14 @@
 services:
+  otel-collector:
+    image: otel/opentelemetry-collector:latest
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otelcol/config.yaml
+    ports:
+      - "4317:4317"
+    networks:
+      trace2e-net:
+        ipv4_address: 172.20.0.100
+
   # User Node - Creates and sends CV
   user-node:
     build:
@@ -12,6 +22,9 @@ services:
     environment:
       - TRACE2E_MIDDLEWARE_URL=http://172.20.0.10:50051
       - RUST_LOG=info,trace2e_core=debug
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://172.20.0.100:4317
+      - OTEL_SERVICE_NAME=trace2e_middleware
+      - OTEL_RESOURCE_ATTRIBUTES=node.id=172.20.0.10
     volumes:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
@@ -22,6 +35,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    depends_on:
+      - otel-collector
 
   # Company Node - Receives CV, may forward
   company-node:
@@ -36,6 +51,9 @@ services:
     environment:
       - TRACE2E_MIDDLEWARE_URL=http://172.20.0.20:50051
       - RUST_LOG=info,trace2e_core=debug
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://172.20.0.100:4317
+      - OTEL_SERVICE_NAME=trace2e_middleware
+      - OTEL_RESOURCE_ATTRIBUTES=node.id=172.20.0.20
     volumes:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
@@ -49,6 +67,8 @@ services:
     depends_on:
       user-node:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
 
   # Recruiter Node - Third party that may receive forwarded CV
   recruiter-node:
@@ -63,6 +83,9 @@ services:
     environment:
       - TRACE2E_MIDDLEWARE_URL=http://172.20.0.30:50051
       - RUST_LOG=info,trace2e_core=debug
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://172.20.0.100:4317
+      - OTEL_SERVICE_NAME=trace2e_middleware
+      - OTEL_RESOURCE_ATTRIBUTES=node.id=172.20.0.30
     volumes:
       - ./demo/playbooks:/app/playbooks:ro
       - ./demo/data:/app/data
@@ -76,6 +99,8 @@ services:
     depends_on:
       company-node:
         condition: service_healthy
+      otel-collector:
+        condition: service_started
 
 networks:
   trace2e-net:
