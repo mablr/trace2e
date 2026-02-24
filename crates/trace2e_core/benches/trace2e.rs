@@ -60,26 +60,35 @@ fn local_io(c: &mut Criterion) {
     let mut group = c.benchmark_group("local_io");
 
     for n in PROVENANCE_SIZES {
-        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, &n| {
-            b.iter_batched(
-                || build_service(n),
-                |mut svc| {
-                    rt.block_on(async {
-                        let P2mResponse::Grant(grant_id) = svc
-                            .call(P2mRequest::IoRequest { pid: 1, fd: 3, output: false })
-                            .await
-                            .unwrap()
-                        else {
-                            panic!("Expected Grant");
-                        };
-                        svc.call(P2mRequest::IoReport { pid: 1, fd: 3, grant_id, result: true })
+        group.bench_with_input(
+            BenchmarkId::from_parameter(format!("{}_resources", n)),
+            &n,
+            |b, &n| {
+                b.iter_batched(
+                    || build_service(n),
+                    |mut svc| {
+                        rt.block_on(async {
+                            let P2mResponse::Grant(grant_id) = svc
+                                .call(P2mRequest::IoRequest { pid: 1, fd: 3, output: false })
+                                .await
+                                .unwrap()
+                            else {
+                                panic!("Expected Grant");
+                            };
+                            svc.call(P2mRequest::IoReport {
+                                pid: 1,
+                                fd: 3,
+                                grant_id,
+                                result: true,
+                            })
                             .await
                             .unwrap();
-                    })
-                },
-                criterion::BatchSize::SmallInput,
-            );
-        });
+                        })
+                    },
+                    criterion::BatchSize::SmallInput,
+                );
+            },
+        );
     }
 
     group.finish();
@@ -90,19 +99,23 @@ fn local_io_request(c: &mut Criterion) {
     let mut group = c.benchmark_group("local_io_request");
 
     for n in PROVENANCE_SIZES {
-        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, &n| {
-            b.iter_batched(
-                || build_service(n),
-                |mut svc| {
-                    rt.block_on(async {
-                        svc.call(P2mRequest::IoRequest { pid: 1, fd: 3, output: false })
-                            .await
-                            .unwrap();
-                    })
-                },
-                criterion::BatchSize::SmallInput,
-            );
-        });
+        group.bench_with_input(
+            BenchmarkId::from_parameter(format!("{}_resources", n)),
+            &n,
+            |b, &n| {
+                b.iter_batched(
+                    || build_service(n),
+                    |mut svc| {
+                        rt.block_on(async {
+                            svc.call(P2mRequest::IoRequest { pid: 1, fd: 3, output: false })
+                                .await
+                                .unwrap();
+                        })
+                    },
+                    criterion::BatchSize::SmallInput,
+                );
+            },
+        );
     }
 
     group.finish();
@@ -182,7 +195,7 @@ fn distributed_io_request(c: &mut Criterion) {
     let mut group = c.benchmark_group("distributed_io_request");
 
     for n in NODE_COUNTS {
-        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, &n| {
+        group.bench_with_input(BenchmarkId::from_parameter(format!("{}_nodes", n)), &n, |b, &n| {
             b.iter_batched(
                 || build_distributed_services(n),
                 |(mut svc, _m2m)| {
@@ -205,7 +218,7 @@ fn distributed_io(c: &mut Criterion) {
     let mut group = c.benchmark_group("distributed_io");
 
     for n in NODE_COUNTS {
-        group.bench_with_input(BenchmarkId::from_parameter(n), &n, |b, &n| {
+        group.bench_with_input(BenchmarkId::from_parameter(format!("{}_nodes", n)), &n, |b, &n| {
             b.iter_batched(
                 || build_distributed_services(n),
                 |(mut svc, _m2m)| {
