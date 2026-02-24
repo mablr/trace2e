@@ -21,8 +21,8 @@ use trace2e_core::{
     },
     transport::{
         grpc::{
-            P2mHandler,
-            proto::{self, p2m_server::P2mServer},
+            M2mHandler, P2mHandler,
+            proto::{self, m2m_server::M2mServer, p2m_server::P2mServer},
         },
         loopback::M2mLoopback,
         nop::M2mNop,
@@ -289,12 +289,66 @@ fn grpc_p2m(c: &mut Criterion) {
     group.finish();
 }
 
+fn grpc_m2m(c: &mut Criterion) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    let addr: std::net::SocketAddr = "127.0.0.1:18754".parse().unwrap();
+
+    let (m2m_service, _, _) = init_middleware("127.0.0.1".to_string(), None, 0, M2mNop, false);
+
+    rt.spawn(async move {
+        Server::builder()
+            .add_service(M2mServer::new(M2mHandler::new(m2m_service)))
+            .serve(addr)
+            .await
+            .unwrap();
+    });
+
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    let mut client: proto::m2m_client::M2mClient<_> =
+        rt.block_on(proto::m2m_client::M2mClient::connect(format!("http://{addr}"))).unwrap();
+
+    let node_id = "127.0.0.1".to_string();
+    let req = proto::messages::CheckSourceCompliance {
+        sources: vec![proto::primitives::LocalizedResource {
+            node_id: node_id.clone(),
+            resource: Some(Resource::new_file("/tmp/bench".to_string()).into()),
+        }],
+        destination: Some(proto::primitives::LocalizedResource {
+            node_id: "127.0.0.2".to_string(),
+            resource: Some(Resource::new_file("/tmp/dest".to_string()).into()),
+        }),
+        destination_policy: Some(proto::primitives::Policy {
+            confidentiality: proto::primitives::Confidentiality::Public as i32,
+            integrity: 0,
+            deleted: false,
+            consent: false,
+        }),
+    };
+
+    let mut group = c.benchmark_group("grpc_m2m");
+    group.bench_function("distributed_check", |b| {
+        b.iter(|| {
+            rt.block_on(async {
+                let _: proto::messages::Ack = client
+                    .m2m_check_source_compliance(tonic::Request::new(req.clone()))
+                    .await
+                    .unwrap()
+                    .into_inner();
+            })
+        });
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     local_io,
     local_io_request,
     distributed_io,
     distributed_io_request,
-    grpc_p2m
+    grpc_p2m,
+    grpc_m2m
 );
 criterion_main!(benches);
