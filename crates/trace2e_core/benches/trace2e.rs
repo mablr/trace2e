@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
+use tonic::transport::Server;
 use tower::Service;
 use trace2e_core::{
     traceability::{
@@ -10,6 +11,7 @@ use trace2e_core::{
             types::{P2mRequest, P2mResponse},
         },
         infrastructure::naming::{LocalizedResource, Resource},
+        init_middleware,
         services::{
             compliance::ComplianceService,
             consent::ConsentService,
@@ -17,7 +19,14 @@ use trace2e_core::{
             sequencer::{SequencerService, WaitingQueueService},
         },
     },
-    transport::{loopback::M2mLoopback, nop::M2mNop},
+    transport::{
+        grpc::{
+            P2mHandler,
+            proto::{self, p2m_server::P2mServer},
+        },
+        loopback::M2mLoopback,
+        nop::M2mNop,
+    },
 };
 
 const PROVENANCE_SIZES: [usize; 4] = [0, 10, 100, 1000];
@@ -221,5 +230,71 @@ fn distributed_io(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, local_io, local_io_request, distributed_io, distributed_io_request);
+fn grpc_p2m(c: &mut Criterion) {
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    let addr: std::net::SocketAddr = "127.0.0.1:18753".parse().unwrap();
+
+    let (_, p2m_service, _) = init_middleware("127.0.0.1".to_string(), None, 0, M2mNop, false);
+
+    rt.spawn(async move {
+        Server::builder()
+            .add_service(P2mServer::new(P2mHandler::new(p2m_service)))
+            .serve(addr)
+            .await
+            .unwrap();
+    });
+
+    // Give the server a moment to start
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    // Connect client and enroll a local file
+    let mut client: proto::p2m_client::P2mClient<_> =
+        rt.block_on(proto::p2m_client::P2mClient::connect(format!("http://{addr}"))).unwrap();
+
+    rt.block_on(client.p2m_local_enroll(tonic::Request::new(proto::messages::LocalCt {
+        process_id: 1,
+        file_descriptor: 3,
+        path: "/tmp/bench".to_string(),
+    })))
+    .unwrap();
+
+    let mut group = c.benchmark_group("grpc_p2m");
+    group.bench_function("io_request", |b| {
+        b.iter(|| {
+            rt.block_on(async {
+                let grant: proto::messages::Grant = client
+                    .p2m_io_request(tonic::Request::new(proto::messages::IoInfo {
+                        process_id: 1,
+                        file_descriptor: 3,
+                        flow: proto::primitives::Flow::Input as i32,
+                    }))
+                    .await
+                    .unwrap()
+                    .into_inner();
+
+                let _: proto::messages::Ack = client
+                    .p2m_io_report(tonic::Request::new(proto::messages::IoResult {
+                        process_id: 1,
+                        file_descriptor: 3,
+                        grant_id: grant.id,
+                        result: true,
+                    }))
+                    .await
+                    .unwrap()
+                    .into_inner();
+            })
+        });
+    });
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    local_io,
+    local_io_request,
+    distributed_io,
+    distributed_io_request,
+    grpc_p2m
+);
 criterion_main!(benches);
