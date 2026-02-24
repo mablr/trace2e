@@ -42,12 +42,12 @@ use crate::{
         M2mApiDefaultStack, O2mApiDefaultStack, P2mApiDefaultStack,
         api::{M2mRequest, M2mResponse},
         error::TraceabilityError,
-        init_middleware_with_enrolled_resources,
+        init_middleware,
     },
     transport::eval_remote_ip,
 };
 
-/// Spawns multiple loopback middleware instances with no pre-enrolled resources.
+/// Spawns multiple loopback middleware instances.
 ///
 /// Creates a set of middleware instances that can communicate with each other
 /// through the loopback transport. Each middleware is identified by an IP address
@@ -63,71 +63,33 @@ use crate::{
 pub async fn spawn_loopback_middlewares(
     ips: Vec<String>,
 ) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mLoopback>)> {
-    spawn_loopback_middlewares_with_enrolled_resources(ips, 0, 0, 0).await
+    spawn_loopback_middlewares_with_delay(ips, 0, 0).await
 }
 
-/// Spawns multiple loopback middleware instances with pre-enrolled test resources.
+/// Spawns multiple loopback middleware instances with network delay simulation.
 ///
-/// Creates middleware instances and pre-populates them with the specified number
-/// of processes, files, and network streams for testing purposes.
-///
-/// # Arguments
-///
-/// * `ips` - Vector of IP addresses for the middleware instances
-/// * `process_count` - Number of processes to enroll per middleware
-/// * `per_process_file_count` - Number of files to create per process
-/// * `per_process_stream_count` - Number of network streams to create per process
-pub async fn spawn_loopback_middlewares_with_enrolled_resources(
-    ips: Vec<String>,
-    process_count: u32,
-    per_process_file_count: u32,
-    per_process_stream_count: u32,
-) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mLoopback>)> {
-    spawn_loopback_middlewares_with_entropy(
-        ips,
-        0,
-        0,
-        process_count,
-        per_process_file_count,
-        per_process_stream_count,
-    )
-    .await
-}
-
-/// Spawns loopback middleware instances with network simulation and pre-enrolled resources.
-///
-/// Creates middleware instances with configurable network delay simulation and
-/// pre-populated test resources. This is the most comprehensive setup function
-/// for testing complex distributed scenarios.
+/// Creates middleware instances with configurable network delay simulation
+/// for testing timeout handling and performance under various network conditions.
 ///
 /// # Arguments
 ///
 /// * `ips` - Vector of IP addresses for the middleware instances
 /// * `base_delay_ms` - Base network delay in milliseconds
 /// * `jitter_max_ms` - Maximum additional random delay in milliseconds
-/// * `process_count` - Number of processes to enroll per middleware
-/// * `per_process_file_count` - Number of files to create per process
-/// * `per_process_stream_count` - Number of network streams to create per process
-pub async fn spawn_loopback_middlewares_with_entropy(
+pub async fn spawn_loopback_middlewares_with_delay(
     ips: Vec<String>,
     base_delay_ms: u64,
     jitter_max_ms: u64,
-    process_count: u32,
-    per_process_file_count: u32,
-    per_process_stream_count: u32,
 ) -> VecDeque<(P2mApiDefaultStack<M2mLoopback>, O2mApiDefaultStack<M2mLoopback>)> {
     let m2m_loopback = M2mLoopback::new(base_delay_ms, jitter_max_ms);
     let mut middlewares = VecDeque::new();
     for ip in ips {
-        let (m2m, p2m, o2m) = init_middleware_with_enrolled_resources(
+        let (m2m, p2m, o2m) = init_middleware(
             ip.clone(),
             None,
             0,
             m2m_loopback.clone(),
             false, // Disable resource validation for loopback tests
-            process_count,
-            per_process_file_count,
-            per_process_stream_count,
         );
         m2m_loopback.register_middleware(ip.clone(), m2m).await;
         middlewares.push_back((p2m, o2m));

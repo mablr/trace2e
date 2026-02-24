@@ -80,60 +80,6 @@ where
         + 'static,
     M::Future: Send,
 {
-    init_middleware_with_enrolled_resources(
-        node_id,
-        max_retries,
-        consent_timeout,
-        m2m_client,
-        enable_resource_validation,
-        0,
-        0,
-        0,
-    )
-}
-
-/// Initialize a middleware stack with pre-enrolled resources for testing.
-///
-/// Creates a middleware stack identical to `init_middleware()` but with
-/// pre-enrolled mock resources. This is useful for testing, benchmarking,
-/// and simulation scenarios where actual process interactions are not needed.
-///
-/// # Arguments
-/// * `node_id` - Unique identifier for this middleware node
-/// * `max_retries` - Maximum retry attempts for the waiting queue
-/// * `m2m_client` - Client service for M2M communication
-/// * `enable_resource_validation` - Whether to enable resource validation for P2M requests
-/// * `process_count` - Number of mock processes to pre-enroll
-/// * `per_process_file_count` - Number of files to enroll per process
-/// * `per_process_stream_count` - Number of streams to enroll per process
-///
-/// # Returns
-/// A tuple containing (M2M service, P2M service, O2M service) with pre-enrolled resources
-///
-/// # Warning
-/// Should only be used for testing purposes. Production deployments should use
-/// `init_middleware()` and rely on actual process enrollment.
-#[allow(clippy::too_many_arguments)]
-pub fn init_middleware_with_enrolled_resources<M>(
-    node_id: String,
-    max_retries: Option<u32>,
-    consent_timeout: u64,
-    m2m_client: M,
-    enable_resource_validation: bool,
-    _process_count: u32,
-    _per_process_file_count: u32,
-    _per_process_stream_count: u32,
-) -> (M2mApiDefaultStack, P2mApiDefaultStack<M>, O2mApiDefaultStack<M>)
-where
-    M: tower::Service<
-            api::M2mRequest,
-            Response = api::M2mResponse,
-            Error = error::TraceabilityError,
-        > + Clone
-        + Send
-        + 'static,
-    M::Future: Send,
-{
     let sequencer = tower::ServiceBuilder::new()
         .layer(tower::layer::layer_fn(|inner| {
             services::sequencer::WaitingQueueService::new(inner, max_retries)
@@ -146,20 +92,6 @@ where
     let m2m_service: M2mApiDefaultStack =
         api::m2m::M2mApiService::new(sequencer.clone(), provenance.clone(), compliance.clone());
 
-    #[cfg(test)]
-    let p2m_service: P2mApiDefaultStack<M> = api::p2m::P2mApiService::new(
-        sequencer,
-        provenance.clone(),
-        compliance.clone(),
-        m2m_client.clone(),
-    )
-    .with_resource_validation(enable_resource_validation)
-    .with_enrolled_resources(
-        _process_count,
-        _per_process_file_count,
-        _per_process_stream_count,
-    );
-    #[cfg(not(test))]
     let p2m_service: P2mApiDefaultStack<M> = api::p2m::P2mApiService::new(
         sequencer,
         provenance.clone(),

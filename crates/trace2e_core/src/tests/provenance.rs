@@ -5,7 +5,7 @@ use tower::{Service, ServiceBuilder, timeout::TimeoutLayer};
 use crate::{
     traceability::{infrastructure::naming::LocalizedResource, init_middleware},
     transport::{
-        loopback::{spawn_loopback_middlewares, spawn_loopback_middlewares_with_entropy},
+        loopback::{spawn_loopback_middlewares, spawn_loopback_middlewares_with_delay},
         nop::M2mNop,
     },
 };
@@ -229,7 +229,7 @@ async fn integration_o2m_remote_provenance_complex_with_entropy() {
     crate::trace2e_tracing::init();
     let ips = vec!["10.0.0.1".to_string(), "10.0.0.2".to_string(), "10.0.0.3".to_string()];
     let mut middlewares =
-        spawn_loopback_middlewares_with_entropy(ips.clone(), 10, 100, 0, 0, 0).await.into_iter();
+        spawn_loopback_middlewares_with_delay(ips.clone(), 10, 100).await.into_iter();
 
     let (mut p2m_1, mut o2m_1) = middlewares.next().unwrap();
     let (mut p2m_2, mut o2m_2) = middlewares.next().unwrap();

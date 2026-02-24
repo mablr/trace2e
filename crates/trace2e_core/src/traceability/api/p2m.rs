@@ -130,69 +130,6 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
         }
     }
 
-    /// Pre-enrolls resources for testing and simulation purposes.
-    ///
-    /// Creates mock enrollments for the specified number of processes, files, and streams
-    /// to support testing scenarios without requiring actual process interactions.
-    /// Should only be used in test environments or for system benchmarking.
-    ///
-    /// # Arguments
-    /// * `process_count` - Number of mock processes to enroll
-    /// * `per_process_file_count` - Number of files to enroll per process
-    /// * `per_process_stream_count` - Number of streams to enroll per process
-    ///
-    /// # Returns
-    /// The service instance with pre-enrolled mock resources
-    #[cfg(test)]
-    pub fn with_enrolled_resources(
-        self,
-        process_count: u32,
-        per_process_file_count: u32,
-        per_process_stream_count: u32,
-    ) -> Self {
-        // Pre-calculate all entries to avoid repeated allocations during insertion
-        let file_entries: Vec<_> = (0..process_count as i32)
-            .flat_map(|process_id| {
-                (3..(per_process_file_count + 3) as i32).map(move |file_id| {
-                    (
-                        (process_id, file_id),
-                        (
-                            Resource::new_process_mock(process_id),
-                            Resource::new_file(format!(
-                                "/file_{}",
-                                (process_id + file_id) % process_count as i32
-                            )),
-                        ),
-                    )
-                })
-            })
-            .collect();
-        let stream_entries: Vec<_> = (0..process_count as i32)
-            .flat_map(|process_id| {
-                ((per_process_file_count + 3) as i32
-                    ..(per_process_stream_count + per_process_file_count + 3) as i32)
-                    .map(move |stream_id| {
-                        (
-                            (process_id, stream_id),
-                            (
-                                Resource::new_process_mock(process_id),
-                                Resource::new_stream(
-                                    format!("127.0.0.1:{stream_id}",),
-                                    format!("127.0.0.2:{stream_id}",),
-                                ),
-                            ),
-                        )
-                    })
-            })
-            .collect();
-
-        // Batch insert all entries at once using DashMap's concurrent insert capabilities
-        for (key, value) in file_entries.into_iter().chain(stream_entries.into_iter()) {
-            self.resource_map.insert(key, value);
-        }
-        self
-    }
-
     /// Enables or disables resource validation for incoming P2M requests.
     ///
     /// When validation is enabled, all incoming requests are validated for:
