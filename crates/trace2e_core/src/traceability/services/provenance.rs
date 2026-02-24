@@ -29,6 +29,10 @@ impl ProvenanceService {
         Self { node_id, provenance: Arc::new(DashMap::new()) }
     }
 
+    pub fn set_references(&self, resource: Resource, references: HashSet<LocalizedResource>) {
+        self.provenance.insert(resource, references);
+    }
+
     fn init_provenance(&self, resource: &Resource) -> HashSet<LocalizedResource> {
         if !resource.is_stream() {
             HashSet::from([LocalizedResource::new(self.node_id.clone(), resource.to_owned())])

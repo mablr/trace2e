@@ -32,5 +32,9 @@ criterion = { workspace = true, features = ["async_tokio"] }
 [features]
 deletion_enforcement = []
 
+[[bench]]
+name = "trace2e"
+harness = false
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }

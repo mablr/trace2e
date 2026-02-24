@@ -145,6 +145,17 @@ impl<S, P, C, M> P2mApiService<S, P, C, M> {
     ///
     /// # Returns
     /// Self with validation setting applied
+    pub fn with_enrolled_resource(
+        self,
+        pid: i32,
+        fd: i32,
+        source: Resource,
+        destination: Resource,
+    ) -> Self {
+        self.resource_map.insert((pid, fd), (source, destination));
+        self
+    }
+
     pub fn with_resource_validation(mut self, enable: bool) -> Self {
         self.enable_resource_validation = enable;
         self
