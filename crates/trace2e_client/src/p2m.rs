@@ -83,6 +83,7 @@ pub fn remote_enroll(fd: i32, local_socket: String, peer_socket: String) {
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub fn io_request(fd: i32, flow: i32) -> Result<u128, Box<dyn std::error::Error>> {
     let request = tonic::Request::new(proto::messages::IoInfo {
         process_id: id() as i32,
@@ -110,6 +111,7 @@ pub fn io_request(fd: i32, flow: i32) -> Result<u128, Box<dyn std::error::Error>
         .map(|id| id.parse::<u128>().unwrap())
 }
 
+#[allow(clippy::result_large_err)]
 pub fn io_report(fd: i32, grant_id: u128, result: bool) -> std::io::Result<()> {
     let request = tonic::Request::new(proto::messages::IoResult {
         process_id: id() as i32,

@@ -614,6 +614,7 @@ impl<O2mApi> O2mHandler<O2mApi> {
 /// This implementation provides the server-side handlers for all operator-facing
 /// endpoints including policy configuration and provenance analysis.
 #[tonic::async_trait]
+#[allow(clippy::result_large_err)]
 impl<O2mApi> proto::o2m_server::O2m for O2mHandler<O2mApi>
 where
     O2mApi: Service<O2mRequest, Response = O2mResponse, Error = TraceabilityError>

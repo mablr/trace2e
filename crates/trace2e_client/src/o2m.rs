@@ -20,6 +20,7 @@ static O2M_CLIENT: Lazy<proto::o2m_client::O2mClient<Channel>> = Lazy::new(|| {
     rt.block_on(proto::o2m_client::O2mClient::connect(get_grpc_url())).unwrap()
 });
 
+#[allow(clippy::result_large_err)]
 fn get_o2m_client() -> proto::o2m_client::O2mClient<Channel> {
     if Handle::try_current().is_ok() {
         // We're already in a Tokio runtime, use thread-local client for this runtime
@@ -44,6 +45,7 @@ fn get_o2m_client() -> proto::o2m_client::O2mClient<Channel> {
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub fn get_policies(
     resources: Vec<naming::Resource>,
 ) -> Result<Vec<proto::primitives::MappedLocalizedPolicy>, Box<dyn std::error::Error>> {
@@ -69,6 +71,7 @@ pub fn get_policies(
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub fn set_policy(
     resource: naming::Resource,
     policy: proto::primitives::Policy,
@@ -96,6 +99,7 @@ pub fn set_policy(
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub fn set_confidentiality(
     resource: naming::Resource,
     confidentiality: i32,
@@ -123,6 +127,7 @@ pub fn set_confidentiality(
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub fn set_integrity(
     resource: naming::Resource,
     integrity: u32,
@@ -150,6 +155,7 @@ pub fn set_integrity(
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub fn set_deleted(resource: naming::Resource) -> Result<(), Box<dyn std::error::Error>> {
     let proto_resource: proto::primitives::Resource = resource.into();
     let request =
@@ -172,6 +178,7 @@ pub fn set_deleted(resource: naming::Resource) -> Result<(), Box<dyn std::error:
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub fn enforce_consent(
     resource: naming::Resource,
 ) -> Result<tonic::codec::Streaming<proto::messages::ConsentNotification>, Box<dyn std::error::Error>>
@@ -198,6 +205,7 @@ pub fn enforce_consent(
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub fn set_consent_decision(
     source: naming::Resource,
     destination: consent::Destination,
@@ -228,6 +236,7 @@ pub fn set_consent_decision(
     }
 }
 
+#[allow(clippy::result_large_err)]
 pub fn get_references(
     resource: naming::Resource,
 ) -> Result<Vec<proto::primitives::References>, Box<dyn std::error::Error>> {
