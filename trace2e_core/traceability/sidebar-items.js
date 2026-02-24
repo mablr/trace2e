@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["init_middleware","init_middleware_with_enrolled_resources"],"mod":["api","error","infrastructure","services"],"type":["M2mApiDefaultStack","O2mApiDefaultStack","P2mApiDefaultStack"]};
+window.SIDEBAR_ITEMS = {"fn":["init_middleware"],"mod":["api","error","infrastructure","services"],"type":["M2mApiDefaultStack","O2mApiDefaultStack","P2mApiDefaultStack"]};
