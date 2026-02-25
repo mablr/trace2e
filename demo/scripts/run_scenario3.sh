@@ -34,21 +34,22 @@ echo ""
 echo "Step 2: Verifying all nodes block operations..."
 echo ""
 
-echo "  Testing user-node..."
-docker compose -f docker-compose.yml exec -T user-node \
-  /app/e2e-proc --playbook /app/playbooks/scenario3_user_verify_deletion.trace2e 2>&1 | \
-  grep -i "denied\|blocked\|error" || echo "  ✓ Operations correctly blocked"
+verify_blocked() {
+  local node="$1" playbook="$2"
+  echo "  Testing ${node}..."
+  if docker compose -f docker-compose.yml exec -T "$node" \
+    /app/e2e-proc --playbook "$playbook" 2>&1 | \
+    grep -i "denied\|blocked\|error"; then
+    echo "  ✓ Operation correctly blocked on ${node}"
+  else
+    echo "  ✗ Operation was NOT blocked on ${node} — FAILED"
+    exit 1
+  fi
+}
 
-echo "  Testing company-node..."
-docker compose -f docker-compose.yml exec -T company-node \
-  /app/e2e-proc --playbook /app/playbooks/scenario3_company_verify_deletion.trace2e 2>&1 | \
-  grep -i "denied\|blocked\|error" || echo "  ✓ Operations correctly blocked"
-
-echo ""
-echo "  Testing recruiter-node..."
-docker compose -f docker-compose.yml exec -T recruiter-node \
-  /app/e2e-proc --playbook /app/playbooks/scenario3_recruiter_verify_deletion.trace2e 2>&1 | \
-  grep -i "denied\|blocked\|error" || echo "  ✓ Operations correctly blocked"
+verify_blocked user-node /app/playbooks/scenario3_user_verify_deletion.trace2e
+verify_blocked company-node /app/playbooks/scenario3_company_verify_deletion.trace2e
+verify_blocked recruiter-node /app/playbooks/scenario3_recruiter_verify_deletion.trace2e
 
 echo ""
 echo "✓ Scenario 3 Complete"
