@@ -11,7 +11,6 @@ use trace2e_core::{
             types::{P2mRequest, P2mResponse},
         },
         infrastructure::naming::{LocalizedResource, Resource},
-        init_middleware,
         services::{
             compliance::ComplianceService,
             consent::ConsentService,
@@ -29,7 +28,19 @@ use trace2e_core::{
     },
 };
 
-const PROVENANCE_SIZES: [usize; 4] = [0, 10, 100, 1000];
+const PROVENANCE_SIZES: [usize; 4] = [1, 10, 100, 1000];
+const GRPC_REF_COUNT: usize = 100;
+
+fn build_refs(node_id: &str, count: usize) -> HashSet<LocalizedResource> {
+    (0..count)
+        .map(|i| {
+            LocalizedResource::new(
+                node_id.to_string(),
+                Resource::new_file(format!("/tmp/{node_id}/ref_{i}")),
+            )
+        })
+        .collect()
+}
 
 fn build_service(
     n: usize,
@@ -39,11 +50,7 @@ fn build_service(
     let file = Resource::new_file("/tmp/bench".to_string());
     let process_mock = Resource::new_process_mock(1);
 
-    let refs: HashSet<LocalizedResource> = (0..n)
-        .map(|i| {
-            LocalizedResource::new(node_id.clone(), Resource::new_file(format!("/tmp/ref_{i}")))
-        })
-        .collect();
+    let refs = build_refs(&node_id, n);
     provenance.set_references(file.clone(), refs);
 
     P2mApiService::new(
@@ -114,25 +121,15 @@ fn build_distributed_services(
     // Build remote nodes (10.0.0.2 .. 10.0.0.{num_nodes+1}), each handling CheckSourceCompliance
     let remote_ips: Vec<String> = (2..=num_nodes + 1).map(|i| format!("10.0.0.{i}")).collect();
 
-    // Collect 10 provenance refs per remote node
     let refs: HashSet<LocalizedResource> = remote_ips
         .iter()
-        .flat_map(|ip| {
-            (0..TOTAL_DISTRIBUTED_REFS / num_nodes)
-                .map(|i| {
-                    LocalizedResource::new(
-                        ip.clone(),
-                        Resource::new_file(format!("/tmp/{ip}/ref_{i}")),
-                    )
-                })
-                .collect::<Vec<_>>()
-        })
+        .flat_map(|ip| build_refs(ip, TOTAL_DISTRIBUTED_REFS / num_nodes))
         .collect();
 
     // Build node 1 (local) — this is the one we benchmark
     let seq1 = WaitingQueueService::new(SequencerService::default(), None);
     let prov1 = ProvenanceService::new(node1.clone());
-    let consent1 = ConsentService::new(0);
+    let consent1 = ConsentService::default();
     let comp1 = ComplianceService::new(node1.clone(), consent1);
 
     // Use a stream whose peer is on 10.0.0.2 (arbitrary — the compliance routing
@@ -154,7 +151,7 @@ fn build_distributed_services(
         for ip in &remote_ips {
             let seq = WaitingQueueService::new(SequencerService::default(), None);
             let prov = ProvenanceService::new(ip.clone());
-            let consent = ConsentService::new(0);
+            let consent = ConsentService::default();
             let comp = ComplianceService::new(ip.clone(), consent);
             m2m.register_middleware(ip.clone(), M2mApiService::new(seq, prov, comp)).await;
         }
@@ -197,8 +194,21 @@ fn grpc_local(c: &mut Criterion) {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     let addr: std::net::SocketAddr = "127.0.0.1:18753".parse().unwrap();
+    let node_id = "127.0.0.1".to_string();
+    let file = Resource::new_file("/tmp/bench".to_string());
 
-    let (_, p2m_service, _) = init_middleware("127.0.0.1".to_string(), None, 0, M2mNop, false);
+    let seq = WaitingQueueService::new(SequencerService::default(), None);
+    let prov = ProvenanceService::new(node_id.clone());
+    let comp = ComplianceService::new(node_id.clone(), ConsentService::default());
+
+    prov.set_references(file.clone(), build_refs(&node_id, GRPC_REF_COUNT));
+
+    let p2m_service = P2mApiService::new(seq, prov, comp, M2mNop).with_enrolled_resource(
+        1,
+        3,
+        Resource::new_process_mock(1),
+        file,
+    );
 
     rt.spawn(async move {
         Server::builder()
@@ -211,16 +221,9 @@ fn grpc_local(c: &mut Criterion) {
     // Give the server a moment to start
     std::thread::sleep(std::time::Duration::from_millis(100));
 
-    // Connect client and enroll a local file
+    // Connect client
     let mut client: proto::p2m_client::P2mClient<_> =
         rt.block_on(proto::p2m_client::P2mClient::connect(format!("http://{addr}"))).unwrap();
-
-    rt.block_on(client.p2m_local_enroll(tonic::Request::new(proto::messages::LocalCt {
-        process_id: 1,
-        file_descriptor: 3,
-        path: "/tmp/bench".to_string(),
-    })))
-    .unwrap();
 
     let mut group = c.benchmark_group("grpc_local");
     group.bench_function("io", |b| {
@@ -260,25 +263,22 @@ fn grpc_distributed(c: &mut Criterion) {
 
     // Node1 (127.0.0.1): receives P2M I/O, triggers M2M call to node2
     let node1_socket: std::net::SocketAddr = "127.0.0.1:50051".parse().unwrap();
-    let file1 = Resource::new_file("/tmp/bench".to_string());
-    let file2 = Resource::new_file("/tmp/bench2".to_string());
+    let file = Resource::new_file("/tmp/bench".to_string());
     let process_mock = Resource::new_process_mock(1);
 
-    let seq1 = WaitingQueueService::new(SequencerService::default(), None);
-    let prov1 = ProvenanceService::new(node1_socket.ip().to_string());
-    let comp1 = ComplianceService::new(node1_socket.ip().to_string(), ConsentService::default());
+    let seq = WaitingQueueService::new(SequencerService::default(), None);
+    let prov = ProvenanceService::new(node1_socket.ip().to_string());
+    let comp = ComplianceService::new(node1_socket.ip().to_string(), ConsentService::default());
 
-    // File1's provenance includes a ref on node2
-    let refs: HashSet<LocalizedResource> =
-        [LocalizedResource::new(node2_socket.ip().to_string(), file2)].into();
-    prov1.set_references(file1.clone(), refs);
+    // File's provenance from node2
+    prov.set_references(file.clone(), build_refs(&node2_socket.ip().to_string(), GRPC_REF_COUNT));
 
-    let m2m = M2mApiService::new(seq1.clone(), prov1.clone(), comp1.clone());
-    let p2m1 = P2mApiService::new(seq1, prov1, comp1, M2mGrpc::mock()).with_enrolled_resource(
+    let m2m = M2mApiService::new(seq.clone(), prov.clone(), comp.clone());
+    let p2m1 = P2mApiService::new(seq, prov, comp, M2mGrpc::mock()).with_enrolled_resource(
         1,
         3,
         process_mock,
-        file1,
+        file,
     );
 
     rt.spawn(async move {
