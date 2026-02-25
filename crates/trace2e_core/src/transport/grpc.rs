@@ -121,9 +121,15 @@ impl From<TraceabilityError> for Status {
 pub struct M2mGrpc {
     /// Cache of established gRPC client connections indexed by remote IP address.
     connected_remotes: Arc<DashMap<String, proto::m2m_client::M2mClient<Channel>>>,
+    /// Mock mode flag for local integation testing
+    mock_mode: bool,
 }
 
 impl M2mGrpc {
+    pub fn mock() -> Self {
+        Self { mock_mode: true, connected_remotes: Arc::new(DashMap::new()) }
+    }
+
     /// Establishes a new gRPC connection to a remote middleware instance.
     ///
     /// Creates a new client connection to the specified remote IP address
@@ -191,9 +197,11 @@ impl M2mGrpc {
         &self,
         remote_ip: String,
     ) -> Result<proto::m2m_client::M2mClient<Channel>, TraceabilityError> {
-        match self.get_client(remote_ip.clone()).await {
+        // if in mock mode, override remote_ip to localhost for testing
+        let ip = if self.mock_mode { "127.0.0.1".to_string() } else { remote_ip };
+        match self.get_client(ip.clone()).await {
             Some(client) => Ok(client),
-            None => self.connect_remote(remote_ip).await,
+            None => self.connect_remote(ip).await,
         }
     }
 }
