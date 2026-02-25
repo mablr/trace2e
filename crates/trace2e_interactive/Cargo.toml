@@ -8,18 +8,20 @@ repository.workspace = true
 [[bin]]
 name = "e2e-proc"
 path = "src/bin/interactive.rs"
+required-features = ["trace2e"]
 
 [[bin]]
 name = "e2e-op"
 path = "src/bin/operator.rs"
+required-features = ["trace2e"]
 
 [[bin]]
 name = "std-proc"
-path = "src/bin/interactive.rs"
+path = "src/bin/std_interactive.rs"
 
 [[bin]]
 name = "std-op"
-path = "src/bin/operator.rs"
+path = "src/bin/std_operator.rs"
 
 [dependencies]
 stde2e = { path = "../stde2e", optional = true }

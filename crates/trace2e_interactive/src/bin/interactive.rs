@@ -1,23 +1,23 @@
-//! CLI entry point for trace2e_proc
-//!
-//! Supports two execution modes:
-//! - Interactive: Read commands from stdin line-by-line
-//! - Batch: Read commands from a file
-//!
-//! # Examples
-//!
-//! Interactive mode:
-//! ```bash
-//! ./e2e-proc
-//! > OPEN file:///tmp/test.txt
-//! > READ file:///tmp/test.txt
-//! > ^D
-//! ```
-//!
-//! Batch mode:
-//! ```bash
-//! ./e2e-proc --playbook scenario.trace2e
-//! ```
+// CLI entry point for trace2e_proc
+//
+// Supports two execution modes:
+// - Interactive: Read commands from stdin line-by-line
+// - Batch: Read commands from a file
+//
+// # Examples
+//
+// Interactive mode:
+// ```bash
+// ./e2e-proc
+// > OPEN file:///tmp/test.txt
+// > READ file:///tmp/test.txt
+// > ^D
+// ```
+//
+// Batch mode:
+// ```bash
+// ./e2e-proc --playbook scenario.trace2e
+// ```
 
 use clap::Parser;
 use std::convert::TryFrom;

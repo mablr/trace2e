@@ -1,31 +1,31 @@
-//! CLI tool for interacting with the trace2e O2M (Operator-to-Middleware) API
-//!
-//! This tool allows operators to manage compliance policies, consent, and provenance queries.
-//!
-//! # Examples
-//!
-//! Get policies for resources:
-//! ```bash
-//! trace2e-operator get-policies "file:///path/to/file" "stream://127.0.0.1:8080::192.168.1.1:9000"
-//! ```
-//!
-//! Set policy:
-//! ```bash
-//! trace2e-operator set-policy "file:///path/to/file" --confidentiality 1 --integrity 1
-//! ```
-//!
-//! Enforce consent and stream notifications:
-//! ```bash
-//! trace2e-operator enforce-consent "file:///data.txt"
-//! ```
-//!
-//! Set consent decision (in another terminal):
-//! ```bash
-//! trace2e-operator set-consent-decision \
-//!   --source "file:///data.txt" \
-//!   --destination "node1" \
-//!   --grant
-//! ```
+// CLI tool for interacting with the trace2e O2M (Operator-to-Middleware) API
+//
+// This tool allows operators to manage compliance policies, consent, and provenance queries.
+//
+// # Examples
+//
+// Get policies for resources:
+// ```bash
+// trace2e-operator get-policies "file:///path/to/file" "stream://127.0.0.1:8080::192.168.1.1:9000"
+// ```
+//
+// Set policy:
+// ```bash
+// trace2e-operator set-policy "file:///path/to/file" --confidentiality 1 --integrity 1
+// ```
+//
+// Enforce consent and stream notifications:
+// ```bash
+// trace2e-operator enforce-consent "file:///data.txt"
+// ```
+//
+// Set consent decision (in another terminal):
+// ```bash
+// trace2e-operator set-consent-decision \
+//   --source "file:///data.txt" \
+//   --destination "node1" \
+//   --grant
+// ```
 
 use anyhow::{Result, anyhow};
 use clap::{Parser, Subcommand};
