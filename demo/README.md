@@ -39,8 +39,12 @@ across 3 containerized nodes representing a realistic job application scenario.
 # Stop demo
 ./demo/run_demo.sh stop
 
-# Cleanup everything
-./demo/run_demo.sh clean
+# Restart demo to reset state
+./demo/run_demo.sh restart
+
+# Rebuild containers
+# (if modifications were made to TracE2E codebase, or Dockerfiles)
+./demo/run_demo.sh rebuild
 ```
 
 ## Scenarios
@@ -65,7 +69,6 @@ Demonstrates basic cross-node data flow with provenance tracking.
 Demonstrates consent enforcement for third-party data sharing.
 
 ```bash
-./demo/run_demo.sh scenario1
 ./demo/run_demo.sh scenario2
 ```
 
@@ -82,7 +85,6 @@ Demonstrates consent enforcement for third-party data sharing.
 Demonstrates deletion broadcast and enforcement across all nodes.
 
 ```bash
-./demo/run_demo.sh scenario1
 ./demo/run_demo.sh scenario3
 ```
 

@@ -18,7 +18,6 @@ Commands:
   scenario2   - Run Scenario 2 (User consents to CV forwarding)
   scenario3   - Run Scenario 3 (User deletes CV, cascade)
   benchmark0  - Run Benchmark 0 (RTT test)
-  clean       - Stop and remove all containers and volumes
 EOF
 }
 
