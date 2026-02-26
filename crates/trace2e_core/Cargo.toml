@@ -36,5 +36,9 @@ deletion_enforcement = []
 name = "trace2e"
 harness = false
 
+[[bench]]
+name = "stdio"
+harness = false
+
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tarpaulin_include)'] }
