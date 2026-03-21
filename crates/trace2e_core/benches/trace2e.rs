@@ -28,7 +28,7 @@ use trace2e_core::{
     },
 };
 
-const PROVENANCE_SIZES: [usize; 4] = [1, 10, 100, 1000];
+const PROVENANCE_SIZES: [usize; 5] = [0, 25, 50, 75, 100];
 const GRPC_REF_COUNT: usize = 100;
 
 fn build_refs(node_id: &str, count: usize) -> HashSet<LocalizedResource> {
